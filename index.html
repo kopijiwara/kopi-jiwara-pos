@@ -795,6 +795,7 @@
     const STORAGE_KEY = 'kopi_jiwara_erp_v6';
     const SESSION_KEY = 'kopi_jiwara_session_v1';
     const ORDER_TYPES = ['Meja', 'Bungkus', 'GoFood', 'GrabFood', 'ShopeeFood'];
+    const PAYMENT_METHODS = ['Cash', 'QRIS', 'Transfer', 'Online Food'];
     const DEFAULT_MENU_CATEGORIES = [
       'Favorit',
       'Kopi Jiwara',
@@ -923,6 +924,10 @@
         attendanceLogs: [
           { id: 'ATT-1', date: todayIso.slice(0, 10), staffName: 'Aldi', clockIn: '08:00', clockOut: '', wage: 100000, status: 'Hadir' }
         ],
+        customers: [
+          { id: 'CRM-01', name: 'Nadia Putri', phone: '081234567890', tier: 'Gold Member', totalVisits: 4, totalSpent: 216000, lastVisit: todayIso, notes: 'Suka Kopi Susu Gula Aren less ice', specialVoucher: 'JIWARA10' },
+          { id: 'CRM-02', name: 'Dimas Saputra', phone: '085711223344', tier: 'Regular', totalVisits: 2, totalSpent: 92000, lastVisit: todayIso, notes: 'Sering pesan paket makan siang', specialVoucher: 'HEMAT5K' }
+        ],
         shiftClosings: []
       };
     }
@@ -940,8 +945,12 @@
     let cart = [];
     let cartOrderType = 'Meja';
     let cartCustomer = '';
+    let cartCustomerPhone = '';
     let cartPromoCode = '';
+    let cartManualDiscount = 0;
     let editingOpenOrderId = null;
+    let crmSearch = '';
+    let crmTierFilter = 'ALL';
 
     let cashierSalesDate = new Date().toISOString().slice(0, 10);
     let cashierSalesMethod = 'ALL';
@@ -1139,7 +1148,7 @@
   var shSell = getOrMakeSheet('POS_Selling_Product', ['Tanggal','ID_Nota','Brand','SKU','Nama_Produk','Qty','Harga','Total_Penjualan']);
   var shFin = getOrMakeSheet('FINANCE_CASH', ['Tanggal','Tipe','Debit','Kredit','Nomor_Nota','Keterangan','PIC']);
   var shCash = getOrMakeSheet('POS_Cashflow', ['Tanggal','Debit','Kredit','Nomor_Nota','Keterangan','Metode']);
-  var shClose = getOrMakeSheet('POS_Tutup_Kasir', ['Tanggal','Kasir','Modal_Awal','Sales_Cash','Sales_QRIS','Sales_Transfer','Total_Sales','Kas_Fisik','Selisih']);
+  var shClose = getOrMakeSheet('POS_Tutup_Kasir', ['Tanggal','Kasir','Modal_Awal','Sales_Cash','Sales_QRIS','Sales_Transfer','Sales_OnlineFood','Total_Sales','Kas_Fisik','Selisih']);
   var shMenu = getOrMakeSheet('MASTER_MENU', ['ID','SKU','Nama_Menu','Kategori','Harga_Jual','HPP','Satuan','Stok']);
   var shGudang = getOrMakeSheet('GUDANG_STOK', ['ID','SKU','Nama_Bahan','Kategori','Stok_Sistem','Min_Stok','Satuan']);
   var shAbsen = getOrMakeSheet('KARYAWAN_ABSENSI', ['ID','Tanggal','Nama_Pegawai','Clock_In','Clock_Out','Upah_Harian','Status']);
@@ -1160,7 +1169,7 @@
     shFin.appendRow([p.date.slice(0,10), p.type, debit, kredit, p.id, p.note, p.cashier]);
     shCash.appendRow([p.date.slice(0,10), debit, kredit, p.id, p.note, 'Cash Laci']);
   } else if (type === 'CLOSE_SHIFT') {
-    shClose.appendRow([p.closedAt, p.cashier, p.openingCash, p.cashSales, p.qrisSales, p.transferSales, p.totalSales, p.actualCash, p.diff]);
+    shClose.appendRow([p.closedAt, p.cashier, p.openingCash, p.cashSales, p.qrisSales, p.transferSales, p.onlineFoodSales || 0, p.totalSales, p.actualCash, p.diff]);
   } else if (type === 'ATTENDANCE') {
     shAbsen.appendRow([p.id, p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage, p.status]);
   } else if (type === 'FULL_MASTER_SYNC') {
@@ -1297,6 +1306,7 @@
             { id: 'kasir_owner', label: 'Kasir' },
             { id: 'penjualan', label: 'Penjualan' },
             { id: 'laporan', label: 'Laporan' },
+            { id: 'pelanggan', label: 'Pelanggan' },
             { id: 'inventori', label: 'Inventori' },
             { id: 'pengaturan', label: 'Pengaturan' }
           ];
@@ -1321,6 +1331,7 @@
         }
         if (currentTab === 'penjualan') renderOwnerSalesTab(main);
         else if (currentTab === 'laporan') renderOwnerReportsTab(main);
+        else if (currentTab === 'pelanggan') renderOwnerCRMTab(main);
         else if (currentTab === 'inventori') renderOwnerInventoryTab(main);
         else if (currentTab === 'pengaturan') renderOwnerSettingsTab(main);
       }
@@ -1342,6 +1353,53 @@
     }
 
     // ==================== 1. CASHIER POS + SPLIT BILL ====================
+    function openCashierShift() {
+      const cash = parseDigits(document.getElementById('openShiftCashInput')?.value || 0);
+      db.shift = {
+        isOpen: true,
+        cashierName: currentUser.name,
+        openedAt: new Date().toISOString(),
+        openingCash: cash
+      };
+      saveDB();
+      renderWorkspace();
+      showToast(`Shift dibuka dengan modal awal ${rp(cash)}`);
+    }
+
+    function getCartTotals() {
+      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const activePromos = db.promos.filter(pr => isPromoValidToday(pr));
+      const isManualPromo = cartPromoCode === '__MANUAL__';
+      const promo = !isManualPromo ? activePromos.find(pr => pr.code === cartPromoCode) : null;
+      const discount = isManualPromo
+        ? Math.min(subtotal, Math.max(0, Number(cartManualDiscount) || 0))
+        : (promo ? (promo.type === 'percent' ? Math.round(subtotal * promo.value / 100) : Math.min(subtotal, promo.value)) : 0);
+      const grandTotal = Math.max(0, subtotal - discount);
+      return { subtotal, discount, grandTotal, isManualPromo, promo };
+    }
+
+    function buildCartSummaryHTML() {
+      const { subtotal, discount, grandTotal, isManualPromo, promo } = getCartTotals();
+      return `
+        <div style="font-size:12px;display:grid;gap:4px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><strong>${rp(subtotal)}</strong></div>
+          ${discount > 0 ? `<div style="display:flex;justify-content:space-between;color:#BE185D;"><span>${isManualPromo ? 'Potongan Promo Online/Manual' : 'Diskon Promo (' + esc(promo.code) + ')'}</span><strong>-${rp(discount)}</strong></div>` : ''}
+          <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;padding-top:6px;border-top:1.5px solid var(--green-deep);">
+            <span>Total Tagihan</span>
+            <span>${rp(grandTotal)}</span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>Simpan Open Order</button>
+          <button class="btn btn-pink" onclick="openSplitBillModal()" ${cart.length === 0 ? 'disabled' : ''}>Split Bill / Pisah</button>
+        </div>
+        <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:14px;" onclick="openCheckoutModal(${grandTotal}, ${subtotal}, ${discount})" ${cart.length === 0 ? 'disabled' : ''}>
+          Bayar Sekarang (${rp(grandTotal)})
+        </button>
+      `;
+    }
+
     function renderCashierPOS(container) {
       if (!db.shift.isOpen) {
         container.innerHTML = `
@@ -1367,10 +1425,8 @@
         return q ? matchQ : matchCat;
       });
 
-      const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-      const promo = db.promos.find(pr => isPromoValidToday(pr) && pr.code.toLowerCase() === cartPromoCode.trim().toLowerCase());
-      const discount = promo ? (promo.type === 'percent' ? Math.round(subtotal * promo.value / 100) : Math.min(subtotal, promo.value)) : 0;
-      const grandTotal = Math.max(0, subtotal - discount);
+      const activePromos = db.promos.filter(pr => isPromoValidToday(pr));
+      const isManualPromo = cartPromoCode === '__MANUAL__';
 
       container.innerHTML = `
         <div class="pos-layout">
@@ -1405,28 +1461,28 @@
               </div>
             ` : `
               <div style="margin-bottom:10px;">
-                <input type="text" class="styled-input" placeholder="Cari nama menu atau kode SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
+                <input type="text" class="styled-input" placeholder="Cari nama menu atau SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
               </div>
 
               <div class="cat-strip no-scroll" style="margin-bottom:12px;">
-                ${db.categories.map(c => `
-                  <button class="cat-chip ${selectedCategory === c ? 'active' : ''}" onclick="selectedCategory='${esc(c)}';productSearch='';renderCashierPOS(document.getElementById('mainContentArea'))">${esc(c)}</button>
+                ${db.categories.map(cat => `
+                  <button class="cat-chip ${selectedCategory === cat ? 'active' : ''}" onclick="selectedCategory='${esc(cat)}';productSearch='';renderCashierPOS(document.getElementById('mainContentArea'))">${esc(cat)}</button>
                 `).join('')}
               </div>
 
               <div class="prod-grid">
-                ${filteredProds.map(p => {
+                ${filteredProds.length === 0 ? `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Menu tidak ditemukan.</div>` : filteredProds.map(p => {
                   const inCart = cart.find(c => c.id === p.id);
                   return `
                     <button type="button" class="prod-card ${inCart ? 'in-cart' : ''}" onclick="addToCart('${esc(p.id)}')">
                       ${inCart ? `<span class="qty-badge">${inCart.qty}x</span>` : ''}
                       <div>
-                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);">${esc(p.sku)} • ${esc(p.category)}</div>
-                        <div style="font-size:13px;font-weight:800;color:var(--green-deep);margin-top:4px;line-height:1.25;">${esc(p.name)}</div>
+                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);margin-bottom:3px;">${esc(p.category)}</div>
+                        <div style="font-size:13px;font-weight:900;color:var(--green-deep);line-height:1.25;">${esc(p.name)}</div>
                       </div>
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
-                        <span style="font-size:13px;font-weight:900;color:var(--green-deep);">${rp(p.price)}</span>
-                        <span class="badge-pill badge-green">${esc(p.unit)}</span>
+                      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+                        <strong style="font-size:13px;color:var(--green-mid);">${rp(p.price)}</strong>
+                        <span style="font-size:10px;color:var(--text-muted);">${esc(p.unit)}</span>
                       </div>
                     </button>
                   `;
@@ -1435,84 +1491,115 @@
             `}
           </div>
 
-          <div class="bento-card" style="position:sticky;top:86px;">
+          <div class="bento-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
               <h3 style="margin:0;font-size:16px;">Keranjang Pesanan</h3>
-              ${cart.length > 0 ? `<button class="btn btn-danger btn-sm" onclick="clearCart()">Kosongkan</button>` : ''}
+              ${cart.length > 0 ? `<button type="button" class="btn btn-danger btn-sm" onclick="clearCart()">Kosongkan</button>` : ''}
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-bottom:8px;">
               <div>
                 <label class="field-label">Jenis Order</label>
-                <select class="styled-select" style="padding:9px 11px;font-size:12px;" onchange="cartOrderType=this.value">
+                <select class="styled-select" style="padding:8px 10px;font-size:12px;" onchange="cartOrderType=this.value">
                   ${ORDER_TYPES.map(ot => `<option value="${esc(ot)}" ${cartOrderType === ot ? 'selected' : ''}>${esc(ot)}</option>`).join('')}
                 </select>
               </div>
               <div>
                 <label class="field-label">Nama / No. Meja</label>
-                <input type="text" class="styled-input" style="padding:9px 11px;font-size:12px;" placeholder="Meja 01 / Nama..." value="${esc(cartCustomer)}" oninput="cartCustomer=this.value" />
+                <input type="text" list="crmNameList" class="styled-input" style="padding:8px 10px;font-size:12px;" placeholder="Meja 01 / Nama..." value="${esc(cartCustomer)}" oninput="handleCartCustomerInput(this.value)" />
+                <datalist id="crmNameList">
+                  ${(db.customers || []).map(c => `<option value="${esc(c.name)}">${esc(c.phone || '')}</option>`).join('')}
+                </datalist>
               </div>
             </div>
+            <div style="margin-bottom:10px;">
+              <label class="field-label">No. Telepon / WhatsApp (Data CRM)</label>
+              <input id="cartPhoneInput" type="tel" inputmode="tel" list="crmPhoneList" class="styled-input" style="padding:8px 10px;font-size:12px;" placeholder="0812xxxxxxxx (Opsional - Simpan ke Database CRM)" value="${esc(cartCustomerPhone)}" oninput="handleCartPhoneInput(this.value)" />
+              <datalist id="crmPhoneList">
+                ${(db.customers || []).filter(c => c.phone).map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('')}
+              </datalist>
+            </div>
 
-            <div style="max-height:240px;overflow-y:auto;border-top:1px solid var(--border-glass);border-bottom:1px solid var(--border-glass);padding:8px 0;margin-bottom:10px;">
-              ${cart.length === 0 ? `
-                <div style="text-align:center;padding:24px 10px;color:var(--text-muted);font-size:12px;">Belum ada item dipilih. Ketuk menu di samping untuk menambahkan.</div>
-              ` : cart.map(item => `
+            <div style="border-top:1px solid var(--border-glass);border-bottom:1px solid var(--border-glass);padding:8px 0;margin-bottom:10px;max-height:260px;overflow-y:auto;">
+              ${cart.length === 0 ? `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:24px 0;">Pilih menu di sebelah kiri untuk mulai transaksi.</div>` : cart.map(item => `
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border-glass);">
                   <div style="min-width:0;flex:1;">
-                    <div style="font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(item.name)}</div>
+                    <div style="font-size:12px;font-weight:900;color:var(--green-deep);">${esc(item.name)}</div>
                     <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} x ${item.qty} = <strong>${rp(item.price * item.qty)}</strong></div>
                   </div>
                   <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                    <button class="btn btn-soft btn-sm" style="padding:5px 9px;" onclick="updateCartQty('${esc(item.id)}', -1)">-</button>
+                    <button type="button" class="btn btn-soft btn-sm" style="padding:4px 9px;" onclick="updateCartQty('${esc(item.id)}', -1)">-</button>
                     <span style="font-size:12px;font-weight:900;min-width:18px;text-align:center;">${item.qty}</span>
-                    <button class="btn btn-dark btn-sm" style="padding:5px 9px;" onclick="updateCartQty('${esc(item.id)}', 1)">+</button>
+                    <button type="button" class="btn btn-dark btn-sm" style="padding:4px 9px;" onclick="updateCartQty('${esc(item.id)}', 1)">+</button>
                   </div>
                 </div>
               `).join('')}
             </div>
 
-            <div style="display:flex;gap:6px;margin-bottom:10px;">
-              <input type="text" class="styled-input" style="padding:8px 11px;font-size:12px;" placeholder="Kode Promo (JIWARA10 / HEMAT5K)" value="${esc(cartPromoCode)}" oninput="cartPromoCode=this.value" />
-              <button class="btn btn-soft btn-sm" onclick="renderCashierPOS(document.getElementById('mainContentArea'))">Pakai</button>
+            <div style="margin-bottom:10px;">
+              <label class="field-label">Promo & Potongan Diskon</label>
+              <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="handleCartPromoSelect(this.value)">
+                <option value="" ${cartPromoCode === '' ? 'selected' : ''}>Tanpa Promo / Diskon</option>
+                ${activePromos.map(pr => `
+                  <option value="${esc(pr.code)}" ${cartPromoCode === pr.code ? 'selected' : ''}>
+                    ${esc(pr.code)} — ${esc(pr.name)} (${pr.type === 'percent' ? pr.value + '%' : rp(pr.value)})
+                  </option>
+                `).join('')}
+                <option value="__MANUAL__" ${isManualPromo ? 'selected' : ''}>Potongan Manual (Promo Online / Custom Rp)</option>
+              </select>
+              ${isManualPromo ? `
+                <div style="margin-top:6px;">
+                  <input id="manualPromoInput" type="text" inputmode="numeric" class="styled-input" style="padding:8px 11px;font-size:13px;" placeholder="Ketik nominal potongan (contoh: 15.000)..." value="${cartManualDiscount > 0 ? formatDigits(cartManualDiscount) : ''}" oninput="handleManualDiscountInput(this)" />
+                  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">
+                    <button type="button" class="btn btn-soft btn-sm" onclick="setQuickManualDiscount(5000)">Rp 5.000</button>
+                    <button type="button" class="btn btn-soft btn-sm" onclick="setQuickManualDiscount(10000)">Rp 10.000</button>
+                    <button type="button" class="btn btn-soft btn-sm" onclick="setQuickManualDiscount(15000)">Rp 15.000</button>
+                    <button type="button" class="btn btn-soft btn-sm" onclick="setQuickManualDiscount(20000)">Rp 20.000</button>
+                    <button type="button" class="btn btn-pink btn-sm" onclick="setQuickManualDiscount(0)">Reset</button>
+                  </div>
+                </div>
+              ` : ''}
             </div>
 
-            <div style="font-size:12px;display:grid;gap:4px;margin-bottom:12px;">
-              <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><strong>${rp(subtotal)}</strong></div>
-              ${discount > 0 ? `<div style="display:flex;justify-content:space-between;color:#BE185D;"><span>Diskon Promo</span><strong>-${rp(discount)}</strong></div>` : ''}
-              <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;padding-top:6px;border-top:1.5px solid var(--green-deep);">
-                <span>Total Tagihan</span>
-                <span>${rp(grandTotal)}</span>
-              </div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>Simpan Open Order</button>
-              <button class="btn btn-pink" onclick="openSplitBillModal()" ${cart.length === 0 ? 'disabled' : ''}>Split Bill / Pisah</button>
-            </div>
-            <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:14px;" onclick="openCheckoutModal(${grandTotal}, ${subtotal}, ${discount})" ${cart.length === 0 ? 'disabled' : ''}>
-              Bayar Sekarang (${rp(grandTotal)})
-            </button>
+            <div id="cartSummarySection">${buildCartSummaryHTML()}</div>
           </div>
         </div>
       `;
     }
 
-    function openCashierShift() {
-      const cash = parseDigits(document.getElementById('openShiftCashInput').value);
-      db.shift = { isOpen: true, cashierName: currentUser.name, openedAt: new Date().toISOString(), openingCash: cash };
-      saveDB();
-      renderWorkspace();
-      showToast(`Shift dibuka dengan modal awal ${rp(cash)}`);
+    function addToCart(prodId) {
+      const prod = db.products.find(p => p.id === prodId);
+      if (!prod) return;
+      const existing = cart.find(c => c.id === prodId);
+      if (existing) existing.qty += 1;
+      else cart.push({ id: prod.id, sku: prod.sku, name: prod.name, category: prod.category, price: prod.price, cost: prod.cost || 0, qty: 1 });
+      renderCashierPOS(document.getElementById('mainContentArea'));
     }
 
-    function addToCart(prodId) {
-      const p = db.products.find(x => x.id === prodId);
-      if (!p) return;
-      const ex = cart.find(c => c.id === prodId);
-      if (ex) ex.qty += 1;
-      else cart.push({ id: p.id, sku: p.sku, name: p.name, category: p.category, price: p.price, cost: p.cost || 0, qty: 1 });
+    function handleCartPromoSelect(val) {
+      cartPromoCode = val;
+      if (val !== '__MANUAL__') cartManualDiscount = 0;
       renderCashierPOS(document.getElementById('mainContentArea'));
+      if (val === '__MANUAL__') {
+        const inp = document.getElementById('manualPromoInput');
+        if (inp) inp.focus();
+      }
+    }
+
+    function handleManualDiscountInput(el) {
+      const rawDigits = el.value.replace(/\D/g, '');
+      cartManualDiscount = Number(rawDigits) || 0;
+      el.value = rawDigits ? formatDigits(rawDigits) : '';
+      const summaryEl = document.getElementById('cartSummarySection');
+      if (summaryEl) summaryEl.innerHTML = buildCartSummaryHTML();
+    }
+
+    function setQuickManualDiscount(amount) {
+      cartManualDiscount = amount;
+      const inp = document.getElementById('manualPromoInput');
+      if (inp) inp.value = amount > 0 ? formatDigits(amount) : '';
+      const summaryEl = document.getElementById('cartSummarySection');
+      if (summaryEl) summaryEl.innerHTML = buildCartSummaryHTML();
     }
 
     function updateCartQty(prodId, delta) {
@@ -1527,8 +1614,76 @@
       cart = [];
       editingOpenOrderId = null;
       cartCustomer = '';
+      cartCustomerPhone = '';
       cartPromoCode = '';
+      cartManualDiscount = 0;
       renderCashierPOS(document.getElementById('mainContentArea'));
+    }
+
+    function handleCartCustomerInput(val) {
+      cartCustomer = val;
+      const found = (db.customers || []).find(c => c.name.toLowerCase() === val.trim().toLowerCase());
+      if (found && found.phone && !cartCustomerPhone) {
+        cartCustomerPhone = found.phone;
+        const pInp = document.getElementById('cartPhoneInput');
+        if (pInp) pInp.value = found.phone;
+      }
+    }
+
+    function handleCartPhoneInput(val) {
+      cartCustomerPhone = val;
+      const clean = val.replace(/\D/g, '');
+      if (clean.length >= 9) {
+        const found = (db.customers || []).find(c => (c.phone || '').replace(/\D/g, '') === clean);
+        if (found) {
+          if (!cartCustomer.trim()) {
+            cartCustomer = found.name;
+            renderCashierPOS(document.getElementById('mainContentArea'));
+          }
+          if (found.specialVoucher && !cartPromoCode) {
+            const validPromo = db.promos.find(pr => pr.code === found.specialVoucher && isPromoValidToday(pr));
+            if (validPromo) {
+              cartPromoCode = validPromo.code;
+              renderCashierPOS(document.getElementById('mainContentArea'));
+              showToast(`Voucher CRM ${validPromo.code} milik ${found.name} otomatis terdeteksi!`);
+            }
+          }
+        }
+      }
+    }
+
+    function upsertCRMCustomerFromOrder(name, phone, orderTotal, promoUsed) {
+      const cleanName = String(name || '').trim();
+      const cleanPhone = String(phone || '').trim();
+      if (!cleanPhone && (!cleanName || cleanName === 'Walk-in' || cleanName === 'Split Bill')) return;
+      if (!db.customers) db.customers = [];
+
+      const digits = cleanPhone.replace(/\D/g, '');
+      let existing = digits
+        ? db.customers.find(c => (c.phone || '').replace(/\D/g, '') === digits)
+        : db.customers.find(c => c.name.toLowerCase() === cleanName.toLowerCase());
+
+      if (existing) {
+        if (cleanName && cleanName !== 'Walk-in') existing.name = cleanName;
+        if (cleanPhone) existing.phone = cleanPhone;
+        existing.totalVisits = (Number(existing.totalVisits) || 0) + 1;
+        existing.totalSpent = (Number(existing.totalSpent) || 0) + (Number(orderTotal) || 0);
+        existing.lastVisit = new Date().toISOString();
+        if (existing.totalSpent >= 500000) existing.tier = 'VIP Member';
+        else if (existing.totalSpent >= 150000) existing.tier = 'Gold Member';
+      } else {
+        db.customers.unshift({
+          id: 'CRM-' + Math.floor(100 + Math.random() * 900),
+          name: cleanName || ('Pelanggan ' + cleanPhone),
+          phone: cleanPhone,
+          tier: orderTotal >= 150000 ? 'Gold Member' : 'Regular',
+          totalVisits: 1,
+          totalSpent: Number(orderTotal) || 0,
+          lastVisit: new Date().toISOString(),
+          notes: promoUsed ? `Menggunakan promo ${promoUsed}` : 'Pelanggan POS',
+          specialVoucher: ''
+        });
+      }
     }
 
     function saveAsOpenOrder() {
@@ -1538,7 +1693,9 @@
       const trxId = editingOpenOrderId || ('ORD-' + Math.floor(1000 + Math.random() * 9000));
       const orderObj = {
         id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
-        customer: cartCustomer.trim() || 'Pelanggan ' + trxId, cashier: currentUser.name,
+        customer: cartCustomer.trim() || 'Pelanggan ' + trxId,
+        customerPhone: cartCustomerPhone.trim(),
+        cashier: currentUser.name,
         status: 'OPEN', paymentMethod: 'OPEN', subtotal, discount: 0, total: subtotal, costTotal,
         cashPaid: 0, change: 0, items: JSON.parse(JSON.stringify(cart))
       };
@@ -1556,6 +1713,7 @@
       cart = JSON.parse(JSON.stringify(ord.items));
       cartOrderType = ord.orderType;
       cartCustomer = ord.customer;
+      cartCustomerPhone = ord.customerPhone || '';
       editingOpenOrderId = ord.id;
       posSubTab = 'menu';
       renderCashierPOS(document.getElementById('mainContentArea'));
@@ -1652,7 +1810,8 @@
 
     function openCheckoutModal(total, subtotal, discount, isSplit = false) {
       if (!isSplit) pendingSplitContext = null;
-      checkoutMethod = 'Cash';
+      const isOnlineOrder = ['GoFood', 'GrabFood', 'ShopeeFood'].includes(cartOrderType);
+      checkoutMethod = isOnlineOrder ? 'Online Food' : 'Cash';
       const roundUp = Math.ceil(total / 10000) * 10000;
       openModal(`
         <div class="modal-head">
@@ -1664,13 +1823,14 @@
         </div>
 
         <label class="field-label">Pilihan Metode Pembayaran</label>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
-          <button type="button" id="payOptCash" class="btn btn-dark" onclick="selectCheckoutMethod('Cash', ${total})">Cash</button>
-          <button type="button" id="payOptQRIS" class="btn btn-soft" onclick="selectCheckoutMethod('QRIS', ${total})">QRIS</button>
-          <button type="button" id="payOptTransfer" class="btn btn-soft" onclick="selectCheckoutMethod('Transfer', ${total})">Transfer</button>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
+          <button type="button" id="payOptCash" class="btn ${checkoutMethod === 'Cash' ? 'btn-dark' : 'btn-soft'}" onclick="selectCheckoutMethod('Cash', ${total})">Cash</button>
+          <button type="button" id="payOptQRIS" class="btn ${checkoutMethod === 'QRIS' ? 'btn-dark' : 'btn-soft'}" onclick="selectCheckoutMethod('QRIS', ${total})">QRIS</button>
+          <button type="button" id="payOptTransfer" class="btn ${checkoutMethod === 'Transfer' ? 'btn-dark' : 'btn-soft'}" onclick="selectCheckoutMethod('Transfer', ${total})">Transfer</button>
+          <button type="button" id="payOptOnlineFood" class="btn ${checkoutMethod === 'Online Food' ? 'btn-dark' : 'btn-soft'}" onclick="selectCheckoutMethod('Online Food', ${total})">Online Food</button>
         </div>
 
-        <div id="cashInputPanel" style="background:var(--green-soft);padding:14px;border-radius:16px;margin-bottom:14px;">
+        <div id="cashInputPanel" style="display:${checkoutMethod === 'Cash' ? 'block' : 'none'};background:var(--green-soft);padding:14px;border-radius:16px;margin-bottom:14px;">
           <label class="field-label" for="cashReceivedField">Uang Cash Diterima (Rp)</label>
           <input id="cashReceivedField" type="text" inputmode="numeric" class="styled-input" style="font-size:18px;" value="${formatDigits(total)}" oninput="handleCashReceivedTyping(this, ${total})" />
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
@@ -1686,6 +1846,10 @@
           </div>
         </div>
 
+        <div id="onlineFoodNotePanel" style="display:${checkoutMethod === 'Online Food' ? 'block' : 'none'};background:#FEFCE8;border:1px solid rgba(250,204,21,0.7);padding:11px 13px;border-radius:14px;margin-bottom:14px;font-size:12px;color:var(--green-deep);font-weight:700;">
+          Pembayaran masuk otomatis melalui aplikasi Online Food (${esc(cartOrderType)}).
+        </div>
+
         <button class="btn btn-yellow" style="width:100%;padding:14px;font-size:14px;" onclick="completeCheckout(${total}, ${subtotal}, ${discount})">
           Selesaikan Pembayaran & Cetak Struk
         </button>
@@ -1694,12 +1858,20 @@
 
     function selectCheckoutMethod(method, total) {
       checkoutMethod = method;
-      ['Cash', 'QRIS', 'Transfer'].forEach(m => {
-        const el = document.getElementById('payOpt' + m);
+      const btnMap = {
+        'Cash': 'payOptCash',
+        'QRIS': 'payOptQRIS',
+        'Transfer': 'payOptTransfer',
+        'Online Food': 'payOptOnlineFood'
+      };
+      Object.entries(btnMap).forEach(([m, elId]) => {
+        const el = document.getElementById(elId);
         if (el) el.className = 'btn ' + (m === method ? 'btn-dark' : 'btn-soft');
       });
       const panel = document.getElementById('cashInputPanel');
       if (panel) panel.style.display = method === 'Cash' ? 'block' : 'none';
+      const ofPanel = document.getElementById('onlineFoodNotePanel');
+      if (ofPanel) ofPanel.style.display = method === 'Online Food' ? 'block' : 'none';
     }
 
     function handleCashReceivedTyping(inputEl, total) {
@@ -1754,13 +1926,16 @@
 
       const trx = {
         id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
-        customer: customerLabel, cashier: currentUser.name,
+        customer: customerLabel,
+        customerPhone: cartCustomerPhone.trim(),
+        cashier: currentUser.name,
         status: 'PAID', paymentMethod: checkoutMethod, subtotal, discount, total, costTotal,
         cashPaid, change, items: itemsToPay
       };
 
       db.transactions.unshift(trx);
       deductProductStock(itemsToPay);
+      upsertCRMCustomerFromOrder(cartCustomer.trim(), cartCustomerPhone.trim(), total, cartPromoCode !== '__MANUAL__' ? cartPromoCode : '');
 
       const brandMap = {};
       trx.items.forEach(it => { brandMap[it.id] = getBrandFromCategory(it.category); });
@@ -1810,10 +1985,11 @@
         <div>No: ${esc(trx.id)}</div>
         <div>Tgl: ${new Date(trx.date).toLocaleString('id-ID')}</div>
         <div>Kasir: ${esc(trx.cashier)} | ${esc(trx.orderType)}</div>
-        <div>Pelanggan: ${esc(trx.customer)}</div>
+        <div>Pelanggan: ${esc(trx.customer)}${trx.customerPhone ? ' (' + esc(trx.customerPhone) + ')' : ''}</div>
         <hr style="border-top:1px dashed #000;" />
         ${trx.items.map(i => `<div style="display:flex;justify-content:space-between;"><span>${esc(i.name)} x${i.qty}</span><span>${rp(i.price * i.qty)}</span></div>`).join('')}
         <hr style="border-top:1px dashed #000;" />
+        ${trx.discount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Diskon Promo</span><span>-${rp(trx.discount)}</span></div>` : ''}
         <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL (${esc(trx.paymentMethod)})</span><span>${rp(trx.total)}</span></div>
         ${trx.paymentMethod === 'Cash' ? `<div style="display:flex;justify-content:space-between;"><span>Bayar</span><span>${rp(trx.cashPaid)}</span></div><div style="display:flex;justify-content:space-between;"><span>Kembali</span><span>${rp(trx.change)}</span></div>` : ''}
         <hr style="border-top:1px dashed #000;" />
@@ -1853,7 +2029,7 @@
             <div class="kpi-value">${rp(totalCash)}</div>
           </div>
           <div class="kpi-tile pink">
-            <div class="kpi-label">QRIS & Transfer</div>
+            <div class="kpi-label">QRIS, Transfer & Online Food</div>
             <div class="kpi-value">${rp(totalNonCash)}</div>
           </div>
           <div class="kpi-tile yellow">
@@ -1875,6 +2051,7 @@
                 <option value="Cash" ${cashierSalesMethod === 'Cash' ? 'selected' : ''}>Cash</option>
                 <option value="QRIS" ${cashierSalesMethod === 'QRIS' ? 'selected' : ''}>QRIS</option>
                 <option value="Transfer" ${cashierSalesMethod === 'Transfer' ? 'selected' : ''}>Transfer</option>
+                <option value="Online Food" ${cashierSalesMethod === 'Online Food' ? 'selected' : ''}>Online Food</option>
               </select>
             </div>
             <div>
@@ -2048,7 +2225,7 @@
             <div class="kpi-value">${rp(paid.filter(t => t.paymentMethod === 'Cash').reduce((s, t) => s + t.total, 0))}</div>
           </div>
           <div class="kpi-tile pink">
-            <div class="kpi-label">QRIS & Transfer</div>
+            <div class="kpi-label">QRIS, Transfer & Online Food</div>
             <div class="kpi-value">${rp(paid.filter(t => t.paymentMethod !== 'Cash').reduce((s, t) => s + t.total, 0))}</div>
           </div>
         </div>
@@ -2215,7 +2392,8 @@
       const cashSales = paidTrx.filter(t => t.paymentMethod === 'Cash').reduce((s, t) => s + t.total, 0);
       const qrisSales = paidTrx.filter(t => t.paymentMethod === 'QRIS').reduce((s, t) => s + t.total, 0);
       const transferSales = paidTrx.filter(t => t.paymentMethod === 'Transfer').reduce((s, t) => s + t.total, 0);
-      const totalSales = cashSales + qrisSales + transferSales;
+      const onlineFoodSales = paidTrx.filter(t => t.paymentMethod === 'Online Food').reduce((s, t) => s + t.total, 0);
+      const totalSales = cashSales + qrisSales + transferSales + onlineFoodSales;
 
       const todayCashIn = db.cashDrawerLogs.filter(c => c.date.slice(0, 10) === todayStr && c.type === 'IN').reduce((s, c) => s + c.amount, 0);
       const todayCashOut = db.cashDrawerLogs.filter(c => c.date.slice(0, 10) === todayStr && c.type === 'OUT').reduce((s, c) => s + c.amount, 0);
@@ -2245,7 +2423,7 @@
           <div class="bento-grid-4" style="margin-bottom:14px;">
             <div class="kpi-tile"><div class="kpi-label">Modal Awal Laci</div><div class="kpi-value">${rp(db.shift.openingCash)}</div></div>
             <div class="kpi-tile"><div class="kpi-label">Pembayaran Cash</div><div class="kpi-value">${rp(cashSales)}</div></div>
-            <div class="kpi-tile pink"><div class="kpi-label">QRIS (${rp(qrisSales)}) + Transfer (${rp(transferSales)})</div><div class="kpi-value">${rp(qrisSales + transferSales)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">QRIS (${rp(qrisSales)}) + Transfer (${rp(transferSales)}) + Online (${rp(onlineFoodSales)})</div><div class="kpi-value">${rp(qrisSales + transferSales + onlineFoodSales)}</div></div>
             <div class="kpi-tile dark"><div class="kpi-label">Ekspektasi Cash Laci</div><div class="kpi-value">${rp(expectedCash)}</div></div>
           </div>
 
@@ -2286,8 +2464,8 @@
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
             <button class="btn btn-dark" onclick="window.print()">Cetak Laporan Harian</button>
-            <button class="btn btn-pink" onclick="sendClosingWhatsApp(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash}, ${openTrx.length})">Kirim via WhatsApp</button>
-            <button class="btn btn-yellow" onclick="finalizeShiftClosing(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash})">Tutup Kasir</button>
+            <button class="btn btn-pink" onclick="sendClosingWhatsApp(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${onlineFoodSales}, ${expectedCash}, ${openTrx.length})">Kirim via WhatsApp</button>
+            <button class="btn btn-yellow" onclick="finalizeShiftClosing(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${onlineFoodSales}, ${expectedCash})">Tutup Kasir</button>
           </div>
         </div>
       `;
@@ -2309,20 +2487,20 @@
       if (el) { el.value = val > 0 ? formatDigits(val) : ''; updateClosingDiff(el, val); }
     }
 
-    function sendClosingWhatsApp(totalSales, cashSales, qrisSales, transferSales, expectedCash, openCount) {
+    function sendClosingWhatsApp(totalSales, cashSales, qrisSales, transferSales, onlineFoodSales, expectedCash, openCount) {
       const actual = parseDigits(document.getElementById('closingActualCash')?.value || 0);
-      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\nTanggal: ${new Date().toLocaleDateString('id-ID')}\nKasir: ${currentUser.name}\n• Total Omzet: ${rp(totalSales)}\n• Cash: ${rp(cashSales)}\n• QRIS: ${rp(qrisSales)}\n• Transfer: ${rp(transferSales)}\n• Ekspektasi Laci: ${rp(expectedCash)}\n• Cash Fisik: ${rp(actual)}\n• Transaksi Tertunda: ${openCount} order`;
+      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\nTanggal: ${new Date().toLocaleDateString('id-ID')}\nKasir: ${currentUser.name}\n• Total Omzet: ${rp(totalSales)}\n• Cash: ${rp(cashSales)}\n• QRIS: ${rp(qrisSales)}\n• Transfer: ${rp(transferSales)}\n• Online Food: ${rp(onlineFoodSales)}\n• Ekspektasi Laci: ${rp(expectedCash)}\n• Cash Fisik: ${rp(actual)}\n• Transaksi Tertunda: ${openCount} order`;
       window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
     }
 
-    function finalizeShiftClosing(totalSales, cashSales, qrisSales, transferSales, expectedCash) {
+    function finalizeShiftClosing(totalSales, cashSales, qrisSales, transferSales, onlineFoodSales, expectedCash) {
       const pin = document.getElementById('closingPinVerify').value;
       if (pin !== currentUser.pin) { showToast('PIN Kasir tidak sesuai.', true); return; }
       const actualCash = parseDigits(document.getElementById('closingActualCash').value);
       const rec = {
         id: 'CLS-' + Math.floor(1000 + Math.random() * 9000), closedAt: new Date().toISOString(),
         cashier: currentUser.name, openingCash: db.shift.openingCash, cashSales, qrisSales, transferSales,
-        totalSales, expectedCash, actualCash, diff: actualCash - expectedCash
+        onlineFoodSales, totalSales, expectedCash, actualCash, diff: actualCash - expectedCash
       };
       db.shiftClosings.unshift(rec);
       db.shift.isOpen = false;
@@ -2413,69 +2591,53 @@
         });
       });
 
-      db.cashDrawerLogs.forEach(c => {
-        const dStr = c.date.slice(0, 10);
-        if (!filterDateStringByPreset(dStr, period, customStart, customEnd)) return;
-        entries.push({
-          id: c.id,
-          date: c.date,
-          debit: c.type === 'IN' ? c.amount : 0,
-          kredit: c.type === 'OUT' ? c.amount : 0,
-          category: c.type === 'IN' ? 'Kas Masuk Laci' : 'Pengeluaran Kasir',
-          method: 'Cash Laci',
-          note: c.note,
-          pic: c.cashier
-        });
+      (db.cashDrawerLogs || []).forEach(c => {
+        if (filterDateStringByPreset(c.date.slice(0, 10), period, customStart, customEnd)) {
+          entries.push({
+            id: c.id,
+            date: c.date,
+            debit: c.type === 'IN' ? c.amount : 0,
+            kredit: c.type === 'OUT' ? c.amount : 0,
+            category: c.type === 'IN' ? 'Kas Masuk Laci' : 'Biaya Operasional',
+            method: 'Cash Laci',
+            note: c.note,
+            pic: c.cashier
+          });
+        }
       });
 
-      entries.sort((a, b) => new Date(a.date) - new Date(b.date));
-      let runningSaldo = 0;
-      entries.forEach(e => {
-        runningSaldo += (e.debit - e.kredit);
-        e.saldo = runningSaldo;
-      });
-      return entries.reverse();
+      return entries.sort((a, b) => new Date(b.date) - new Date(a.date));
     }
 
     function renderOwnerReportsTab(container) {
       const presets = ['Hari Ini', 'Kemarin', '7 Hari Terakhir', 'Minggu Ini', 'Minggu Lalu', 'Bulan Ini', 'Bulan Lalu', 'Custom Date'];
-      const filteredTrx = filterTransactionsByPreset(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
-      const paid = filteredTrx.filter(t => t.status === 'PAID');
-      const net = paid.reduce((s, t) => s + t.total, 0);
-      const hpp = paid.reduce((s, t) => s + (t.costTotal || 0), 0);
+      const list = filterTransactionsByPreset(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate).filter(t => t.status === 'PAID');
+      const net = list.reduce((s, t) => s + t.total, 0);
+      const hpp = list.reduce((s, t) => s + (t.costTotal || 0), 0);
       const profit = net - hpp;
-
-      const prodStats = {};
-      paid.forEach(t => t.items.forEach(it => {
-        if (!prodStats[it.name]) prodStats[it.name] = { name: it.name, qty: 0, rev: 0 };
-        prodStats[it.name].qty += it.qty;
-        prodStats[it.name].rev += it.price * it.qty;
-      }));
-      const top10 = Object.values(prodStats).sort((a, b) => b.qty - a.qty).slice(0, 10);
-
-      const filteredAttendance = db.attendanceLogs.filter(a => filterDateStringByPreset(a.date, ownerReportPeriod, ownerReportStartDate, ownerReportEndDate));
-
-      const allCashflow = buildCashflowEntries(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
-      const totalDebit = allCashflow.reduce((s, e) => s + e.debit, 0);
-      const totalKredit = allCashflow.reduce((s, e) => s + e.kredit, 0);
+      const cfEntries = buildCashflowEntries(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
+      const totalDebit = cfEntries.reduce((s, e) => s + e.debit, 0);
+      const totalKredit = cfEntries.reduce((s, e) => s + e.kredit, 0);
       const netCashflow = totalDebit - totalKredit;
-      const cfQuery = cashflowSearch.trim().toLowerCase();
-      const filteredCashflow = allCashflow.filter(e => {
-        const matchType = cashflowTypeFilter === 'ALL'
-          || (cashflowTypeFilter === 'IN' && e.debit > 0)
-          || (cashflowTypeFilter === 'OUT' && e.kredit > 0)
-          || (cashflowTypeFilter === 'KASIR_OUT' && e.category === 'Pengeluaran Kasir');
-        const matchQ = !cfQuery || e.note.toLowerCase().includes(cfQuery) || e.id.toLowerCase().includes(cfQuery) || (e.pic || '').toLowerCase().includes(cfQuery);
+
+      const filteredCf = cfEntries.filter(e => {
+        const matchType = cashflowTypeFilter === 'ALL' || (cashflowTypeFilter === 'DEBIT' && e.debit > 0) || (cashflowTypeFilter === 'KREDIT' && e.kredit > 0);
+        const q = cashflowSearch.trim().toLowerCase();
+        const matchQ = !q || e.id.toLowerCase().includes(q) || e.note.toLowerCase().includes(q) || e.category.toLowerCase().includes(q);
         return matchType && matchQ;
       });
+
+      const brandTotals = {};
+      list.forEach(t => (t.items || []).forEach(it => {
+        const b = getBrandFromCategory(it.category);
+        brandTotals[b] = (brandTotals[b] || 0) + (it.price * it.qty);
+      }));
 
       container.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div>
-            <h2 style="margin:0;font-size:20px;">Laporan & Analitik Outlet</h2>
-            <div style="font-size:12px;color:var(--text-muted);">
-              ${ownerReportPeriod === 'Custom Date' ? `Periode: ${esc(ownerReportStartDate)} s/d ${esc(ownerReportEndDate)}` : `Filter Periode: ${esc(ownerReportPeriod)}`}
-            </div>
+            <h2 style="margin:0;font-size:20px;">Laporan Keuangan & Arus Kas</h2>
+            <div style="font-size:12px;color:var(--text-muted);">Analitik laba rugi, omzet per brand, dan mutasi arus kas Dapur Jiwara</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
             <div>
@@ -2498,103 +2660,74 @@
         </div>
 
         <div class="subtab-bar no-scroll">
-          <button class="subtab-btn ${ownerReportSubTab === 'ringkasan' ? 'active' : ''}" onclick="ownerReportSubTab='ringkasan';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Ringkasan Penjualan</button>
-          <button class="subtab-btn ${ownerReportSubTab === 'aruskas' ? 'active' : ''}" onclick="ownerReportSubTab='aruskas';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Arus Kas</button>
-          <button class="subtab-btn ${ownerReportSubTab === 'top10' ? 'active' : ''}" onclick="ownerReportSubTab='top10';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Top 10 Produk</button>
-          <button class="subtab-btn ${ownerReportSubTab === 'absensi' ? 'active' : ''}" onclick="ownerReportSubTab='absensi';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Laporan Absensi</button>
+          <button class="subtab-btn ${ownerReportSubTab === 'ringkasan' ? 'active' : ''}" onclick="ownerReportSubTab='ringkasan';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Ringkasan & Laba Rugi</button>
+          <button class="subtab-btn ${ownerReportSubTab === 'aruskas' ? 'active' : ''}" onclick="ownerReportSubTab='aruskas';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Arus Kas (Cashflow)</button>
         </div>
 
         ${ownerReportSubTab === 'ringkasan' ? `
-          <div class="bento-grid-4">
-            <div class="kpi-tile dark"><div class="kpi-label">Penjualan Bersih</div><div class="kpi-value">${rp(net)}</div></div>
-            <div class="kpi-tile"><div class="kpi-label">Total HPP (COGS)</div><div class="kpi-value">${rp(hpp)}</div></div>
-            <div class="kpi-tile yellow"><div class="kpi-label">Laba Kotor (Gross Profit)</div><div class="kpi-value">${rp(profit)}</div></div>
-            <div class="kpi-tile pink"><div class="kpi-label">Margin Laba Kotor</div><div class="kpi-value">${net > 0 ? Math.round(profit / net * 100) : 0}%</div></div>
-          </div>
-        ` : ownerReportSubTab === 'aruskas' ? `
           <div class="bento-grid-4" style="margin-bottom:14px;">
-            <div class="kpi-tile"><div class="kpi-label">Total Pemasukan (Debit)</div><div class="kpi-value" style="color:#065F46;">${rp(totalDebit)}</div></div>
-            <div class="kpi-tile pink"><div class="kpi-label">Total Pengeluaran Kasir (Kredit)</div><div class="kpi-value">${rp(totalKredit)}</div></div>
-            <div class="kpi-tile dark"><div class="kpi-label">Saldo Bersih Arus Kas</div><div class="kpi-value">${rp(netCashflow)}</div></div>
-            <div class="kpi-tile yellow"><div class="kpi-label">Total Aktivitas Kas</div><div class="kpi-value">${allCashflow.length} Mutasi</div></div>
+            <div class="kpi-tile dark"><div class="kpi-label">Pendapatan Bersih</div><div class="kpi-value">${rp(net)}</div></div>
+            <div class="kpi-tile"><div class="kpi-label">Total HPP / Modal</div><div class="kpi-value">${rp(hpp)}</div></div>
+            <div class="kpi-tile yellow"><div class="kpi-label">Laba Kotor (Gross Profit)</div><div class="kpi-value">${rp(profit)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">Margin Laba</div><div class="kpi-value">${net > 0 ? Math.round((profit / net) * 100) : 0}%</div></div>
           </div>
 
           <div class="bento-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-              <div>
-                <h3 style="margin:0;font-size:16px;">Buku Besar Arus Kas & Pemakaian Uang Kasir</h3>
-                <div style="font-size:11px;color:var(--text-muted);">Sinkron dengan pemasukan POS serta catatan kas masuk/keluar operasional kasir</div>
-              </div>
-              <button class="btn btn-yellow btn-sm" onclick="openOwnerCashflowModal()">+ Catat Arus Kas Manual</button>
-            </div>
-
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;">
-              <div>
-                <label class="field-label">Filter Jenis Arus Kas</label>
-                <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="cashflowTypeFilter=this.value;renderOwnerReportsTab(document.getElementById('mainContentArea'))">
-                  <option value="ALL" ${cashflowTypeFilter === 'ALL' ? 'selected' : ''}>Semua Arus Kas (Debit & Kredit)</option>
-                  <option value="KASIR_OUT" ${cashflowTypeFilter === 'KASIR_OUT' ? 'selected' : ''}>Khusus Pemakaian Uang Kasir (Kredit)</option>
-                  <option value="OUT" ${cashflowTypeFilter === 'OUT' ? 'selected' : ''}>Semua Pengeluaran (Kredit)</option>
-                  <option value="IN" ${cashflowTypeFilter === 'IN' ? 'selected' : ''}>Semua Pemasukan (Debit)</option>
-                </select>
-              </div>
-              <div>
-                <label class="field-label">Cari Keterangan / Nota / PIC</label>
-                <input type="text" class="styled-input" style="padding:8px 11px;font-size:12px;" placeholder="Cari galon, gas, gaji, nota..." value="${esc(cashflowSearch)}" oninput="cashflowSearch=this.value;renderOwnerReportsTab(document.getElementById('mainContentArea'))" />
-              </div>
-            </div>
-
+            <h3 style="margin:0 0 10px;font-size:16px;">Kontribusi Omzet per Brand Ecosystem</h3>
             <div class="table-box">
               <table class="compact-table">
-                <thead>
-                  <tr>
-                    <th>Tanggal & Jam</th>
-                    <th>No. Ref</th>
-                    <th>Kategori</th>
-                    <th>Keterangan</th>
-                    <th>Pemasukan (Debit)</th>
-                    <th>Pengeluaran (Kredit)</th>
-                    <th>Saldo Berjalan</th>
-                    <th>PIC</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Brand</th><th>Total Penjualan</th><th>Porsi Kontribusi</th></tr></thead>
                 <tbody>
-                  ${filteredCashflow.length === 0 ? `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">Belum ada catatan arus kas pada periode ini.</td></tr>` : filteredCashflow.map(e => `
+                  ${Object.keys(brandTotals).length === 0 ? `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);">Belum ada data penjualan pada periode ini.</td></tr>` : Object.entries(brandTotals).map(([brand, amt]) => `
                     <tr>
-                      <td>${new Date(e.date).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td><strong>${esc(e.id)}</strong></td>
-                      <td><span class="badge-pill ${e.kredit > 0 ? 'badge-pink' : 'badge-green'}">${esc(e.category)}</span></td>
-                      <td>${esc(e.note)}</td>
-                      <td style="color:#065F46;font-weight:800;">${e.debit > 0 ? rp(e.debit) : '-'}</td>
-                      <td style="color:#BE185D;font-weight:800;">${e.kredit > 0 ? rp(e.kredit) : '-'}</td>
-                      <td><strong>${rp(e.saldo)}</strong></td>
-                      <td>${esc(e.pic || '-')}</td>
+                      <td><strong>${esc(brand)}</strong></td>
+                      <td><strong>${rp(amt)}</strong></td>
+                      <td>${net > 0 ? ((amt / net) * 100).toFixed(1) : 0}%</td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
           </div>
-        ` : ownerReportSubTab === 'top10' ? `
-          <div class="bento-card">
-            <h3 style="margin:0 0 10px;font-size:16px;">Top 10 Menu Terlaris (${esc(ownerReportPeriod)})</h3>
-            <div class="table-box">
-              <table class="compact-table">
-                <thead><tr><th>Rank</th><th>Nama Menu</th><th>Terjual</th><th>Total Omzet</th></tr></thead>
-                <tbody>
-                  ${top10.length === 0 ? `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Belum ada produk terjual pada periode ini.</td></tr>` : top10.map((p, idx) => `<tr><td><strong>#${idx + 1}</strong></td><td>${esc(p.name)}</td><td>${p.qty}x</td><td><strong>${rp(p.rev)}</strong></td></tr>`).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
         ` : `
+          <div class="bento-grid-4" style="margin-bottom:14px;">
+            <div class="kpi-tile dark"><div class="kpi-label">Total Pemasukan (Debit)</div><div class="kpi-value">${rp(totalDebit)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">Total Pengeluaran (Kredit)</div><div class="kpi-value">${rp(totalKredit)}</div></div>
+            <div class="kpi-tile yellow"><div class="kpi-label">Saldo Arus Kas Bersih</div><div class="kpi-value">${rp(netCashflow)}</div></div>
+            <div class="kpi-tile"><div class="kpi-label">Total Mutasi Kas</div><div class="kpi-value">${cfEntries.length} Baris</div></div>
+          </div>
+
           <div class="bento-card">
-            <h3 style="margin:0 0 10px;font-size:16px;">Rekap Absensi & Estimasi Upah (${esc(ownerReportPeriod)})</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+              <div>
+                <label class="field-label">Filter Tipe Mutasi</label>
+                <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="cashflowTypeFilter=this.value;renderOwnerReportsTab(document.getElementById('mainContentArea'))">
+                  <option value="ALL" ${cashflowTypeFilter === 'ALL' ? 'selected' : ''}>Semua Mutasi</option>
+                  <option value="DEBIT" ${cashflowTypeFilter === 'DEBIT' ? 'selected' : ''}>Pemasukan (Debit)</option>
+                  <option value="KREDIT" ${cashflowTypeFilter === 'KREDIT' ? 'selected' : ''}>Pengeluaran (Kredit)</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Cari Keterangan / No. Nota</label>
+                <input type="text" class="styled-input" style="padding:8px 11px;font-size:12px;" placeholder="Cari catatan arus kas..." value="${esc(cashflowSearch)}" oninput="cashflowSearch=this.value;renderOwnerReportsTab(document.getElementById('mainContentArea'))" />
+              </div>
+            </div>
+
             <div class="table-box">
               <table class="compact-table">
-                <thead><tr><th>Tanggal</th><th>Pegawai</th><th>Masuk</th><th>Pulang</th><th>Upah Harian</th></tr></thead>
+                <thead><tr><th>Tanggal</th><th>No. Ref</th><th>Kategori</th><th>Keterangan</th><th>Debit (+)</th><th>Kredit (-)</th><th>PIC</th></tr></thead>
                 <tbody>
-                  ${filteredAttendance.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Belum ada catatan absensi pada periode ini.</td></tr>` : filteredAttendance.map(a => `<tr><td>${esc(a.date)}</td><td><strong>${esc(a.staffName)}</strong></td><td>${esc(a.clockIn)}</td><td>${esc(a.clockOut || '-')}</td><td>${rp(a.wage)}</td></tr>`).join('')}
+                  ${filteredCf.length === 0 ? `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Tidak ada data mutasi arus kas.</td></tr>` : filteredCf.map(e => `
+                    <tr>
+                      <td>${new Date(e.date).toLocaleDateString('id-ID')}</td>
+                      <td><strong>${esc(e.id)}</strong></td>
+                      <td><span class="badge-pill ${e.debit > 0 ? 'badge-green' : 'badge-pink'}">${esc(e.category)}</span></td>
+                      <td>${esc(e.note)}</td>
+                      <td style="color:#065F46;font-weight:800;">${e.debit > 0 ? rp(e.debit) : '-'}</td>
+                      <td style="color:#BE185D;font-weight:800;">${e.kredit > 0 ? rp(e.kredit) : '-'}</td>
+                      <td>${esc(e.pic)}</td>
+                    </tr>
+                  `).join('')}
                 </tbody>
               </table>
             </div>
@@ -2603,55 +2736,246 @@
       `;
     }
 
-    function openOwnerCashflowModal() {
+    // ==================== 8. OWNER: DATABASE PELANGGAN (CRM) ====================
+    function renderOwnerCRMTab(container) {
+      if (!db.customers) db.customers = [];
+      const q = crmSearch.trim().toLowerCase();
+      const filtered = db.customers.filter(c => {
+        const matchTier = crmTierFilter === 'ALL' || c.tier === crmTierFilter;
+        const matchQ = !q || (c.name || '').toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q) || (c.specialVoucher || '').toLowerCase().includes(q);
+        return matchTier && matchQ;
+      });
+
+      const totalMembers = db.customers.length;
+      const vipCount = db.customers.filter(c => c.tier === 'VIP Member' || c.tier === 'Gold Member').length;
+      const withPhoneCount = db.customers.filter(c => (c.phone || '').trim() !== '').length;
+      const totalCrmSpend = db.customers.reduce((s, c) => s + (Number(c.totalSpent) || 0), 0);
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div>
+            <h2 style="margin:0;font-size:20px;">Database Pelanggan & CRM</h2>
+            <div style="font-size:12px;color:var(--text-muted);">Kelola nomor WhatsApp pelanggan, riwayat kunjungan, dan kirim voucher program loyalitas</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-pink btn-sm" onclick="openCRMCustomerModal(null)">+ Tambah Pelanggan</button>
+            <button class="btn btn-yellow btn-sm" onclick="openCRMVoucherCampaignModal()">+ Buat Voucher Khusus CRM</button>
+          </div>
+        </div>
+
+        <div class="bento-grid-4" style="margin-bottom:14px;">
+          <div class="kpi-tile dark"><div class="kpi-label">Total Database Pelanggan</div><div class="kpi-value">${totalMembers} Orang</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Nomor WhatsApp Terdata</div><div class="kpi-value">${withPhoneCount} Kontak</div></div>
+          <div class="kpi-tile yellow"><div class="kpi-label">Member Gold & VIP</div><div class="kpi-value">${vipCount} Member</div></div>
+          <div class="kpi-tile pink"><div class="kpi-label">Total Belanja Member</div><div class="kpi-value">${rp(totalCrmSpend)}</div></div>
+        </div>
+
+        <div class="bento-card">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+            <div>
+              <label class="field-label">Cari Nama / No. WA / Voucher</label>
+              <input type="text" class="styled-input" style="padding:8px 11px;font-size:12px;" placeholder="Ketik nama pelanggan atau 0812..." value="${esc(crmSearch)}" oninput="crmSearch=this.value;renderOwnerCRMTab(document.getElementById('mainContentArea'))" />
+            </div>
+            <div>
+              <label class="field-label">Filter Tier Member</label>
+              <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="crmTierFilter=this.value;renderOwnerCRMTab(document.getElementById('mainContentArea'))">
+                <option value="ALL" ${crmTierFilter === 'ALL' ? 'selected' : ''}>Semua Tier Pelanggan</option>
+                <option value="VIP Member" ${crmTierFilter === 'VIP Member' ? 'selected' : ''}>VIP Member</option>
+                <option value="Gold Member" ${crmTierFilter === 'Gold Member' ? 'selected' : ''}>Gold Member</option>
+                <option value="Regular" ${crmTierFilter === 'Regular' ? 'selected' : ''}>Regular</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-box">
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>Pelanggan</th>
+                  <th>No. Telepon / WA</th>
+                  <th>Tier</th>
+                  <th>Kunjungan & Belanja</th>
+                  <th>Voucher Khusus</th>
+                  <th>Aksi CRM</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada data pelanggan sesuai filter.</td></tr>` : filtered.map(c => `
+                  <tr>
+                    <td>
+                      <div><strong>${esc(c.name)}</strong></div>
+                      <div style="font-size:11px;color:var(--text-muted);">${esc(c.notes || '-')}</div>
+                    </td>
+                    <td><strong>${esc(c.phone || '-')}</strong></td>
+                    <td>
+                      <span class="badge-pill ${c.tier === 'VIP Member' ? 'badge-pink' : (c.tier === 'Gold Member' ? 'badge-yellow' : 'badge-green')}">${esc(c.tier || 'Regular')}</span>
+                    </td>
+                    <td>
+                      <div><strong>${c.totalVisits || 0}x</strong> Transaksi</div>
+                      <div style="font-size:11px;color:var(--text-muted);">${rp(c.totalSpent || 0)}</div>
+                    </td>
+                    <td>
+                      ${c.specialVoucher ? `<span class="badge-pill badge-yellow">${esc(c.specialVoucher)}</span>` : `<span style="font-size:11px;color:var(--text-muted);">Belum ada</span>`}
+                    </td>
+                    <td>
+                      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                        ${c.phone ? `<button class="btn btn-dark btn-sm" onclick="sendCRMVoucherWhatsApp('${esc(c.id)}')">Kirim WA</button>` : ''}
+                        <button class="btn btn-soft btn-sm" onclick="openCRMCustomerModal('${esc(c.id)}')">Edit / Voucher</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function openCRMCustomerModal(custId) {
+      const cust = custId ? (db.customers || []).find(c => c.id === custId) : null;
+      const activePromos = db.promos.filter(pr => pr.active);
       openModal(`
         <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">+ Catat Arus Kas Manual</h3>
+          <h3 style="margin:0;font-size:17px;">${cust ? 'Edit Data Pelanggan & Voucher' : '+ Tambah Pelanggan CRM'}</h3>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <div style="display:grid;gap:10px;margin-bottom:14px;">
-          <div>
-            <label class="field-label">Jenis Arus Kas</label>
-            <select id="ownCfType" class="styled-select">
-              <option value="OUT">Pengeluaran Kas (Kredit) — Belanja Ops, Gas, Gaji, Transfer Brand</option>
-              <option value="IN">Pemasukan Kas (Debit) — Setoran Modal, Commitment Fee, Lainnya</option>
-            </select>
+          <div><label class="field-label">Nama Pelanggan</label><input id="crmFormName" class="styled-input" value="${esc(cust ? cust.name : '')}" placeholder="Nama lengkap pelanggan..." /></div>
+          <div><label class="field-label">Nomor Telepon / WhatsApp</label><input id="crmFormPhone" type="tel" class="styled-input" value="${esc(cust ? cust.phone : '')}" placeholder="0812xxxxxxxx" /></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <label class="field-label">Tier Member</label>
+              <select id="crmFormTier" class="styled-select">
+                <option value="Regular" ${cust && cust.tier === 'Regular' ? 'selected' : ''}>Regular</option>
+                <option value="Gold Member" ${cust && cust.tier === 'Gold Member' ? 'selected' : ''}>Gold Member</option>
+                <option value="VIP Member" ${cust && cust.tier === 'VIP Member' ? 'selected' : ''}>VIP Member</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Assign Voucher Khusus</label>
+              <select id="crmFormVoucher" class="styled-select">
+                <option value="">-- Tidak Ada --</option>
+                ${activePromos.map(pr => `<option value="${esc(pr.code)}" ${cust && cust.specialVoucher === pr.code ? 'selected' : ''}>${esc(pr.code)} (${pr.type === 'percent' ? pr.value + '%' : rp(pr.value)})</option>`).join('')}
+              </select>
+            </div>
           </div>
-          <div>
-            <label class="field-label">Nominal (Rp)</label>
-            <input id="ownCfAmount" type="text" inputmode="numeric" class="styled-input" placeholder="Contoh: 50.000" oninput="this.value=formatDigits(this.value)" />
-          </div>
-          <div>
-            <label class="field-label">Keterangan Transaksi</label>
-            <input id="ownCfNote" type="text" class="styled-input" placeholder="Contoh: Beli Gas 3kg 2 tabung / Gaji Harian" />
-          </div>
+          <div><label class="field-label">Catatan Preferensi / Kebiasaan Order</label><input id="crmFormNotes" class="styled-input" value="${esc(cust ? cust.notes : '')}" placeholder="Contoh: Suka Kopi Susu Gula Aren less sugar" /></div>
         </div>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveOwnerCashflowModal()">Simpan ke Arus Kas & Sync</button>
+        <div style="display:grid;grid-template-columns:${cust ? '1fr 1.5fr' : '1fr'};gap:8px;">
+          ${cust ? `<button class="btn btn-danger" onclick="deleteCRMCustomer('${esc(cust.id)}')">Hapus</button>` : ''}
+          <button class="btn btn-yellow" style="padding:12px;" onclick="saveCRMCustomerForm('${cust ? esc(cust.id) : ''}')">Simpan Data Pelanggan</button>
+        </div>
       `);
     }
 
-    function saveOwnerCashflowModal() {
-      const type = document.getElementById('ownCfType').value;
-      const amount = parseDigits(document.getElementById('ownCfAmount').value);
-      const note = document.getElementById('ownCfNote').value.trim();
-      if (amount <= 0 || !note) { showToast('Isi nominal dan keterangan arus kas.', true); return; }
-      const entry = {
-        id: 'CSH-' + Math.floor(1000 + Math.random() * 9000),
-        date: new Date().toISOString(),
-        type,
-        amount,
-        note,
-        cashier: currentUser.name
-      };
-      db.cashDrawerLogs.unshift(entry);
-      syncMasterEvent('CASH_DRAWER', entry);
+    function saveCRMCustomerForm(custId) {
+      const name = document.getElementById('crmFormName').value.trim();
+      const phone = document.getElementById('crmFormPhone').value.trim();
+      const tier = document.getElementById('crmFormTier').value;
+      const specialVoucher = document.getElementById('crmFormVoucher').value;
+      const notes = document.getElementById('crmFormNotes').value.trim();
+      if (!name) { showToast('Nama pelanggan wajib diisi.', true); return; }
+      if (!db.customers) db.customers = [];
+      if (custId) {
+        const idx = db.customers.findIndex(c => c.id === custId);
+        if (idx >= 0) db.customers[idx] = { ...db.customers[idx], name, phone, tier, specialVoucher, notes };
+      } else {
+        db.customers.unshift({
+          id: 'CRM-' + Math.floor(100 + Math.random() * 900),
+          name, phone, tier, totalVisits: 0, totalSpent: 0,
+          lastVisit: new Date().toISOString(), notes, specialVoucher
+        });
+      }
       saveDB();
       closeModal();
-      renderOwnerReportsTab(document.getElementById('mainContentArea'));
-      showToast('Catatan arus kas berhasil disimpan.');
+      renderOwnerCRMTab(document.getElementById('mainContentArea'));
+      showToast(`Data pelanggan ${name} tersimpan di CRM.`);
     }
 
-    // ==================== 8. OWNER: INVENTORI ====================
+    function deleteCRMCustomer(custId) {
+      db.customers = (db.customers || []).filter(c => c.id !== custId);
+      saveDB();
+      closeModal();
+      renderOwnerCRMTab(document.getElementById('mainContentArea'));
+      showToast('Pelanggan dihapus dari database CRM.');
+    }
+
+    function openCRMVoucherCampaignModal() {
+      const today = new Date().toISOString().slice(0, 10);
+      openModal(`
+        <div class="modal-head">
+          <h3 style="margin:0;font-size:17px;">+ Buat Voucher Khusus Program CRM</h3>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <div style="display:grid;gap:10px;margin-bottom:14px;">
+          <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:8px;">
+            <div><label class="field-label">Kode Voucher</label><input id="crmVchCode" class="styled-input" style="text-transform:uppercase;" placeholder="VIPJIWARA" /></div>
+            <div><label class="field-label">Nama Program CRM</label><input id="crmVchName" class="styled-input" placeholder="Voucher Spesial Member WA" /></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <label class="field-label">Jenis Potongan</label>
+              <select id="crmVchType" class="styled-select">
+                <option value="percent">Persentase (%)</option>
+                <option value="fixed">Nominal Tetap (Rp)</option>
+              </select>
+            </div>
+            <div><label class="field-label">Nilai Potongan</label><input id="crmVchVal" type="number" class="styled-input" value="15" /></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><label class="field-label">Mulai Berlaku</label><input id="crmVchStart" type="date" class="styled-input" value="${today}" /></div>
+            <div><label class="field-label">Berakhir Pada</label><input id="crmVchEnd" type="date" class="styled-input" value="2026-12-31" /></div>
+          </div>
+          <div>
+            <label class="field-label">Target Penerima Voucher Otomatis</label>
+            <select id="crmVchTarget" class="styled-select">
+              <option value="NONE">Simpan Saja (Pilih Manual per Pelanggan)</option>
+              <option value="ALL">Semua Pelanggan Terdaftar di CRM</option>
+              <option value="VIP_GOLD">Khusus Gold & VIP Member</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveCRMVoucherCampaign()">Aktifkan Voucher CRM</button>
+      `);
+    }
+
+    function saveCRMVoucherCampaign() {
+      const code = document.getElementById('crmVchCode').value.trim().toUpperCase();
+      const name = document.getElementById('crmVchName').value.trim();
+      const type = document.getElementById('crmVchType').value;
+      const value = Number(document.getElementById('crmVchVal').value) || 0;
+      const startDate = document.getElementById('crmVchStart').value;
+      const endDate = document.getElementById('crmVchEnd').value;
+      const target = document.getElementById('crmVchTarget').value;
+      if (!code || !name || value <= 0) { showToast('Lengkapi kode, nama, dan nilai voucher.', true); return; }
+
+      db.promos.unshift({ id: 'prm-' + Date.now(), code, name, type, value, startDate, endDate, active: true });
+      if (target === 'ALL') {
+        (db.customers || []).forEach(c => { c.specialVoucher = code; });
+      } else if (target === 'VIP_GOLD') {
+        (db.customers || []).forEach(c => { if (c.tier === 'VIP Member' || c.tier === 'Gold Member') c.specialVoucher = code; });
+      }
+      saveDB();
+      closeModal();
+      renderOwnerCRMTab(document.getElementById('mainContentArea'));
+      showToast(`Voucher CRM ${code} berhasil dibuat & aktif di Kasir!`);
+    }
+
+    function sendCRMVoucherWhatsApp(custId) {
+      const cust = (db.customers || []).find(c => c.id === custId);
+      if (!cust || !cust.phone) return;
+      let waPhone = cust.phone.replace(/\D/g, '');
+      if (waPhone.startsWith('0')) waPhone = '62' + waPhone.slice(1);
+      const promoObj = db.promos.find(p => p.code === cust.specialVoucher);
+      const voucherLine = promoObj
+        ? `Gunakan kode voucher khusus *${promoObj.code}* (${promoObj.name} - potongan ${promoObj.type === 'percent' ? promoObj.value + '%' : rp(promoObj.value)}) pada kunjungan Anda berikutnya!`
+        : `Terima kasih telah menjadi pelanggan setia *${db.outlet.name}*!`;
+      const msg = `Halo Kak *${cust.name}* (${cust.tier || 'Member'}),\n\nSalam hangat dari *${db.outlet.name}*.\n${voucherLine}\n\nKami tunggu kedatangannya kembali ya!`;
+      window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    }
+
+    // ==================== 9. OWNER: INVENTORI ====================
     function renderOwnerInventoryTab(container) {
       const lowItems = db.inventory.filter(i => Number(i.stock) <= Number(i.minStock));
       const q = invSearch.trim().toLowerCase();
@@ -2787,7 +3111,7 @@
       showToast(`Bahan "${name}" ditambahkan.`);
     }
 
-    // ==================== 9. OWNER: PENGATURAN ====================
+    // ==================== 10. OWNER: PENGATURAN ====================
     function renderOwnerSettingsTab(container) {
       container.innerHTML = `
         <div class="subtab-bar no-scroll">
