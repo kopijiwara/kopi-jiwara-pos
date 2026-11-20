@@ -262,6 +262,26 @@
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-xs);
     }
+    .table-wrap-compact {
+      max-height: 440px;
+      overflow-y: auto;
+    }
+    .table-wrap-compact thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--green-50);
+      box-shadow: 0 1px 0 var(--border);
+    }
+    .table-compact th {
+      padding: 9px 11px;
+      font-size: 10.5px;
+    }
+    .table-compact td {
+      padding: 7px 11px;
+      font-size: 12.5px;
+    }
+    .nowrap { white-space: nowrap; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -1275,14 +1295,14 @@
       closingPinError: '',
 
       // Owner state
-      ownerTab: 'penjualan', // 'penjualan' | 'laporan' | 'pengaturan'
+      ownerTab: 'penjualan', // 'penjualan' | 'laporan' | 'inventori' | 'pengaturan'
       ownerSalesFilterOpen: false,
       ownerSalesStart: getTodayStr(-7),
       ownerSalesEnd: getTodayStr(0),
       ownerSalesOutlet: 'Semua Outlet',
       ownerSalesType: 'Semua',
 
-      ownerReportSubTab: 'ringkasan', // 'ringkasan' | 'top_report' | 'kasir' | 'absensi' | 'inventori'
+      ownerReportSubTab: 'ringkasan', // 'ringkasan' | 'top_report' | 'kasir' | 'absensi'
       ownerReportStart: getTodayStr(-7),
       ownerReportEnd: getTodayStr(0),
       ownerReportOutlet: 'Semua Outlet',
@@ -1297,9 +1317,23 @@
       settingsProdModal: null,
       settingsStaffModal: null,
       settingsProdSearch: '',
+      settingsProdCategory: 'Semua Kategori',
+      settingsProdPageSize: 10,
+      settingsProdPage: 1,
 
       toast: null
     };
+
+    function formatDigitsWithDots(rawVal) {
+      const digits = String(rawVal || '').replace(/\D/g, '');
+      if (!digits) return '';
+      return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function parseFormattedNumber(rawVal) {
+      const digits = String(rawVal || '').replace(/\D/g, '');
+      return digits ? Number(digits) : null;
+    }
 
     function showToast(message, type = 'success') {
       ui.toast = { message, type };
@@ -1978,8 +2012,8 @@
 
     window.finalizeCloseRegister = function(actionAfter = 'close') {
       const m = getActiveShiftMetrics();
-      const actualCash = Number(ui.closingActualCash);
-      if (ui.closingActualCash === '' || isNaN(actualCash) || actualCash < 0) {
+      const actualCash = parseFormattedNumber(ui.closingActualCash);
+      if (actualCash === null || isNaN(actualCash) || actualCash < 0) {
         ui.closingPinError = 'Masukkan total uang cash fisik yang dihitung di laci.';
         render();
         return;
@@ -1991,19 +2025,50 @@
         return;
       }
 
+      const soldMap = {};
+      m.todaySales.forEach(o => {
+        o.items.forEach(it => {
+          if (!soldMap[it.name]) soldMap[it.name] = { name: it.name, qty: 0, total: 0 };
+          soldMap[it.name].qty += it.qty;
+          soldMap[it.name].total += it.price * it.qty;
+        });
+      });
+      const soldProducts = Object.values(soldMap).sort((a, b) => b.qty - a.qty);
+      const pendingOrders = db.openOrders.map(o => ({
+        id: o.id,
+        customerName: o.customerName,
+        orderType: o.orderType,
+        total: o.total
+      }));
+      const pendingTotal = pendingOrders.reduce((s, o) => s + o.total, 0);
+
       const closedShift = {
         ...m.shift,
         closedAt: new Date().toTimeString().slice(0, 5),
         cashSales: m.cashSales,
         qrisSales: m.qrisSales,
         transferSales: m.transferSales,
+        cashCount: m.todaySales.filter(o => o.paymentMethod === 'Cash').length,
+        qrisCount: m.todaySales.filter(o => o.paymentMethod === 'QRIS').length,
+        transferCount: m.todaySales.filter(o => o.paymentMethod === 'Transfer').length,
         cashIn: m.cashIn,
         cashOut: m.cashOut,
         expectedCash: m.expectedCash,
         actualCash,
         variance: actualCash - m.expectedCash,
+        soldProducts,
+        pendingOrders,
+        pendingTotal,
         status: 'Tutup Kasir'
       };
+
+      const soldLines = soldProducts.length > 0
+        ? soldProducts.map(p => `• ${p.name} (${p.qty}x) = ${formatRp(p.total)}`).join('\n')
+        : '• Tidak ada produk terjual';
+
+      const pendingLines = pendingOrders.length > 0
+        ? pendingOrders.map(p => `• ${p.id} - ${p.customerName} (${p.orderType}): ${formatRp(p.total)}`).join('\n')
+        : '• Tidak ada transaksi tertunda';
 
       const waText = [
         `*LAPORAN TUTUP KASIR — ${db.outletInfo.name}*`,
@@ -2011,16 +2076,24 @@
         `Tanggal: ${closedShift.date} (${closedShift.openedAt} - ${closedShift.closedAt})`,
         `Kasir Bertugas: ${closedShift.cashierName}`,
         `--------------------------------`,
+        `*RINGKASAN PEMBAYARAN*`,
         `Modal Awal Laci: ${formatRp(closedShift.openingCash)}`,
-        `Penjualan Cash: ${formatRp(closedShift.cashSales)}`,
-        `Penjualan QRIS: ${formatRp(closedShift.qrisSales)}`,
-        `Penjualan Transfer/Online: ${formatRp(closedShift.transferSales)}`,
-        `Total Omzet Shift: ${formatRp(m.totalSales)}`,
+        `Pembayaran Cash (${closedShift.cashCount}x): ${formatRp(closedShift.cashSales)}`,
+        `Pembayaran QRIS (${closedShift.qrisCount}x): ${formatRp(closedShift.qrisSales)}`,
+        `Pembayaran Transfer (${closedShift.transferCount}x): ${formatRp(closedShift.transferSales)}`,
+        `Total Omzet Lunas: ${formatRp(m.totalSales)}`,
         `Kas Masuk / Keluar: +${formatRp(closedShift.cashIn)} / -${formatRp(closedShift.cashOut)}`,
         `--------------------------------`,
+        `*REKONSILIASI LACI TUNAI*`,
         `Ekspektasi Cash Laci: ${formatRp(closedShift.expectedCash)}`,
         `Aktual Cash Fisik: ${formatRp(closedShift.actualCash)}`,
-        `Selisih Cash: ${formatRp(closedShift.variance)}`
+        `Selisih Cash: ${formatRp(closedShift.variance)}`,
+        `--------------------------------`,
+        `*TRANSAKSI TERTUNDA (${pendingOrders.length} Order — ${formatRp(pendingTotal)})*`,
+        pendingLines,
+        `--------------------------------`,
+        `*LIST PRODUK TERJUAL*`,
+        soldLines
       ].join('\n');
 
       db.shifts.unshift(closedShift);
@@ -2050,6 +2123,38 @@
       ui.screen = 'login';
       render();
     };
+
+    window.handleClosingCashInput = function(el) {
+      const formatted = formatDigitsWithDots(el.value);
+      el.value = formatted;
+      ui.closingActualCash = formatted;
+      ui.closingPinError = '';
+      updateClosingDiffBanner();
+    };
+
+    window.setClosingCashPreset = function(amount) {
+      const formatted = amount === '' ? '' : formatDigitsWithDots(amount);
+      ui.closingActualCash = formatted;
+      ui.closingPinError = '';
+      const inp = document.getElementById('closing-actual-cash-inp');
+      if (inp) inp.value = formatted;
+      updateClosingDiffBanner();
+    };
+
+    function updateClosingDiffBanner() {
+      const box = document.getElementById('closingDiffDisplay');
+      if (!box) return;
+      const m = getActiveShiftMetrics();
+      const actualNum = parseFormattedNumber(ui.closingActualCash);
+      if (actualNum === null) {
+        box.innerHTML = `<span class="text-xs text-muted">Ketik angka langsung atau pilih tombol cepat di bawah.</span>`;
+        return;
+      }
+      const variance = actualNum - m.expectedCash;
+      const color = variance === 0 ? 'var(--green-700)' : 'var(--pink-600)';
+      const statusTxt = variance === 0 ? '(Klop / Sesuai)' : variance > 0 ? '(Lebih)' : '(Kurang)';
+      box.innerHTML = `<span class="text-xs font-extrabold" style="color:${color};">Selisih Laci: ${formatRp(variance)} ${statusTxt}</span>`;
+    }
 
     window.applyKasirDatePreset = function(preset) {
       ui.kasirReportPreset = preset;
@@ -3060,11 +3165,26 @@
 
     function renderKasirKeluarTab() {
       const m = getActiveShiftMetrics();
-      const actualNum = ui.closingActualCash === '' ? null : Number(ui.closingActualCash);
-      const variance = actualNum !== null && !isNaN(actualNum) ? (actualNum - m.expectedCash) : 0;
+      const actualNum = parseFormattedNumber(ui.closingActualCash);
+      const variance = actualNum !== null ? (actualNum - m.expectedCash) : 0;
+
+      const cashCount = m.todaySales.filter(o => o.paymentMethod === 'Cash').length;
+      const qrisCount = m.todaySales.filter(o => o.paymentMethod === 'QRIS').length;
+      const transferCount = m.todaySales.filter(o => o.paymentMethod === 'Transfer').length;
+
+      const soldMap = {};
+      m.todaySales.forEach(o => {
+        o.items.forEach(it => {
+          if (!soldMap[it.name]) soldMap[it.name] = { name: it.name, qty: 0, total: 0 };
+          soldMap[it.name].qty += it.qty;
+          soldMap[it.name].total += it.price * it.qty;
+        });
+      });
+      const soldProducts = Object.values(soldMap).sort((a, b) => b.qty - a.qty);
+      const pendingTotal = db.openOrders.reduce((s, o) => s + o.total, 0);
 
       return `
-        <div class="container-max" style="padding:20px;max-width:840px;">
+        <div class="container-max" style="padding:20px;max-width:920px;">
           <div class="card flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
               <h3 class="font-extrabold text-base">Logout Kasir (Ganti Shift)</h3>
@@ -3074,8 +3194,13 @@
           </div>
 
           <div class="card" style="border-color:var(--green-800);">
-            <span class="badge badge-pink">CLOSING KASIR</span>
-            <h3 class="text-lg font-extrabold mt-1 mb-3">Laporan Penjualan &amp; Tutup Kasir</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div>
+                <span class="badge badge-pink">CLOSING KASIR</span>
+                <h3 class="text-lg font-extrabold mt-1">Laporan Penjualan &amp; Tutup Kasir</h3>
+              </div>
+              <span class="badge badge-green">Total Omzet Lunas: ${formatRp(m.totalSales)}</span>
+            </div>
 
             <div class="bento-grid mb-4">
               <div class="bento-card">
@@ -3083,12 +3208,20 @@
                 <div class="bento-value" style="font-size:17px;">${formatRp(m.shift.openingCash)}</div>
               </div>
               <div class="bento-card">
-                <div class="bento-label">Penjualan Cash</div>
+                <div class="bento-label">Pembayaran Cash (${cashCount}x)</div>
                 <div class="bento-value" style="font-size:17px;color:var(--green-700);">${formatRp(m.cashSales)}</div>
               </div>
               <div class="bento-card pink-tint">
-                <div class="bento-label">Penjualan QRIS &amp; Transfer</div>
-                <div class="bento-value" style="font-size:17px;color:var(--pink-600);">${formatRp(m.qrisSales + m.transferSales)}</div>
+                <div class="bento-label">Pembayaran QRIS (${qrisCount}x)</div>
+                <div class="bento-value" style="font-size:17px;color:var(--pink-600);">${formatRp(m.qrisSales)}</div>
+              </div>
+              <div class="bento-card">
+                <div class="bento-label">Pembayaran Transfer (${transferCount}x)</div>
+                <div class="bento-value" style="font-size:17px;color:var(--green-800);">${formatRp(m.transferSales)}</div>
+              </div>
+              <div class="bento-card pink-tint">
+                <div class="bento-label">Transaksi Tertunda (${db.openOrders.length})</div>
+                <div class="bento-value" style="font-size:17px;color:var(--pink-600);">${formatRp(pendingTotal)}</div>
               </div>
               <div class="bento-card dark">
                 <div class="bento-label">Ekspektasi Cash Laci</div>
@@ -3096,19 +3229,65 @@
               </div>
             </div>
 
-            <div class="grid-2 mb-3">
+            <div class="grid-2 mb-4" style="align-items:start;">
+              <div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:16px;padding:13px;">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-extrabold text-xs">📦 List Produk Terjual Shift Ini</span>
+                  <span class="badge badge-green">${soldProducts.reduce((s, p) => s + p.qty, 0)} Item</span>
+                </div>
+                <div style="max-height:150px;overflow-y:auto;">
+                  ${soldProducts.length === 0 ? `<div class="text-xs text-muted py-2">Belum ada produk terjual pada shift ini.</div>` : soldProducts.map(p => `
+                    <div class="flex justify-between text-xs py-1" style="border-bottom:1px dashed var(--border);">
+                      <span><strong>${p.qty}x</strong> ${escapeHtml(p.name)}</span>
+                      <span class="font-bold">${formatRp(p.total)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div style="background:#FFF8FB;border:1px solid rgba(236,72,153,0.25);border-radius:16px;padding:13px;">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-extrabold text-xs" style="color:var(--pink-600);">⏳ Transaksi Tertunda (Open Order)</span>
+                  <span class="badge badge-pink">${db.openOrders.length} Order</span>
+                </div>
+                <div style="max-height:150px;overflow-y:auto;">
+                  ${db.openOrders.length === 0 ? `<div class="text-xs text-muted py-2">Tidak ada transaksi tertunda.</div>` : db.openOrders.map(o => `
+                    <div class="flex justify-between text-xs py-1" style="border-bottom:1px dashed rgba(236,72,153,0.2);">
+                      <span><strong>${escapeHtml(o.customerName)}</strong> (${escapeHtml(o.orderType)})</span>
+                      <span class="font-bold" style="color:var(--pink-600);">${formatRp(o.total)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2 mb-3" style="align-items:start;">
               <div class="form-group">
                 <label class="form-label">Total Uang Cash Fisik yang Didapat (Rp)</label>
-                <input type="number" value="${escapeHtml(ui.closingActualCash)}" oninput="ui.closingActualCash=this.value; render();" placeholder="Masukkan total uang tunai..." style="font-weight:800;font-size:15px;" />
-                ${actualNum !== null ? `
-                  <div class="text-xs font-extrabold mt-1" style="color:${variance === 0 ? 'var(--green-700)' : 'var(--pink-600)'};">
-                    Selisih Laci: ${formatRp(variance)} ${variance === 0 ? '(Klop)' : variance > 0 ? '(Lebih)' : '(Kurang)'}
-                  </div>
-                ` : ''}
+                <input id="closing-actual-cash-inp" type="text" inputmode="numeric" value="${escapeHtml(ui.closingActualCash)}" oninput="handleClosingCashInput(this)" placeholder="Ketik nominal contoh: 49000" style="font-weight:800;font-size:16px;" />
+                <div class="flex flex-wrap gap-1 mt-2">
+                  <button type="button" onclick="setClosingCashPreset(${m.expectedCash})" class="btn btn-sm btn-yellow" style="font-size:11px;padding:5px 10px;">
+                    ✔ Sesuai Ekspektasi (${formatRp(m.expectedCash)})
+                  </button>
+                  <button type="button" onclick="setClosingCashPreset(0)" class="btn btn-sm btn-outline" style="font-size:11px;padding:5px 9px;">
+                    Rp 0
+                  </button>
+                  <button type="button" onclick="setClosingCashPreset('')" class="btn btn-sm btn-pink-soft" style="font-size:11px;padding:5px 9px;">
+                    Reset
+                  </button>
+                </div>
+                <div id="closingDiffDisplay" class="mt-2">
+                  ${actualNum !== null ? `
+                    <span class="text-xs font-extrabold" style="color:${variance === 0 ? 'var(--green-700)' : 'var(--pink-600)'};">
+                      Selisih Laci: ${formatRp(variance)} ${variance === 0 ? '(Klop / Sesuai)' : variance > 0 ? '(Lebih)' : '(Kurang)'}
+                    </span>
+                  ` : `<span class="text-xs text-muted">Ketik angka langsung atau pilih tombol cepat di atas.</span>`}
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">PIN Kasir Bertugas (${escapeHtml(ui.currentUser.name)})</label>
-                <input type="password" maxlength="4" value="${escapeHtml(ui.closingStaffPin)}" oninput="ui.closingStaffPin=this.value" placeholder="****" style="font-family:monospace;font-weight:800;font-size:15px;" />
+                <input type="password" inputmode="numeric" maxlength="4" value="${escapeHtml(ui.closingStaffPin)}" oninput="ui.closingStaffPin=this.value.replace(/\\D/g,'').slice(0,4); this.value=ui.closingStaffPin;" placeholder="****" style="font-family:monospace;font-weight:800;font-size:16px;letter-spacing:0.25em;" />
+                <div class="text-xs text-muted mt-2">Masukkan 4 digit PIN kasir atau PIN Owner untuk mengunci laporan shift.</div>
               </div>
             </div>
 
@@ -3132,6 +3311,7 @@
         { id: 'kasir', label: 'Kasir', icon: '☕' },
         { id: 'penjualan', label: 'Penjualan', icon: '🧾' },
         { id: 'laporan', label: 'Laporan', icon: '📈' },
+        { id: 'inventori', label: 'Inventori', icon: '📦' },
         { id: 'pengaturan', label: 'Pengaturan', icon: '⚙️' }
       ];
 
@@ -3170,6 +3350,7 @@
           <main class="owner-main">
             ${ui.ownerTab === 'penjualan' ? renderOwnerPenjualan() : ''}
             ${ui.ownerTab === 'laporan' ? renderOwnerLaporan() : ''}
+            ${ui.ownerTab === 'inventori' ? renderOwnerInventori() : ''}
             ${ui.ownerTab === 'pengaturan' ? renderOwnerPengaturan() : ''}
           </main>
         </div>
@@ -3228,39 +3409,30 @@
             <table>
               <thead>
                 <tr>
-                  <th>Kode &amp; Waktu</th>
-                  <th>Outlet</th>
+                  <th>No. Nota</th>
+                  <th>Tanggal &amp; Jam</th>
                   <th>Jenis Order</th>
-                  <th>Pelanggan (CRM)</th>
+                  <th>Pelanggan</th>
+                  <th>Kasir</th>
                   <th>Pembayaran</th>
                   <th>Total</th>
                   <th>Status</th>
-                  <th>Struk</th>
+                  <th class="text-right">Struk</th>
                 </tr>
               </thead>
               <tbody>
-                ${filtered.length === 0 ? `<tr><td colspan="8" class="text-center text-muted" style="padding:28px;">Tidak ada data penjualan pada filter ini.</td></tr>` : filtered.map(o => `
+                ${filtered.length === 0 ? `<tr><td colspan="9" class="text-center text-muted" style="padding:26px;">Tidak ada transaksi pada filter ini.</td></tr>` : filtered.map(o => `
                   <tr>
-                    <td>
-                      <div class="font-mono font-bold">${escapeHtml(o.id)}</div>
-                      <div class="text-xs text-muted">${o.date} ${o.time} • ${escapeHtml(o.cashierName)}</div>
-                    </td>
-                    <td>${escapeHtml(o.outlet || db.outletInfo.branch)}</td>
+                    <td class="font-mono font-bold">${escapeHtml(o.id)}</td>
+                    <td>${o.date} ${o.time}</td>
                     <td><span class="badge badge-yellow">${escapeHtml(o.orderType)}</span></td>
-                    <td>
-                      <div class="font-bold">${escapeHtml(o.customerName)}</div>
-                      <div class="text-xs text-muted">${escapeHtml(o.customerPhone)}</div>
-                    </td>
-                    <td class="font-bold">${escapeHtml(o.paymentMethod)}</td>
+                    <td class="font-bold">${escapeHtml(o.customerName)}</td>
+                    <td>${escapeHtml(o.cashierName)}</td>
+                    <td>${escapeHtml(o.paymentMethod)}</td>
                     <td class="font-extrabold">${formatRp(o.total)}</td>
-                    <td>
-                      ${o.status === 'Selesai'
-                        ? `<span class="badge badge-green">Selesai</span>`
-                        : `<div><span class="badge badge-pink">Batal (${escapeHtml(o.voidReason)})</span><div class="text-xs text-muted mt-1">ACC: ${escapeHtml(o.voidApprovedBy || '-')}</div></div>`
-                      }
-                    </td>
-                    <td>
-                      <button type="button" onclick="reprintCompletedReceipt('${o.id}')" class="btn btn-sm btn-outline">🖨</button>
+                    <td><span class="badge ${o.status === 'Selesai' ? 'badge-green' : 'badge-pink'}">${escapeHtml(o.status)}</span></td>
+                    <td class="text-right">
+                      <button type="button" onclick="reprintCompletedReceipt('${o.id}')" class="btn btn-sm btn-outline">🖨 Struk</button>
                     </td>
                   </tr>
                 `).join('')}
@@ -3272,111 +3444,253 @@
     }
 
     function renderOwnerLaporan() {
-      const subTabs = [
-        { id: 'ringkasan', label: 'Ringkasan Penjualan' },
-        { id: 'top_report', label: 'Laporan Teratas' },
-        { id: 'kasir', label: 'Kasir' },
-        { id: 'absensi', label: 'Absensi' },
-        { id: 'inventori', label: 'Inventori' }
-      ];
-
-      return `
-        <div class="container-max">
-          <div class="mb-3">
-            <h1 class="text-xl font-extrabold" style="letter-spacing:-0.02em;">Laporan</h1>
-            <p class="text-xs text-muted">Ringkasan penjualan, laporan teratas, kasir, absensi, dan inventori</p>
-          </div>
-
-          <div class="subtab-bar">
-            ${subTabs.map(st => `
-              <button type="button" onclick="ui.ownerReportSubTab='${st.id}'; render();" class="subtab-btn ${ui.ownerReportSubTab === st.id ? 'active' : ''}">
-                ${st.label}
-              </button>
-            `).join('')}
-          </div>
-
-          ${ui.ownerReportSubTab === 'ringkasan' ? renderReportRingkasan() : ''}
-          ${ui.ownerReportSubTab === 'top_report' ? renderReportTop10() : ''}
-          ${ui.ownerReportSubTab === 'kasir' ? renderReportKasirSub() : ''}
-          ${ui.ownerReportSubTab === 'absensi' ? renderReportAbsensiSub() : ''}
-          ${ui.ownerReportSubTab === 'inventori' ? renderReportInventoriSub() : ''}
-        </div>
-      `;
-    }
-
-    function renderReportRingkasan() {
-      const validOrders = db.completedOrders.filter(o =>
-        o.status === 'Selesai' &&
-        o.date >= ui.ownerReportStart &&
-        o.date <= ui.ownerReportEnd &&
-        (ui.ownerReportOutlet === 'Semua Outlet' || o.outlet === ui.ownerReportOutlet)
-      );
+      const validOrders = db.completedOrders.filter(o => {
+        if (o.status !== 'Selesai') return false;
+        if (o.date < ui.ownerReportStart || o.date > ui.ownerReportEnd) return false;
+        if (ui.ownerReportOutlet !== 'Semua Outlet' && o.outlet !== ui.ownerReportOutlet) return false;
+        return true;
+      });
 
       const grossSales = validOrders.reduce((s, o) => s + o.subtotal, 0);
       const totalDiscount = validOrders.reduce((s, o) => s + o.discountAmount, 0);
       const netSales = validOrders.reduce((s, o) => s + o.total, 0);
       const totalHpp = validOrders.reduce((s, o) => s + (o.totalHpp || 0), 0);
       const grossProfit = netSales - totalHpp;
-      const avgBasket = validOrders.length > 0 ? Math.round(netSales / validOrders.length) : 0;
-
-      const payMethods = ['Cash', 'QRIS', 'Transfer'];
 
       return `
-        <div>
-          <div class="card flex flex-wrap items-center gap-3 mb-4">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold">Range Tanggal:</span>
+        <div class="container-max">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <h1 class="text-xl font-extrabold" style="letter-spacing:-0.02em;">Laporan &amp; Analitik</h1>
+              <p class="text-xs text-muted">Ringkasan penjualan, Top 10, kasir, dan absensi</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
               <input type="date" value="${ui.ownerReportStart}" onchange="ui.ownerReportStart=this.value; render();" style="width:auto;padding:7px 10px;font-size:12px;" />
               <span class="text-xs font-bold">s/d</span>
               <input type="date" value="${ui.ownerReportEnd}" onchange="ui.ownerReportEnd=this.value; render();" style="width:auto;padding:7px 10px;font-size:12px;" />
-            </div>
-            <div class="flex items-center gap-2" style="min-width:230px;">
-              <span class="text-xs font-bold">Outlet:</span>
-              <select onchange="ui.ownerReportOutlet=this.value; render();" style="padding:7px 10px;font-size:12px;font-weight:700;">
+              <select onchange="ui.ownerReportOutlet=this.value; render();" style="width:auto;padding:7px 10px;font-size:12px;font-weight:700;">
                 <option value="Semua Outlet" ${ui.ownerReportOutlet === 'Semua Outlet' ? 'selected' : ''}>Semua Outlet</option>
                 ${db.outlets.map(out => `<option value="${escapeHtml(out.name)}" ${ui.ownerReportOutlet === out.name ? 'selected' : ''}>${escapeHtml(out.name)}</option>`).join('')}
               </select>
             </div>
           </div>
 
-          <div class="bento-grid mb-4">
-            <div class="bento-card">
-              <div class="bento-label">Penjualan Kotor</div>
-              <div class="bento-value">${formatRp(grossSales)}</div>
+          <div class="subtab-bar">
+            <button type="button" onclick="ui.ownerReportSubTab='ringkasan'; render();" class="subtab-btn ${ui.ownerReportSubTab === 'ringkasan' ? 'active' : ''}">Ringkasan Penjualan</button>
+            <button type="button" onclick="ui.ownerReportSubTab='top_report'; render();" class="subtab-btn ${ui.ownerReportSubTab === 'top_report' ? 'active' : ''}">Top 10 Report</button>
+            <button type="button" onclick="ui.ownerReportSubTab='kasir'; render();" class="subtab-btn ${ui.ownerReportSubTab === 'kasir' ? 'active' : ''}">Laporan Kasir</button>
+            <button type="button" onclick="ui.ownerReportSubTab='absensi'; render();" class="subtab-btn ${ui.ownerReportSubTab === 'absensi' ? 'active' : ''}">Laporan Absensi</button>
+          </div>
+
+          ${ui.ownerReportSubTab === 'ringkasan' ? `
+            <div class="bento-grid mb-4">
+              <div class="bento-card">
+                <div class="bento-label">Penjualan Kotor</div>
+                <div class="bento-value">${formatRp(grossSales)}</div>
+              </div>
+              <div class="bento-card pink-tint">
+                <div class="bento-label">Total Diskon</div>
+                <div class="bento-value" style="color:var(--pink-600);">-${formatRp(totalDiscount)}</div>
+              </div>
+              <div class="bento-card dark">
+                <div class="bento-label">Penjualan Bersih</div>
+                <div class="bento-value">${formatRp(netSales)}</div>
+              </div>
+              <div class="bento-card">
+                <div class="bento-label">Total HPP / Modal</div>
+                <div class="bento-value">${formatRp(totalHpp)}</div>
+              </div>
+              <div class="bento-card">
+                <div class="bento-label">Laba Kotor (Gross Profit)</div>
+                <div class="bento-value" style="color:var(--green-700);">${formatRp(grossProfit)}</div>
+              </div>
             </div>
-            <div class="bento-card pink-tint">
-              <div class="bento-label">Total Diskon</div>
-              <div class="bento-value" style="color:var(--pink-600);">-${formatRp(totalDiscount)}</div>
+          ` : ''}
+          ${ui.ownerReportSubTab === 'top_report' ? renderReportTop10() : ''}
+          ${ui.ownerReportSubTab === 'kasir' ? renderReportKasirSub() : ''}
+          ${ui.ownerReportSubTab === 'absensi' ? renderReportAbsensiSub() : ''}
+        </div>
+      `;
+    }
+
+    function renderOwnerInventori() {
+      const lowStockCount = db.inventory.filter(i => i.stock <= i.minStock).length;
+      return `
+        <div class="container-max">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h1 class="text-xl font-extrabold" style="letter-spacing:-0.02em;">Inventori &amp; Stok Gudang</h1>
+              <p class="text-xs text-muted mt-1">Kelola stok opname fisik, penerimaan mutasi stok masuk, dan pencatatan stok terbuang (waste)</p>
             </div>
-            <div class="bento-card">
-              <div class="bento-label">Penjualan Bersih</div>
-              <div class="bento-value">${formatRp(netSales)}</div>
-            </div>
-            <div class="bento-card">
-              <div class="bento-label">Total HPP &amp; Rata-rata Order</div>
-              <div class="bento-value" style="font-size:17px;">${formatRp(totalHpp)}</div>
-              <div class="text-xs text-muted mt-1">Rata-rata: ${formatRp(avgBasket)}</div>
-            </div>
-            <div class="bento-card dark">
-              <div class="bento-label">Laba Kotor</div>
-              <div class="bento-value">${formatRp(grossProfit)}</div>
+            <div class="flex items-center gap-2">
+              <span class="badge ${lowStockCount > 0 ? 'badge-pink-solid' : 'badge-green'}">
+                ${lowStockCount > 0 ? `⚠️ ${lowStockCount} Item Stok Minimum` : '✔ Semua Stok Aman'}
+              </span>
             </div>
           </div>
 
-          <div class="card">
-            <h3 class="font-extrabold text-sm mb-3">Rincian Metode Pembayaran</h3>
-            <div class="grid-3">
-              ${payMethods.map(pm => {
-                const sub = validOrders.filter(o => o.paymentMethod === pm);
-                const sum = sub.reduce((s, o) => s + o.total, 0);
-                return `
-                  <div style="background:var(--surface-alt);border:1px solid var(--border);border-radius:16px;padding:14px;">
-                    <div class="text-xs font-bold text-muted">${pm}</div>
-                    <div class="font-extrabold text-lg mt-1">${formatRp(sum)}</div>
-                    <div class="text-xs font-bold mt-1" style="color:var(--pink-600);">${sub.length} Transaksi</div>
-                  </div>
-                `;
-              }).join('')}
+          ${renderReportInventoriSub()}
+        </div>
+      `;
+    }
+
+    function getFilteredSettingsProducts() {
+      const q = ui.settingsProdSearch.trim().toLowerCase();
+      return db.products.filter(p => {
+        const matchCat = ui.settingsProdCategory === 'Semua Kategori' || p.category === ui.settingsProdCategory;
+        if (!matchCat) return false;
+        if (!q) return true;
+        return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+      });
+    }
+
+    function buildCompactProductTableHtml() {
+      const filteredProds = getFilteredSettingsProducts();
+      const totalItems = filteredProds.length;
+      const pageSize = Number(ui.settingsProdPageSize) || 10;
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+      if (ui.settingsProdPage > totalPages) ui.settingsProdPage = totalPages;
+      if (ui.settingsProdPage < 1) ui.settingsProdPage = 1;
+
+      const startIdx = (ui.settingsProdPage - 1) * pageSize;
+      const pageItems = filteredProds.slice(startIdx, startIdx + pageSize);
+      const showFrom = totalItems === 0 ? 0 : startIdx + 1;
+      const showTo = Math.min(totalItems, startIdx + pageSize);
+
+      const rowsHtml = pageItems.length === 0
+        ? `<tr><td colspan="6" class="text-center text-muted" style="padding:24px;">Produk tidak ditemukan pada filter saat ini.</td></tr>`
+        : pageItems.map(p => `
+            <tr onclick="openEditProductModal('${p.id}')" style="cursor:pointer;">
+              <td class="font-mono font-bold nowrap">${escapeHtml(p.sku)}</td>
+              <td class="font-bold">
+                ${escapeHtml(p.name)}
+                ${p.isFavorite ? '<span class="badge badge-yellow" style="padding:1px 6px;font-size:10px;margin-left:4px;">★</span>' : ''}
+              </td>
+              <td class="nowrap"><span class="badge badge-green" style="padding:2px 8px;font-size:10.5px;">${escapeHtml(p.category)}</span></td>
+              <td class="font-extrabold nowrap">${formatRp(p.price)}</td>
+              <td class="nowrap font-semibold">${p.stock !== undefined ? p.stock : '-'}</td>
+              <td class="nowrap text-muted">${escapeHtml(p.unit)}</td>
+            </tr>
+          `).join('');
+
+      return `
+        <div class="table-wrap table-wrap-compact">
+          <table class="table-compact">
+            <thead>
+              <tr>
+                <th class="nowrap">SKU</th>
+                <th>Nama Produk</th>
+                <th class="nowrap">Kategori</th>
+                <th class="nowrap">Harga Jual</th>
+                <th class="nowrap">Stok</th>
+                <th class="nowrap">Satuan</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2" style="border-top:1px solid var(--border);">
+          <div class="text-xs text-muted">
+            Menampilkan <strong>${showFrom}–${showTo}</strong> dari <strong>${totalItems}</strong> produk
+          </div>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="changeSettingsProdPage(${ui.settingsProdPage - 1})" class="btn btn-sm btn-outline" ${ui.settingsProdPage <= 1 ? 'disabled style="opacity:0.45;pointer-events:none;padding:5px 10px;"' : 'style="padding:5px 10px;"'}>
+              ‹ Sebelumnya
+            </button>
+            <span class="badge badge-dark" style="padding:5px 10px;">Hal ${ui.settingsProdPage} / ${totalPages}</span>
+            <button type="button" onclick="changeSettingsProdPage(${ui.settingsProdPage + 1})" class="btn btn-sm btn-outline" ${ui.settingsProdPage >= totalPages ? 'disabled style="opacity:0.45;pointer-events:none;padding:5px 10px;"' : 'style="padding:5px 10px;"'}>
+              Berikutnya ›
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    window.updateSettingsProdFilter = function(field, value) {
+      if (field === 'search') ui.settingsProdSearch = value;
+      if (field === 'category') ui.settingsProdCategory = value;
+      if (field === 'pageSize') ui.settingsProdPageSize = Number(value) || 10;
+      ui.settingsProdPage = 1;
+      const container = document.getElementById('settings-prod-table-container');
+      if (container) {
+        container.innerHTML = buildCompactProductTableHtml();
+      } else {
+        render();
+      }
+    };
+
+    window.changeSettingsProdPage = function(newPage) {
+      ui.settingsProdPage = newPage;
+      const container = document.getElementById('settings-prod-table-container');
+      if (container) {
+        container.innerHTML = buildCompactProductTableHtml();
+      } else {
+        render();
+      }
+    };
+
+    function renderSettingsProdukKategori() {
+      const pageSizes = [10, 20, 50, 100];
+
+      return `
+        <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start;" class="settings-split">
+          <!-- Kategori Panel (Compact Scrollable) -->
+          <div class="card" style="padding:16px;">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-extrabold text-sm">Daftar Kategori</h3>
+              <button type="button" onclick="openAddCategoryModal()" class="btn btn-sm btn-yellow" style="padding:5px 10px;font-size:11.5px;">+ Kategori</button>
+            </div>
+            <p class="text-xs text-muted mb-2">Klik kategori untuk edit / hapus.</p>
+            <div class="flex flex-col gap-1" style="max-height:475px;overflow-y:auto;padding-right:2px;">
+              ${db.categories.map(cat => `
+                <button type="button" onclick="openEditCategoryModal('${cat.id}')"
+                  class="flex items-center justify-between"
+                  style="padding:8px 11px;background:var(--surface-alt);border:1px solid var(--border);border-radius:11px;">
+                  <span class="font-bold text-xs">${escapeHtml(cat.name)}</span>
+                  <span class="badge badge-green" style="padding:2px 8px;font-size:10px;">Edit →</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Produk Panel (Compact 1-Screen with Pagination & 10/20/50/100) -->
+          <div class="card" style="padding:16px;">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div>
+                <h3 class="font-extrabold text-base">Daftar Produk</h3>
+                <p class="text-xs text-muted">Klik baris produk untuk edit detail atau hapus produk.</p>
+              </div>
+              <button type="button" onclick="openAddProductModal()" class="btn btn-sm btn-yellow">+ Tambah Produk</button>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+              <div style="flex:1;min-width:190px;">
+                <input type="text" value="${escapeHtml(ui.settingsProdSearch)}" oninput="updateSettingsProdFilter('search', this.value)" placeholder="🔍 Cari nama produk, SKU, atau kategori..." style="padding:7px 11px;font-size:12.5px;" />
+              </div>
+              <div style="min-width:155px;">
+                <select onchange="updateSettingsProdFilter('category', this.value)" style="padding:7px 10px;font-size:12px;font-weight:700;">
+                  <option value="Semua Kategori" ${ui.settingsProdCategory === 'Semua Kategori' ? 'selected' : ''}>Semua Kategori</option>
+                  ${db.categories.filter(c => c.name !== 'Favorit').map(c => `
+                    <option value="${escapeHtml(c.name)}" ${ui.settingsProdCategory === c.name ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div class="flex items-center gap-1" style="background:var(--surface-alt);border:1px solid var(--border);border-radius:11px;padding:3px 6px;">
+                <span class="text-xs font-bold text-muted" style="padding:0 4px;">Tampilkan:</span>
+                ${pageSizes.map(sz => `
+                  <button type="button"
+                    onclick="ui.settingsProdPageSize=${sz}; ui.settingsProdPage=1; render();"
+                    class="btn btn-sm ${ui.settingsProdPageSize === sz ? 'btn-green' : ''}"
+                    style="padding:4px 8px;font-size:11px;border-radius:8px;${ui.settingsProdPageSize === sz ? '' : 'color:var(--green-900);'}">
+                    ${sz}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div id="settings-prod-table-container">
+              ${buildCompactProductTableHtml()}
             </div>
           </div>
         </div>
@@ -3699,76 +4013,6 @@
           ${ui.ownerSettingsSubTab === 'pegawai' ? renderSettingsPegawai() : ''}
           ${ui.ownerSettingsSubTab === 'promo' ? renderSettingsPromo() : ''}
           ${ui.ownerSettingsSubTab === 'info_outlet' ? renderSettingsInfoOutlet() : ''}
-        </div>
-      `;
-    }
-
-    function renderSettingsProdukKategori() {
-      const q = ui.settingsProdSearch.trim().toLowerCase();
-      const filteredProds = db.products.filter(p => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
-
-      return `
-        <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;" class="settings-split">
-          <!-- Kategori Panel -->
-          <div class="card" style="height:fit-content;">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="font-extrabold text-base">Daftar Kategori</h3>
-              <button type="button" onclick="openAddCategoryModal()" class="btn btn-sm btn-yellow">+ Kategori</button>
-            </div>
-            <p class="text-xs text-muted mb-3">Klik kategori untuk edit atau hapus kategori.</p>
-            <div class="flex flex-col gap-2">
-              ${db.categories.map(cat => `
-                <button type="button" onclick="openEditCategoryModal('${cat.id}')"
-                  class="flex items-center justify-between"
-                  style="padding:11px 14px;background:var(--surface-alt);border:1px solid var(--border);border-radius:14px;">
-                  <span class="font-bold text-sm">${escapeHtml(cat.name)}</span>
-                  <span class="badge badge-green">Edit →</span>
-                </button>
-              `).join('')}
-            </div>
-          </div>
-
-          <!-- Produk Panel -->
-          <div class="card">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div>
-                <h3 class="font-extrabold text-base">Daftar Produk</h3>
-                <p class="text-xs text-muted">Klik baris produk untuk edit detail atau hapus produk.</p>
-              </div>
-              <button type="button" onclick="openAddProductModal()" class="btn btn-yellow">+ Tambah Produk</button>
-            </div>
-
-            <div class="mb-3">
-              <input type="text" value="${escapeHtml(ui.settingsProdSearch)}" oninput="ui.settingsProdSearch=this.value; render();" placeholder="🔍 Cari nama produk, SKU, atau kategori..." />
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Nama Produk</th>
-                    <th>Kategori</th>
-                    <th>Harga Jual</th>
-                    <th>Stok</th>
-                    <th>Satuan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${filteredProds.map(p => `
-                    <tr onclick="openEditProductModal('${p.id}')" style="cursor:pointer;">
-                      <td class="font-mono font-bold">${escapeHtml(p.sku)}</td>
-                      <td class="font-bold">${escapeHtml(p.name)} ${p.isFavorite ? '<span class="badge badge-yellow">★</span>' : ''}</td>
-                      <td><span class="badge badge-green">${escapeHtml(p.category)}</span></td>
-                      <td class="font-extrabold">${formatRp(p.price)}</td>
-                      <td>${p.stock !== undefined ? p.stock : '-'}</td>
-                      <td>${escapeHtml(p.unit)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       `;
     }
@@ -4102,7 +4346,7 @@
         const info = db.outletInfo;
         html += `
           <div class="modal-backdrop">
-            <div class="modal-card" style="max-width:390px;">
+            <div class="modal-card" style="max-width:410px;">
               <div class="modal-header">
                 <span class="font-extrabold text-xs" style="color:var(--yellow-400);">${escapeHtml(d.title)}</span>
                 <button type="button" onclick="ui.receiptModalData=null; render();" class="btn btn-sm btn-outline">✕</button>
@@ -4128,6 +4372,18 @@
                       <div class="font-bold">Aktual Fisik: ${formatRp(d.closingData.actualCash)}</div>
                       <div class="font-bold">Selisih: ${formatRp(d.closingData.variance)}</div>
                     </div>
+                    ${Array.isArray(d.closingData.pendingOrders) ? `
+                      <div style="border-bottom:1px dashed #000;padding:6px 0;font-size:10px;">
+                        <div class="font-bold">Transaksi Tertunda (${d.closingData.pendingOrders.length}): ${formatRp(d.closingData.pendingTotal || 0)}</div>
+                        ${d.closingData.pendingOrders.map(p => `<div>- ${escapeHtml(p.customerName)}: ${formatRp(p.total)}</div>`).join('')}
+                      </div>
+                    ` : ''}
+                    ${Array.isArray(d.closingData.soldProducts) ? `
+                      <div style="padding:6px 0;font-size:10px;">
+                        <div class="font-bold">List Produk Terjual:</div>
+                        ${d.closingData.soldProducts.map(sp => `<div class="flex justify-between"><span>${sp.qty}x ${escapeHtml(sp.name)}</span><span>${formatRp(sp.total)}</span></div>`).join('')}
+                      </div>
+                    ` : ''}
                   ` : `
                     <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;font-size:10px;">
                       <div>No: ${o.id}</div>
