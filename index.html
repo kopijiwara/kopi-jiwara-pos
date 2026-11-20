@@ -11,21 +11,22 @@
     :root {
       --green-deep: #0B2E23;
       --green-mid: #134636;
-      --green-soft: #E8F3EE;
+      --green-soft: #E9F3EE;
       --yellow: #FACC15;
-      --yellow-dark: #EAB308;
+      --yellow-glow: rgba(250, 204, 21, 0.35);
       --pink: #F472B6;
-      --pink-dark: #EC4899;
-      --bg-page: #F4F7F5;
-      --surface: #FFFFFF;
+      --pink-glow: rgba(244, 114, 182, 0.32);
+      --bg-canvas: #EEF3F0;
+      --glass-surface: rgba(255, 255, 255, 0.90);
+      --glass-solid: #FFFFFF;
       --text-main: #0B2E23;
-      --text-muted: #5B736A;
-      --border-soft: rgba(11, 46, 35, 0.12);
-      --radius-lg: 22px;
-      --radius-md: 15px;
-      --radius-sm: 11px;
-      --shadow-card: 0 10px 28px -8px rgba(11, 46, 35, 0.10);
-      --shadow-float: 0 20px 44px -12px rgba(11, 46, 35, 0.25);
+      --text-muted: #526B62;
+      --border-glass: rgba(11, 46, 35, 0.11);
+      --radius-bento: 22px;
+      --radius-tile: 18px;
+      --radius-pill: 999px;
+      --shadow-bento: 0 10px 28px -10px rgba(11, 46, 35, 0.11), 0 2px 6px rgba(11, 46, 35, 0.04);
+      --shadow-float: 0 24px 48px -12px rgba(7, 31, 23, 0.30);
     }
 
     * {
@@ -37,19 +38,20 @@
     html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
       max-width: 100vw;
       overflow-x: hidden;
-      background: var(--bg-page);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(250, 204, 21, 0.13), transparent 34%),
+        radial-gradient(circle at 100% 12%, rgba(244, 114, 182, 0.13), transparent 36%),
+        var(--bg-canvas);
       color: var(--text-main);
     }
 
-    button, input, select, textarea {
-      font-family: inherit;
-    }
-
-    /* SCROLLBAR CLEAN */
+    button, input, select, textarea { font-family: inherit; }
     .no-scroll::-webkit-scrollbar { display: none; }
     .no-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    .hidden { display: none !important; }
 
     /* TOAST */
     .toast-wrap {
@@ -62,179 +64,147 @@
       pointer-events: none;
     }
     .toast-box {
-      background: var(--green-deep);
+      background: rgba(11, 46, 35, 0.96);
+      backdrop-filter: blur(12px);
       color: var(--yellow);
       border: 1.5px solid var(--yellow);
-      padding: 11px 18px;
-      border-radius: 999px;
+      padding: 10px 18px;
+      border-radius: var(--radius-pill);
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 800;
       box-shadow: var(--shadow-float);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      animation: fadeDown 0.22s ease;
+      white-space: nowrap;
     }
     .toast-box.error {
-      background: #991B1B;
+      background: #881337;
       color: #FFFFFF;
       border-color: var(--pink);
     }
-    @keyframes fadeDown {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
 
-    /* LOGIN SCREEN - GLASSMORPHISM */
+    /* ==================== LOGIN SCREEN (CLEAN GLASSMORPHISM) ==================== */
     .login-bg {
-      min-height: 100vh;
+      min-height: 100dvh;
       width: 100%;
       background:
-        radial-gradient(circle at 12% 18%, rgba(250, 204, 21, 0.22), transparent 36%),
-        radial-gradient(circle at 88% 82%, rgba(244, 114, 182, 0.24), transparent 38%),
-        linear-gradient(145deg, #071F17 0%, #0B2E23 52%, #134636 100%);
+        radial-gradient(circle at 15% 15%, rgba(250, 204, 21, 0.22), transparent 38%),
+        radial-gradient(circle at 85% 85%, rgba(244, 114, 182, 0.24), transparent 40%),
+        linear-gradient(150deg, #071F17 0%, #0B2E23 50%, #134636 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 16px;
     }
-    .login-card {
+    .login-glass-card {
       width: 100%;
       max-width: 420px;
-      background: rgba(255, 255, 255, 0.94);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      background: rgba(255, 255, 255, 0.10);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
       border-radius: 28px;
-      padding: 24px 22px;
-      border: 2px solid rgba(250, 204, 21, 0.65);
-      box-shadow: 0 28px 60px rgba(0, 0, 0, 0.35);
+      padding: 24px 20px;
+      border: 1.5px solid rgba(255, 255, 255, 0.20);
+      box-shadow: 0 32px 64px rgba(0, 0, 0, 0.40);
+      color: #FFFFFF;
     }
-    .brand-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .brand-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-    .spiral-badge {
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
-      background: var(--green-deep);
-      border: 2px solid var(--yellow);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      box-shadow: 0 6px 16px rgba(11, 46, 35, 0.25);
-    }
-    .pill-tag {
-      background: rgba(244, 114, 182, 0.22);
+    .badge-chip-yellow {
+      background: var(--yellow);
       color: var(--green-deep);
-      border: 1px solid rgba(244, 114, 182, 0.5);
-      padding: 5px 11px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    .field-label {
-      display: block;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 900;
       letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 6px;
+      text-transform: uppercase;
     }
-    .styled-select, .styled-input {
+    .badge-chip-pink {
+      background: rgba(244, 114, 182, 0.22);
+      color: #FBCFE8;
+      border: 1px solid rgba(244, 114, 182, 0.50);
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .login-select {
       width: 100%;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 2px solid var(--border-soft);
-      background: #F8FBFA;
-      color: var(--green-deep);
+      padding: 13px 15px;
+      border-radius: 15px;
+      border: 1.5px solid rgba(250, 204, 21, 0.55);
+      background: rgba(11, 46, 35, 0.78);
+      color: #FFFFFF;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 800;
       outline: none;
-      transition: border-color 0.18s;
-    }
-    .styled-select:focus, .styled-input:focus {
-      border-color: var(--green-deep);
-      background: #FFFFFF;
     }
     .pin-dots {
       display: flex;
       justify-content: center;
-      gap: 12px;
+      gap: 14px;
       margin: 14px 0 16px;
     }
     .pin-dot {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      border: 2px solid var(--green-deep);
-      background: transparent;
+      border: 2px solid var(--yellow);
+      background: rgba(255, 255, 255, 0.08);
       transition: all 0.15s;
     }
     .pin-dot.filled {
       background: var(--yellow);
-      border-color: var(--green-deep);
-      transform: scale(1.12);
+      box-shadow: 0 0 10px var(--yellow);
+      transform: scale(1.15);
     }
     .numpad-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 9px;
+      gap: 10px;
     }
     .num-btn {
-      padding: 14px 0;
-      border-radius: 15px;
-      border: 1.5px solid var(--border-soft);
-      background: #FFFFFF;
-      color: var(--green-deep);
+      padding: 13px 0;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.11);
+      color: #FFFFFF;
       font-size: 18px;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 3px 8px rgba(11, 46, 35, 0.05);
       transition: transform 0.1s, background 0.15s;
     }
     .num-btn:active {
-      transform: scale(0.95);
-      background: var(--green-soft);
+      transform: scale(0.96);
+      background: rgba(250, 204, 21, 0.25);
     }
     .num-btn.pink {
-      background: rgba(244, 114, 182, 0.2);
-      color: #9D174D;
-      border-color: rgba(244, 114, 182, 0.45);
+      background: var(--pink);
+      color: var(--green-deep);
+      border-color: var(--pink);
       font-size: 13px;
     }
     .num-btn.enter {
-      background: var(--green-deep);
-      color: var(--yellow);
-      border-color: var(--green-deep);
+      background: var(--yellow);
+      color: var(--green-deep);
+      border-color: var(--yellow);
       font-size: 13px;
     }
 
-    /* TOP HEADER & GLASS NAV */
+    /* ==================== TOP HEADER & GLASS NAV ==================== */
     .topbar {
       position: sticky;
       top: 0;
       z-index: 40;
-      background: linear-gradient(135deg, #0B2E23 0%, #134636 100%);
+      background: linear-gradient(135deg, rgba(11, 46, 35, 0.97) 0%, rgba(19, 70, 54, 0.96) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       color: #FFFFFF;
       padding: 12px 14px;
-      box-shadow: 0 8px 24px rgba(11, 46, 35, 0.22);
-      border-bottom: 2px solid rgba(250, 204, 21, 0.35);
+      border-bottom: 1.5px solid rgba(250, 204, 21, 0.32);
+      box-shadow: 0 10px 28px rgba(11, 46, 35, 0.20);
     }
     .topbar-inner {
-      max-width: 1340px;
+      max-width: 1440px;
       margin: 0 auto;
     }
     .topbar-row {
@@ -242,46 +212,45 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+      flex-wrap: wrap;
     }
     .outlet-info {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 2px;
       min-width: 0;
+    }
+    .outlet-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
     .outlet-title {
       font-size: 15px;
       font-weight: 900;
       letter-spacing: -0.01em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    }
+    @media (min-width: 768px) {
+      .outlet-title { font-size: 17px; }
     }
     .outlet-sub {
       font-size: 11px;
       color: #A7F3D0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-weight: 600;
     }
     .shift-pill {
-      padding: 4px 10px;
-      border-radius: 999px;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
       font-size: 10px;
-      font-weight: 800;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
       white-space: nowrap;
     }
-    .shift-pill.open {
-      background: var(--yellow);
-      color: var(--green-deep);
-    }
-    .shift-pill.closed {
-      background: rgba(244, 114, 182, 0.28);
-      color: #FBCFE8;
-      border: 1px solid rgba(244, 114, 182, 0.5);
-    }
+    .shift-pill.open { background: var(--yellow); color: var(--green-deep); }
+    .shift-pill.closed { background: var(--pink); color: var(--green-deep); }
 
-    /* MAIN NAV PILLS */
     .nav-bar {
       display: flex;
       gap: 6px;
@@ -289,10 +258,17 @@
       overflow-x: auto;
       padding-bottom: 2px;
     }
+    @media (min-width: 768px) {
+      .nav-bar {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        gap: 8px;
+      }
+    }
     .nav-pill {
-      padding: 9px 14px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       background: rgba(255, 255, 255, 0.08);
       color: #ECFDF5;
       font-size: 12px;
@@ -305,30 +281,32 @@
       background: var(--yellow);
       color: var(--green-deep);
       border-color: var(--yellow);
-      box-shadow: 0 4px 12px rgba(250, 204, 21, 0.35);
-    }
-    .nav-pill.pink-btn {
-      background: var(--pink);
-      color: var(--green-deep);
-      border-color: var(--pink);
+      box-shadow: 0 4px 12px var(--yellow-glow);
     }
 
-    /* MAIN CONTAINER */
+    /* ==================== RESPONSIVE BENTO GRID & CARDS ==================== */
     .main-wrap {
-      max-width: 1340px;
+      max-width: 1440px;
       width: 100%;
       margin: 0 auto;
       padding: 14px;
-      padding-bottom: 84px;
+      padding-bottom: 72px;
     }
-
-    /* BENTO CARDS */
+    @media (min-width: 768px) {
+      .main-wrap { padding: 18px 22px 72px; }
+    }
     .bento-card {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
+      background: var(--glass-surface);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius: var(--radius-bento);
       padding: 16px;
-      border: 1px solid var(--border-soft);
-      box-shadow: var(--shadow-card);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      box-shadow: var(--shadow-bento);
+      min-width: 0;
+    }
+    @media (min-width: 768px) {
+      .bento-card { padding: 20px; }
     }
     .bento-grid-4 {
       display: grid;
@@ -342,37 +320,44 @@
       }
     }
     .kpi-tile {
-      background: var(--surface);
-      border-radius: 20px;
-      padding: 14px;
-      border: 1px solid var(--border-soft);
-      box-shadow: var(--shadow-card);
+      background: var(--glass-solid);
+      border-radius: var(--radius-tile);
+      padding: 14px 15px;
+      border: 1px solid var(--border-glass);
+      box-shadow: var(--shadow-bento);
       min-width: 0;
     }
     .kpi-tile.dark {
-      background: linear-gradient(135deg, var(--green-deep), var(--green-mid));
+      background: linear-gradient(145deg, var(--green-deep) 0%, var(--green-mid) 100%);
       color: #FFFFFF;
+      border: 1.5px solid rgba(250, 204, 21, 0.45);
     }
     .kpi-tile.pink {
-      background: linear-gradient(135deg, #FDF2F8, #FCE7F3);
-      border-color: rgba(236, 72, 153, 0.3);
+      background: linear-gradient(145deg, #FDF2F8 0%, #FCE7F3 100%);
+      border: 1.5px solid rgba(244, 114, 182, 0.45);
+    }
+    .kpi-tile.yellow {
+      background: linear-gradient(145deg, #FEFCE8 0%, #FEF08A 100%);
+      border: 1.5px solid rgba(250, 204, 21, 0.70);
     }
     .kpi-label {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--text-muted);
     }
     .kpi-tile.dark .kpi-label { color: #A7F3D0; }
+    .kpi-tile.pink .kpi-label { color: #9D174D; }
     .kpi-value {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 900;
       margin-top: 5px;
       word-break: break-word;
     }
     @media (min-width: 640px) {
-      .kpi-value { font-size: 21px; }
+      .kpi-value { font-size: 20px; }
     }
     .kpi-tile.dark .kpi-value { color: var(--yellow); }
+    .kpi-tile.pink .kpi-value { color: #BE185D; }
     .kpi-sub {
       font-size: 11px;
       margin-top: 4px;
@@ -380,14 +365,39 @@
     }
     .kpi-tile.dark .kpi-sub { color: #D1FAE5; }
 
-    /* BUTTONS */
+    /* INPUTS & BUTTONS */
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+    .styled-select, .styled-input {
+      width: 100%;
+      padding: 10px 13px;
+      border-radius: 13px;
+      border: 1.5px solid var(--border-glass);
+      background: #FFFFFF;
+      color: var(--green-deep);
+      font-size: 13px;
+      font-weight: 700;
+      outline: none;
+    }
+    .styled-select:focus, .styled-input:focus {
+      border-color: var(--green-deep);
+      box-shadow: 0 0 0 3px rgba(11, 46, 35, 0.08);
+    }
+
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 10px 15px;
-      border-radius: 14px;
+      padding: 10px 14px;
+      border-radius: 13px;
       border: none;
       font-size: 12px;
       font-weight: 800;
@@ -396,35 +406,45 @@
       white-space: nowrap;
     }
     .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .btn-dark { background: var(--green-deep); color: var(--yellow); }
-    .btn-yellow { background: var(--yellow); color: var(--green-deep); }
-    .btn-pink { background: var(--pink); color: var(--green-deep); }
-    .btn-soft { background: var(--green-soft); color: var(--green-deep); border: 1px solid var(--border-soft); }
+    .btn-yellow { background: var(--yellow); color: var(--green-deep); box-shadow: 0 4px 12px var(--yellow-glow); }
+    .btn-pink { background: var(--pink); color: var(--green-deep); box-shadow: 0 4px 12px var(--pink-glow); }
+    .btn-soft { background: var(--green-soft); color: var(--green-deep); border: 1px solid var(--border-glass); }
     .btn-danger { background: #FEE2E2; color: #B91C1C; }
     .btn-sm { padding: 7px 11px; font-size: 11px; border-radius: 10px; }
 
-    /* POS LAYOUT */
+    /* POS RESPONSIVE GRID (HP / TAB / DESKTOP) */
     .pos-layout {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 14px;
       align-items: start;
     }
-    @media (min-width: 1024px) {
+    @media (min-width: 768px) {
       .pos-layout {
-        grid-template-columns: minmax(0, 1.45fr) minmax(350px, 0.95fr);
+        grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
+        gap: 16px;
+      }
+    }
+    @media (min-width: 1200px) {
+      .pos-layout {
+        grid-template-columns: minmax(0, 1.55fr) minmax(370px, 0.9fr);
       }
     }
     .cat-strip {
       display: flex;
       gap: 7px;
       overflow-x: auto;
-      padding: 4px 0;
+      padding: 3px 0;
+    }
+    @media (min-width: 1024px) {
+      .cat-strip { flex-wrap: wrap; overflow-x: visible; }
     }
     .cat-chip {
-      padding: 8px 13px;
-      border-radius: 999px;
-      border: 1.5px solid var(--border-soft);
+      padding: 7px 13px;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border-glass);
       background: #FFFFFF;
       color: var(--green-deep);
       font-size: 12px;
@@ -442,27 +462,29 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
-    @media (min-width: 640px) {
+    @media (min-width: 600px) {
       .prod-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1280px) {
+      .prod-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
     .prod-card {
       background: #FFFFFF;
       border-radius: 18px;
-      padding: 12px;
-      border: 1.5px solid var(--border-soft);
+      padding: 12px 13px;
+      border: 1.5px solid var(--border-glass);
       text-align: left;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 112px;
+      min-height: 108px;
       position: relative;
-      transition: border-color 0.15s, transform 0.1s;
+      box-shadow: 0 4px 12px rgba(11, 46, 35, 0.04);
     }
-    .prod-card:active { transform: scale(0.98); }
     .prod-card.in-cart {
       border-color: var(--green-deep);
-      background: #F4FBF8;
+      background: #F2FAF6;
     }
     .qty-badge {
       position: absolute;
@@ -472,18 +494,18 @@
       color: var(--green-deep);
       font-size: 11px;
       font-weight: 900;
-      padding: 3px 8px;
-      border-radius: 999px;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
       border: 2px solid #FFFFFF;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.15);
     }
 
-    /* TABLES & COMPACT LISTS */
+    /* TABLES */
     .table-box {
       width: 100%;
       overflow-x: auto;
       border-radius: 16px;
-      border: 1px solid var(--border-soft);
+      border: 1px solid var(--border-glass);
+      background: #FFFFFF;
     }
     .compact-table {
       width: 100%;
@@ -504,27 +526,28 @@
     }
     .compact-table tbody td {
       padding: 10px 12px;
-      border-bottom: 1px solid var(--border-soft);
+      border-bottom: 1px solid var(--border-glass);
       vertical-align: middle;
     }
-    .compact-table tbody tr:hover {
-      background: #F7FBF9;
-    }
+    .compact-table tbody tr:hover { background: #F4FAF7; }
 
-    /* SUB-TABS */
+    /* SUBTABS */
     .subtab-bar {
       display: flex;
       gap: 6px;
       overflow-x: auto;
-      background: #FFFFFF;
+      background: rgba(255, 255, 255, 0.88);
       padding: 6px;
-      border-radius: 999px;
-      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-glass);
       margin-bottom: 14px;
+    }
+    @media (min-width: 768px) {
+      .subtab-bar { flex-wrap: wrap; overflow-x: visible; }
     }
     .subtab-btn {
       padding: 8px 14px;
-      border-radius: 999px;
+      border-radius: var(--radius-pill);
       border: none;
       background: transparent;
       color: var(--green-deep);
@@ -538,27 +561,34 @@
       color: var(--yellow);
     }
 
-    /* MODALS */
+    .badge-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .badge-green { background: #D1FAE5; color: #065F46; }
+    .badge-pink { background: #FCE7F3; color: #9D174D; }
+    .badge-yellow { background: #FEF3C7; color: #92400E; }
+
+    /* MODAL */
     .modal-backdrop {
       position: fixed;
       inset: 0;
       z-index: 80;
       background: rgba(7, 31, 23, 0.65);
-      backdrop-filter: blur(5px);
+      backdrop-filter: blur(6px);
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      padding: 0;
     }
     @media (min-width: 640px) {
-      .modal-backdrop {
-        align-items: center;
-        padding: 16px;
-      }
+      .modal-backdrop { align-items: center; padding: 16px; }
     }
     .modal-card {
       width: 100%;
-      max-width: 500px;
+      max-width: 520px;
       max-height: 90vh;
       overflow-y: auto;
       background: #FFFFFF;
@@ -568,10 +598,7 @@
       border-top: 3px solid var(--yellow);
     }
     @media (min-width: 640px) {
-      .modal-card {
-        border-radius: 26px;
-        border: 2px solid var(--yellow);
-      }
+      .modal-card { border-radius: 26px; border: 2px solid var(--yellow); }
     }
     .modal-head {
       display: flex;
@@ -591,28 +618,6 @@
       cursor: pointer;
     }
 
-    /* MOBILE INVENTORY & PRODUCT CARDS */
-    .mobile-only { display: block; }
-    .desktop-only { display: none; }
-    @media (min-width: 768px) {
-      .mobile-only { display: none; }
-      .desktop-only { display: block; }
-    }
-
-    .badge-pill {
-      display: inline-block;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 10px;
-      font-weight: 800;
-    }
-    .badge-green { background: #D1FAE5; color: #065F46; }
-    .badge-pink { background: #FCE7F3; color: #9D174D; }
-    .badge-yellow { background: #FEF3C7; color: #92400E; }
-
-    .hidden { display: none !important; }
-
-    /* THERMAL PRINT */
     @media print {
       body * { visibility: hidden !important; }
       #printArea, #printArea * { visibility: visible !important; }
@@ -633,40 +638,33 @@
 </head>
 <body>
 
-  <!-- Toast Notification -->
   <div id="toastWrap" class="toast-wrap hidden">
     <div id="toastBox" class="toast-box"></div>
   </div>
 
-  <!-- Thermal Print Container -->
   <div id="printArea" class="hidden"></div>
 
   <!-- ==================== LOGIN SCREEN ==================== -->
   <div id="loginScreen" class="login-bg">
-    <div class="login-card">
-      <div class="brand-head">
-        <div class="brand-left">
-          <div class="spiral-badge" id="loginLogoWrap">
-            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
-              <path d="M16 20C16 13 48 13 48 20C48 26 22 26 22 20C22 17 40 17 40 20" stroke="#FACC15" stroke-width="4.5" stroke-linecap="round"/>
-              <path d="M18 22L22 46C22.8 50 26 52 32 52C38 52 41.2 50 42 46L46 22" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+    <div class="login-glass-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+        <div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+            <span class="badge-chip-yellow">POS & ERP</span>
+            <span class="badge-chip-pink">Jiwara Ecosystem</span>
           </div>
-          <div style="min-width:0;">
-            <div style="font-size:19px;font-weight:900;color:#0B2E23;letter-spacing:-0.02em;">KOPI JIWARA</div>
-            <div style="font-size:11px;font-weight:700;color:#5B736A;">POS & ERP Management System</div>
-          </div>
+          <div style="font-size:22px;font-weight:900;letter-spacing:-0.02em;color:#FFFFFF;">KOPI JIWARA</div>
+          <div style="font-size:12px;color:#A7F3D0;margin-top:2px;">Sistem Kasir & Manajemen Outlet</div>
         </div>
-        <span class="pill-tag">Dapur Jiwara</span>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <label class="field-label" for="loginStaffSelect">Pilih Pegawai Bertugas</label>
-        <select id="loginStaffSelect" class="styled-select" onchange="clearPinPad()"></select>
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);border-radius:18px;padding:13px;margin-bottom:14px;">
+        <label style="display:block;font-size:10px;font-weight:800;letter-spacing:0.06em;color:#FACC15;text-transform:uppercase;margin-bottom:6px;" for="loginStaffSelect">Pilih Pegawai Bertugas</label>
+        <select id="loginStaffSelect" class="login-select" onchange="clearPinPad()"></select>
       </div>
 
       <div>
-        <label class="field-label">Masukkan PIN Akses</label>
+        <div style="text-align:center;font-size:11px;font-weight:800;letter-spacing:0.06em;color:#FBCFE8;text-transform:uppercase;">Otentikasi PIN 4-Digit</div>
         <div class="pin-dots" id="pinDots">
           <span class="pin-dot"></span>
           <span class="pin-dot"></span>
@@ -697,19 +695,11 @@
       <div class="topbar-inner">
         <div class="topbar-row">
           <div class="outlet-info">
-            <div class="spiral-badge" style="width:40px;height:40px;border-radius:13px;" id="headerLogoWrap">
-              <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
-                <path d="M16 20C16 13 48 13 48 20C48 26 22 26 22 20C22 17 40 17 40 20" stroke="#FACC15" stroke-width="4.5" stroke-linecap="round"/>
-                <path d="M18 22L22 46C22.8 50 26 52 32 52C38 52 41.2 50 42 46L46 22" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+            <div class="outlet-title-row">
+              <span class="outlet-title" id="headerOutletName">KOPI JIWARA</span>
+              <span id="headerShiftBadge" class="shift-pill closed">Shift Tutup</span>
             </div>
-            <div style="min-width:0;">
-              <div style="display:flex;align-items:center;gap:7px;">
-                <span class="outlet-title" id="headerOutletName">KOPI JIWARA</span>
-                <span id="headerShiftBadge" class="shift-pill closed">Shift Tutup</span>
-              </div>
-              <div class="outlet-sub" id="headerUserMeta">Staf Aktif</div>
-            </div>
+            <div class="outlet-sub" id="headerUserMeta">Staf Aktif</div>
           </div>
 
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -734,16 +724,13 @@
     // ==================== PWA MANIFEST ====================
     (function setupPWA() {
       try {
-        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="42" fill="#0B2E23"/><path d="M48 60C48 39 144 39 144 60C144 78 66 78 66 60C66 51 120 51 120 60" stroke="#FACC15" stroke-width="13" stroke-linecap="round" fill="none"/><path d="M54 66L66 138C68.4 150 78 156 96 156C114 156 123.6 150 126 138L138 66" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-        const iconUrl = 'data:image/svg+xml;base64,' + btoa(svgIcon);
         const manifest = {
           name: 'KOPI JIWARA POS & ERP',
           short_name: 'Kopi Jiwara',
           start_url: '.',
           display: 'standalone',
           background_color: '#0B2E23',
-          theme_color: '#0B2E23',
-          icons: [{ src: iconUrl, sizes: '192x192', type: 'image/svg+xml' }]
+          theme_color: '#0B2E23'
         };
         const mBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
         const link = document.createElement('link');
@@ -753,8 +740,8 @@
       } catch (e) {}
     })();
 
-    // ==================== INITIAL SEED DATA ====================
-    const STORAGE_KEY = 'kopi_jiwara_erp_v4';
+    // ==================== SEED DATA ====================
+    const STORAGE_KEY = 'kopi_jiwara_erp_v6';
 
     const DEFAULT_CATEGORIES = [
       'Favorit',
@@ -769,22 +756,11 @@
     ];
 
     const ORDER_TYPES = [
-      'Meja',
-      'Bungkus',
-      'Pengiriman',
-      'Catering',
-      'Reservasi',
-      'GoFood',
-      'Grab Food',
-      'Shopee Food'
+      'Meja', 'Bungkus', 'Pengiriman', 'Catering', 'Reservasi', 'GoFood', 'Grab Food', 'Shopee Food'
     ];
 
     const DEFAULT_INV_CATEGORIES = [
-      'Kopi & Espresso',
-      'Dairy & Sirup',
-      'Packaging',
-      'Protein & Makanan',
-      'Operasional Dapur'
+      'Kopi & Espresso', 'Dairy & Sirup', 'Packaging', 'Protein & Makanan', 'Operasional Dapur'
     ];
 
     function getSeedData() {
@@ -843,8 +819,7 @@
           address: 'Jl. Jiwa Nusantara No. 18, Bandung',
           phone: '0812-2000-8899',
           receiptFooter: 'Terima kasih telah menikmati Kopi Jiwara!',
-          webhookUrl: '',
-          logoUrl: ''
+          webhookUrl: ''
         },
         shift: {
           isOpen: true,
@@ -898,20 +873,18 @@
         attendanceLogs: [
           { id: 'ATT-1', date: todayIso.slice(0, 10), staffName: 'Aldi', clockIn: '08:00', clockOut: '', wage: 100000, status: 'Hadir' }
         ],
-        shiftClosings: [],
-        stockLogs: []
+        shiftClosings: []
       };
     }
 
-    // ==================== STATE MANAGEMENT ====================
+    // ==================== STATE ====================
     let db = loadDB();
     let currentUser = null;
-    let workspaceMode = 'cashier'; // 'cashier' | 'owner'
+    let workspaceMode = 'cashier';
     let currentTab = 'kasir';
     let pinBuffer = '';
 
-    // Cashier states
-    let posSubTab = 'menu'; // 'menu' | 'open'
+    let posSubTab = 'menu';
     let selectedCategory = 'Favorit';
     let productSearch = '';
     let cart = [];
@@ -920,12 +893,10 @@
     let cartPromoCode = '';
     let editingOpenOrderId = null;
 
-    // Cashier Sales History states
     let cashierSalesDate = new Date().toISOString().slice(0, 10);
     let cashierSalesMethod = 'ALL';
     let cashierSalesQuery = '';
 
-    // Owner states
     let ownerSalesPeriod = 'Hari Ini';
     let ownerReportSubTab = 'ringkasan';
     let cashierReportPeriod = 'Hari Ini';
@@ -949,30 +920,25 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
           return seed;
         }
-        const parsed = JSON.parse(raw);
-        return { ...getSeedData(), ...parsed };
+        return { ...getSeedData(), ...JSON.parse(raw) };
       } catch (e) {
         return getSeedData();
       }
     }
 
     function saveDB() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-      } catch (e) {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
     }
 
     // ==================== HELPERS ====================
     function rp(num) {
       const n = Math.round(Number(num) || 0);
-      const sign = n < 0 ? '-' : '';
-      return sign + 'Rp ' + Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return (n < 0 ? '-' : '') + 'Rp ' + Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     }
 
     function formatDigits(val) {
-      const digits = String(val || '').replace(/\D/g, '');
-      if (!digits) return '';
-      return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      const d = String(val || '').replace(/\D/g, '');
+      return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
     }
 
     function parseDigits(val) {
@@ -981,21 +947,18 @@
 
     function esc(str) {
       return String(str == null ? '' : str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function showToast(msg, isError = false) {
       const wrap = document.getElementById('toastWrap');
       const box = document.getElementById('toastBox');
       box.className = 'toast-box' + (isError ? ' error' : '');
-      box.innerHTML = `<span>${isError ? '⚠️' : '✅'}</span><span>${esc(msg)}</span>`;
+      box.textContent = msg;
       wrap.classList.remove('hidden');
       clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => wrap.classList.add('hidden'), 2800);
+      window._toastTimer = setTimeout(() => wrap.classList.add('hidden'), 2600);
     }
 
     function openModal(html) {
@@ -1016,7 +979,7 @@
       return 'Kopi Jiwara';
     }
 
-    // ==================== GOOGLE SHEETS MASTER SYNC ====================
+    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
     function syncMasterEvent(eventType, payload) {
       const url = (db.outlet && db.outlet.webhookUrl || '').trim();
       if (!url) return;
@@ -1039,7 +1002,7 @@
     function syncFullMasterDatabase() {
       const url = (db.outlet && db.outlet.webhookUrl || '').trim();
       if (!url) {
-        showToast('Isi Webhook URL Google Apps Script dulu!', true);
+        showToast('Isi Webhook URL Google Apps Script dulu di Pengaturan', true);
         return;
       }
       syncMasterEvent('FULL_MASTER_SYNC', {
@@ -1051,7 +1014,7 @@
         attendanceLogs: db.attendanceLogs,
         shiftClosings: db.shiftClosings
       });
-      showToast('Sinkronisasi penuh ke Master POS & ERP dikirim!');
+      showToast('Sinkronisasi penuh ke Master POS & ERP dikirim');
     }
 
     function getMasterAppsScriptCode() {
@@ -1076,7 +1039,7 @@
   var shFin = getOrMakeSheet('FINANCE_CASH', ['Tanggal','Tipe','Debit','Kredit','Nomor_Nota','Keterangan','PIC']);
   var shCash = getOrMakeSheet('POS_Cashflow', ['Tanggal','Debit','Kredit','Nomor_Nota','Keterangan','Metode']);
   var shClose = getOrMakeSheet('POS_Tutup_Kasir', ['Tanggal','Kasir','Modal_Awal','Sales_Cash','Sales_QRIS','Sales_Transfer','Total_Sales','Kas_Fisik','Selisih']);
-  var shMenu = getOrMakeSheet('MASTER_MENU', ['ID','SKU','Nama_Menu','Kategori','Brand','Harga_Jual','HPP','Satuan','Stok']);
+  var shMenu = getOrMakeSheet('MASTER_MENU', ['ID','SKU','Nama_Menu','Kategori','Harga_Jual','HPP','Satuan','Stok']);
   var shGudang = getOrMakeSheet('GUDANG_STOK', ['ID','SKU','Nama_Bahan','Kategori','Stok_Sistem','Min_Stok','Satuan']);
   var shAbsen = getOrMakeSheet('KARYAWAN_ABSENSI', ['ID','Tanggal','Nama_Pegawai','Clock_In','Clock_Out','Upah_Harian','Status']);
 
@@ -1088,7 +1051,7 @@
     shFin.appendRow([p.date.slice(0,10), 'IN', p.total, 0, p.id, 'Sales ' + p.paymentMethod + ' (' + p.orderType + ')', p.cashier]);
     shCash.appendRow([p.date.slice(0,10), p.total, 0, p.id, 'Sales ' + p.paymentMethod, p.paymentMethod]);
     (p.items || []).forEach(function(it) {
-      shSell.appendRow([p.date.slice(0,10), p.id, p.brandMap[it.id] || 'Kopi Jiwara', it.sku, it.name, it.qty, it.price, it.price * it.qty]);
+      shSell.appendRow([p.date.slice(0,10), p.id, (p.brandMap && p.brandMap[it.id]) || 'Kopi Jiwara', it.sku, it.name, it.qty, it.price, it.price * it.qty]);
     });
   } else if (type === 'CASH_DRAWER') {
     var debit = p.type === 'IN' ? p.amount : 0;
@@ -1116,21 +1079,18 @@
 }`;
     }
 
-    // ==================== AUTH & LOGIN ====================
+    // ==================== AUTH ====================
     function initLoginScreen() {
       const sel = document.getElementById('loginStaffSelect');
-      const activeStaff = db.staff.filter(s => s.active);
-      sel.innerHTML = activeStaff.map(s => `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.role)}</option>`).join('');
+      sel.innerHTML = db.staff.filter(s => s.active).map(s => `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.role)}</option>`).join('');
       clearPinPad();
     }
 
-    function pressPin(digit) {
+    function pressPin(d) {
       if (pinBuffer.length >= 4) return;
-      pinBuffer += digit;
+      pinBuffer += d;
       renderPinDots();
-      if (pinBuffer.length === 4) {
-        setTimeout(submitPinLogin, 120);
-      }
+      if (pinBuffer.length === 4) setTimeout(submitPinLogin, 110);
     }
 
     function clearPinPad() {
@@ -1139,19 +1099,16 @@
     }
 
     function renderPinDots() {
-      const dots = document.querySelectorAll('#pinDots .pin-dot');
-      dots.forEach((d, idx) => {
-        if (idx < pinBuffer.length) d.classList.add('filled');
-        else d.classList.remove('filled');
+      document.querySelectorAll('#pinDots .pin-dot').forEach((dot, i) => {
+        dot.classList.toggle('filled', i < pinBuffer.length);
       });
     }
 
     function submitPinLogin() {
-      const staffId = document.getElementById('loginStaffSelect').value;
-      const staff = db.staff.find(s => s.id === staffId);
+      const staff = db.staff.find(s => s.id === document.getElementById('loginStaffSelect').value);
       if (!staff) return;
       if (pinBuffer !== staff.pin) {
-        showToast('PIN salah! Silakan coba kembali.', true);
+        showToast('PIN salah. Silakan coba kembali.', true);
         clearPinPad();
         return;
       }
@@ -1159,16 +1116,10 @@
       clearPinPad();
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appWorkspace').classList.remove('hidden');
-
-      if (staff.role === 'Owner') {
-        workspaceMode = 'owner';
-        currentTab = 'penjualan';
-      } else {
-        workspaceMode = 'cashier';
-        currentTab = 'kasir';
-      }
+      workspaceMode = staff.role === 'Owner' ? 'owner' : 'cashier';
+      currentTab = staff.role === 'Owner' ? 'penjualan' : 'kasir';
       renderWorkspace();
-      showToast(`Selamat bertugas, ${staff.name}!`);
+      showToast(`Selamat bertugas, ${staff.name}`);
     }
 
     function toggleWorkspaceMode() {
@@ -1195,10 +1146,10 @@
       showToast('Berhasil keluar dari sesi.');
     }
 
-    // ==================== RENDER WORKSPACE & NAVIGATION ====================
+    // ==================== WORKSPACE RENDER ====================
     function renderWorkspace() {
       document.getElementById('headerOutletName').textContent = db.outlet.name || 'KOPI JIWARA';
-      document.getElementById('headerUserMeta').textContent = `${currentUser.name} (${currentUser.role}) • ${workspaceMode === 'owner' ? 'Owner / Management' : 'Operasional Kasir'}`;
+      document.getElementById('headerUserMeta').textContent = `${currentUser.name} • ${currentUser.role}`;
 
       const badge = document.getElementById('headerShiftBadge');
       if (db.shift.isOpen) {
@@ -1212,7 +1163,7 @@
       const modeBtn = document.getElementById('modeSwitchBtn');
       if (currentUser.role === 'Owner') {
         modeBtn.classList.remove('hidden');
-        modeBtn.textContent = workspaceMode === 'owner' ? 'Buka Kasir' : 'Mode Owner';
+        modeBtn.textContent = workspaceMode === 'owner' ? 'Buka Kasir' : 'Kembali ke Owner';
       } else {
         modeBtn.classList.add('hidden');
       }
@@ -1220,24 +1171,22 @@
       const nav = document.getElementById('mainNavBar');
       const tabs = workspaceMode === 'cashier'
         ? [
-            { id: 'kasir', label: '☕ Kasir' },
-            { id: 'penjualan_kasir', label: '🧾 Penjualan' },
-            { id: 'laporan_kasir', label: '📊 Laporan' },
-            { id: 'kas_kasir', label: '💵 Kas Kasir' },
-            { id: 'absensi', label: '🕒 Absensi' },
-            { id: 'keluar_kasir', label: '🔒 Keluar Kasir' }
+            { id: 'kasir', label: 'Kasir' },
+            { id: 'penjualan_kasir', label: 'Penjualan' },
+            { id: 'laporan_kasir', label: 'Laporan' },
+            { id: 'kas_kasir', label: 'Kas Kasir' },
+            { id: 'absensi', label: 'Absensi' },
+            { id: 'keluar_kasir', label: 'Keluar Kasir' }
           ]
         : [
-            { id: 'kasir_owner', label: '☕ Kasir' },
-            { id: 'penjualan', label: '🧾 Penjualan' },
-            { id: 'laporan', label: '📈 Laporan' },
-            { id: 'inventori', label: '📦 Inventori' },
-            { id: 'pengaturan', label: '⚙️ Pengaturan' }
+            { id: 'kasir_owner', label: 'Kasir' },
+            { id: 'penjualan', label: 'Penjualan' },
+            { id: 'laporan', label: 'Laporan' },
+            { id: 'inventori', label: 'Inventori' },
+            { id: 'pengaturan', label: 'Pengaturan' }
           ];
 
-      nav.innerHTML = tabs.map(t => `
-        <button class="nav-pill ${currentTab === t.id ? 'active' : ''}" onclick="switchTab('${t.id}')">${t.label}</button>
-      `).join('');
+      nav.innerHTML = tabs.map(t => `<button class="nav-pill ${currentTab === t.id ? 'active' : ''}" onclick="switchTab('${t.id}')">${t.label}</button>`).join('');
 
       const main = document.getElementById('mainContentArea');
       if (workspaceMode === 'cashier') {
@@ -1261,8 +1210,8 @@
       }
     }
 
-    function switchTab(tabId) {
-      currentTab = tabId;
+    function switchTab(id) {
+      currentTab = id;
       renderWorkspace();
     }
 
@@ -1270,15 +1219,15 @@
     function renderCashierPOS(container) {
       if (!db.shift.isOpen) {
         container.innerHTML = `
-          <div class="bento-card" style="max-width:460px;margin:24px auto;text-align:center;">
-            <div style="font-size:36px;margin-bottom:8px;">🔐</div>
+          <div class="bento-card" style="max-width:440px;margin:24px auto;text-align:center;">
+            <span class="badge-pill badge-pink" style="margin-bottom:8px;">SHIFT TERKUNCI</span>
             <h2 style="margin:0 0 6px;font-size:19px;">Shift Kasir Belum Dibuka</h2>
             <p style="margin:0 0 16px;font-size:13px;color:var(--text-muted);">Masukkan modal awal uang tunai di laci kasir sebelum memulai transaksi penjualan.</p>
             <div style="text-align:left;margin-bottom:14px;">
               <label class="field-label">Modal Awal Uang Laci (Rp)</label>
               <input id="openShiftCashInput" type="text" inputmode="numeric" class="styled-input" value="300.000" oninput="this.value=formatDigits(this.value)" />
             </div>
-            <button class="btn btn-dark" style="width:100%;padding:13px;" onclick="openCashierShift()">✔ Buka Shift Kasir Sekarang</button>
+            <button class="btn btn-dark" style="width:100%;padding:13px;" onclick="openCashierShift()">Buka Shift Kasir Sekarang</button>
           </div>
         `;
         return;
@@ -1299,11 +1248,10 @@
 
       container.innerHTML = `
         <div class="pos-layout">
-          <!-- LEFT: PRODUCT CATALOG -->
           <div class="bento-card">
-            <div style="display:flex;gap:8px;margin-bottom:12px;">
-              <button class="btn ${posSubTab === 'menu' ? 'btn-dark' : 'btn-soft'}" style="flex:1;" onclick="posSubTab='menu';renderCashierPOS(document.getElementById('mainContentArea'))">☕ Menu Kasir</button>
-              <button class="btn ${posSubTab === 'open' ? 'btn-pink' : 'btn-soft'}" style="flex:1;" onclick="posSubTab='open';renderCashierPOS(document.getElementById('mainContentArea'))">⏳ Daftar Order (Open) • ${openOrders.length}</button>
+            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+              <button class="btn ${posSubTab === 'menu' ? 'btn-dark' : 'btn-soft'}" style="flex:1;min-width:130px;" onclick="posSubTab='menu';renderCashierPOS(document.getElementById('mainContentArea'))">Menu Kasir</button>
+              <button class="btn ${posSubTab === 'open' ? 'btn-pink' : 'btn-soft'}" style="flex:1;min-width:150px;" onclick="posSubTab='open';renderCashierPOS(document.getElementById('mainContentArea'))">Daftar Order (Open) • ${openOrders.length}</button>
             </div>
 
             ${posSubTab === 'open' ? `
@@ -1312,16 +1260,16 @@
                 ${openOrders.length === 0 ? `<p style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px 0;">Tidak ada order tertunda.</p>` : `
                   <div style="display:grid;gap:10px;">
                     ${openOrders.map(o => `
-                      <div style="border:1.5px solid var(--border-soft);border-radius:16px;padding:12px;background:#FAFDFB;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                      <div style="border:1.5px solid var(--border-glass);border-radius:16px;padding:12px;background:#FFFFFF;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
                           <div>
                             <span class="badge-pill badge-yellow">${esc(o.orderType)}</span>
                             <strong style="font-size:14px;margin-left:6px;">${esc(o.customer || o.id)}</strong>
-                            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${esc(o.id)} • ${o.items.map(i => `${i.name} x${i.qty}`).join(', ')}</div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(o.id)} • ${o.items.map(i => `${i.name} x${i.qty}`).join(', ')}</div>
                           </div>
                           <div style="text-align:right;">
                             <div style="font-weight:900;font-size:14px;">${rp(o.total)}</div>
-                            <button class="btn btn-dark btn-sm" style="margin-top:6px;" onclick="loadOpenOrderToCart('${esc(o.id)}')">Muat & Bayar →</button>
+                            <button class="btn btn-dark btn-sm" style="margin-top:6px;" onclick="loadOpenOrderToCart('${esc(o.id)}')">Muat & Bayar</button>
                           </div>
                         </div>
                       </div>
@@ -1331,12 +1279,12 @@
               </div>
             ` : `
               <div style="margin-bottom:10px;">
-                <input type="text" class="styled-input" placeholder="🔍 Cari nama menu atau kode SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
+                <input type="text" class="styled-input" placeholder="Cari nama menu atau kode SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
               </div>
 
               <div class="cat-strip no-scroll" style="margin-bottom:12px;">
                 ${db.categories.map(c => `
-                  <button class="cat-chip ${selectedCategory === c ? 'active' : ''}" onclick="selectedCategory='${esc(c)}';productSearch='';renderCashierPOS(document.getElementById('mainContentArea'))">${c === 'Favorit' ? '★ ' : ''}${esc(c)}</button>
+                  <button class="cat-chip ${selectedCategory === c ? 'active' : ''}" onclick="selectedCategory='${esc(c)}';productSearch='';renderCashierPOS(document.getElementById('mainContentArea'))">${esc(c)}</button>
                 `).join('')}
               </div>
 
@@ -1347,10 +1295,10 @@
                     <button type="button" class="prod-card ${inCart ? 'in-cart' : ''}" onclick="addToCart('${esc(p.id)}')">
                       ${inCart ? `<span class="qty-badge">${inCart.qty}x</span>` : ''}
                       <div>
-                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);">${esc(p.sku)}${p.fav ? ' • ★' : ''}</div>
-                        <div style="font-size:13px;font-weight:800;color:var(--green-deep);margin-top:3px;line-height:1.25;">${esc(p.name)}</div>
+                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);">${esc(p.sku)} • ${esc(p.category)}</div>
+                        <div style="font-size:13px;font-weight:800;color:var(--green-deep);margin-top:4px;line-height:1.25;">${esc(p.name)}</div>
                       </div>
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
                         <span style="font-size:13px;font-weight:900;color:var(--green-deep);">${rp(p.price)}</span>
                         <span class="badge-pill badge-green">${esc(p.unit)}</span>
                       </div>
@@ -1361,10 +1309,9 @@
             `}
           </div>
 
-          <!-- RIGHT: CART & SPLIT BILL -->
-          <div class="bento-card" style="position:sticky;top:76px;">
+          <div class="bento-card" style="position:sticky;top:86px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-              <h3 style="margin:0;font-size:16px;">🛒 Keranjang Pesanan</h3>
+              <h3 style="margin:0;font-size:16px;">Keranjang Pesanan</h3>
               ${cart.length > 0 ? `<button class="btn btn-danger btn-sm" onclick="clearCart()">Kosongkan</button>` : ''}
             </div>
 
@@ -1381,17 +1328,17 @@
               </div>
             </div>
 
-            <div style="max-height:260px;overflow-y:auto;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);padding:8px 0;margin-bottom:10px;">
+            <div style="max-height:240px;overflow-y:auto;border-top:1px solid var(--border-glass);border-bottom:1px solid var(--border-glass);padding:8px 0;margin-bottom:10px;">
               ${cart.length === 0 ? `
-                <div style="text-align:center;padding:26px 10px;color:var(--text-muted);font-size:12px;">Belum ada item dipilih. Ketuk menu di samping untuk menambahkan.</div>
+                <div style="text-align:center;padding:24px 10px;color:var(--text-muted);font-size:12px;">Belum ada item dipilih. Ketuk menu di samping untuk menambahkan.</div>
               ` : cart.map(item => `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border-soft);">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border-glass);">
                   <div style="min-width:0;flex:1;">
                     <div style="font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(item.name)}</div>
                     <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} x ${item.qty} = <strong>${rp(item.price * item.qty)}</strong></div>
                   </div>
                   <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                    <button class="btn btn-soft btn-sm" style="padding:5px 9px;" onclick="updateCartQty('${esc(item.id)}', -1)">−</button>
+                    <button class="btn btn-soft btn-sm" style="padding:5px 9px;" onclick="updateCartQty('${esc(item.id)}', -1)">-</button>
                     <span style="font-size:12px;font-weight:900;min-width:18px;text-align:center;">${item.qty}</span>
                     <button class="btn btn-dark btn-sm" style="padding:5px 9px;" onclick="updateCartQty('${esc(item.id)}', 1)">+</button>
                   </div>
@@ -1414,11 +1361,11 @@
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>⏳ Simpan Open Order</button>
-              <button class="btn btn-pink" onclick="openSplitBillModal()" ${cart.length === 0 ? 'disabled' : ''}>✂️ Split Bill / Pisah</button>
+              <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>Simpan Open Order</button>
+              <button class="btn btn-pink" onclick="openSplitBillModal()" ${cart.length === 0 ? 'disabled' : ''}>Split Bill / Pisah</button>
             </div>
             <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:14px;" onclick="openCheckoutModal(${grandTotal}, ${subtotal}, ${discount})" ${cart.length === 0 ? 'disabled' : ''}>
-              💳 Bayar Sekarang (${rp(grandTotal)})
+              Bayar Sekarang (${rp(grandTotal)})
             </button>
           </div>
         </div>
@@ -1427,12 +1374,7 @@
 
     function openCashierShift() {
       const cash = parseDigits(document.getElementById('openShiftCashInput').value);
-      db.shift = {
-        isOpen: true,
-        cashierName: currentUser.name,
-        openedAt: new Date().toISOString(),
-        openingCash: cash
-      };
+      db.shift = { isOpen: true, cashierName: currentUser.name, openedAt: new Date().toISOString(), openingCash: cash };
       saveDB();
       renderWorkspace();
       showToast(`Shift dibuka dengan modal awal ${rp(cash)}`);
@@ -1441,8 +1383,8 @@
     function addToCart(prodId) {
       const p = db.products.find(x => x.id === prodId);
       if (!p) return;
-      const existing = cart.find(c => c.id === prodId);
-      if (existing) existing.qty += 1;
+      const ex = cart.find(c => c.id === prodId);
+      if (ex) ex.qty += 1;
       else cart.push({ id: p.id, sku: p.sku, name: p.name, category: p.category, price: p.price, cost: p.cost || 0, qty: 1 });
       renderCashierPOS(document.getElementById('mainContentArea'));
     }
@@ -1469,28 +1411,17 @@
       const costTotal = cart.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
       const trxId = editingOpenOrderId || ('ORD-' + Math.floor(1000 + Math.random() * 9000));
       const orderObj = {
-        id: trxId,
-        date: new Date().toISOString(),
-        orderType: cartOrderType,
-        customer: cartCustomer.trim() || 'Pelanggan ' + trxId,
-        cashier: currentUser.name,
-        status: 'OPEN',
-        paymentMethod: 'OPEN',
-        subtotal,
-        discount: 0,
-        total: subtotal,
-        costTotal,
-        cashPaid: 0,
-        change: 0,
-        items: JSON.parse(JSON.stringify(cart))
+        id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
+        customer: cartCustomer.trim() || 'Pelanggan ' + trxId, cashier: currentUser.name,
+        status: 'OPEN', paymentMethod: 'OPEN', subtotal, discount: 0, total: subtotal, costTotal,
+        cashPaid: 0, change: 0, items: JSON.parse(JSON.stringify(cart))
       };
-      const existIdx = db.transactions.findIndex(t => t.id === trxId);
-      if (existIdx >= 0) db.transactions[existIdx] = orderObj;
+      const exIdx = db.transactions.findIndex(t => t.id === trxId);
+      if (exIdx >= 0) db.transactions[exIdx] = orderObj;
       else db.transactions.unshift(orderObj);
-
       saveDB();
       clearCart();
-      showToast(`Order ${trxId} disimpan ke Daftar Open!`);
+      showToast(`Order ${trxId} disimpan ke Daftar Open`);
     }
 
     function loadOpenOrderToCart(trxId) {
@@ -1505,7 +1436,7 @@
       showToast(`Order ${ord.id} dimuat ke keranjang.`);
     }
 
-    // ==================== SPLIT BILL (PILIH MENU & PISAH NOMINAL) ====================
+    // ==================== SPLIT BILL ====================
     let splitSelectedQty = {};
 
     function openSplitBillModal() {
@@ -1516,30 +1447,30 @@
     }
 
     function renderSplitBillModalContent() {
-      const selectedTotal = cart.reduce((sum, item) => sum + item.price * (splitSelectedQty[item.id] || 0), 0);
-      const fullTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const selectedTotal = cart.reduce((s, it) => s + it.price * (splitSelectedQty[it.id] || 0), 0);
+      const fullTotal = cart.reduce((s, it) => s + it.price * it.qty, 0);
       const remainingTotal = fullTotal - selectedTotal;
 
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:17px;">✂️ Split Bill / Pisah Pembayaran</h3>
+            <h3 style="margin:0;font-size:17px;">Split Bill / Pisah Pembayaran</h3>
             <div style="font-size:11px;color:var(--text-muted);">Pilih menu yang ingin dibayar sekarang (sisanya masuk Open Order)</div>
           </div>
-          <button class="close-circle" onclick="closeModal()">✕</button>
+          <button class="close-circle" onclick="closeModal()">x</button>
         </div>
 
         <div style="display:grid;gap:8px;margin-bottom:14px;">
           ${cart.map(item => {
             const selQ = splitSelectedQty[item.id] || 0;
             return `
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:14px;border:1.5px solid ${selQ > 0 ? 'var(--green-deep)' : 'var(--border-soft)'};background:${selQ > 0 ? '#F4FBF8' : '#FFF'};">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:14px;border:1.5px solid ${selQ > 0 ? 'var(--green-deep)' : 'var(--border-glass)'};background:${selQ > 0 ? '#F2FAF6' : '#FFF'};">
                 <div>
                   <div style="font-size:13px;font-weight:800;">${esc(item.name)}</div>
-                  <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} • Total pesan: ${item.qty}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} • Pesanan: ${item.qty}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
-                  <button class="btn btn-soft btn-sm" onclick="adjustSplitItem('${esc(item.id)}', -1, ${item.qty})">−</button>
+                  <button class="btn btn-soft btn-sm" onclick="adjustSplitItem('${esc(item.id)}', -1, ${item.qty})">-</button>
                   <span style="font-size:13px;font-weight:900;min-width:28px;text-align:center;">${selQ}/${item.qty}</span>
                   <button class="btn btn-dark btn-sm" onclick="adjustSplitItem('${esc(item.id)}', 1, ${item.qty})">+</button>
                 </div>
@@ -1551,7 +1482,7 @@
         <div class="kpi-tile dark" style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div class="kpi-label">Nominal Split Dibayar Sekarang</div>
+              <div class="kpi-label">Nominal Split Dibayar</div>
               <div class="kpi-value">${rp(selectedTotal)}</div>
             </div>
             <div style="text-align:right;">
@@ -1564,36 +1495,33 @@
         <div style="margin-bottom:12px;">
           <label class="field-label">Metode Pembayaran Split Ini</label>
           <select id="splitPayMethod" class="styled-select">
-            <option value="Cash">💵 Cash (Tunai)</option>
-            <option value="QRIS">📱 QRIS</option>
-            <option value="Transfer">🏦 Transfer Bank</option>
+            <option value="Cash">Cash (Tunai)</option>
+            <option value="QRIS">QRIS</option>
+            <option value="Transfer">Transfer Bank</option>
           </select>
         </div>
 
         <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:13px;" onclick="processSplitItemCheckout()" ${selectedTotal <= 0 ? 'disabled' : ''}>
-          ✔ Bayar Menu Terpilih (${rp(selectedTotal)})
+          Bayar Menu Terpilih (${rp(selectedTotal)})
         </button>
       `);
     }
 
     function adjustSplitItem(prodId, delta, maxQty) {
       const cur = splitSelectedQty[prodId] || 0;
-      const next = Math.max(0, Math.min(maxQty, cur + delta));
-      splitSelectedQty[prodId] = next;
+      splitSelectedQty[prodId] = Math.max(0, Math.min(maxQty, cur + delta));
       renderSplitBillModalContent();
     }
 
     function processSplitItemCheckout() {
       const paidItems = [];
       const leftoverItems = [];
-
       cart.forEach(item => {
         const payQ = splitSelectedQty[item.id] || 0;
         const remQ = item.qty - payQ;
         if (payQ > 0) paidItems.push({ ...item, qty: payQ });
         if (remQ > 0) leftoverItems.push({ ...item, qty: remQ });
       });
-
       if (paidItems.length === 0) return;
 
       const payMethod = document.getElementById('splitPayMethod').value;
@@ -1602,25 +1530,14 @@
       const trxId = 'TRX-' + Math.floor(1000 + Math.random() * 9000);
 
       const trx = {
-        id: trxId,
-        date: new Date().toISOString(),
-        orderType: cartOrderType,
-        customer: (cartCustomer || 'Split Bill') + ' (Split)',
-        cashier: currentUser.name,
-        status: 'PAID',
-        paymentMethod: payMethod,
-        subtotal: paidTotal,
-        discount: 0,
-        total: paidTotal,
-        costTotal: paidCost,
-        cashPaid: paidTotal,
-        change: 0,
-        items: paidItems
+        id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
+        customer: (cartCustomer || 'Split Bill') + ' (Split)', cashier: currentUser.name,
+        status: 'PAID', paymentMethod: payMethod, subtotal: paidTotal, discount: 0,
+        total: paidTotal, costTotal: paidCost, cashPaid: paidTotal, change: 0, items: paidItems
       };
 
       db.transactions.unshift(trx);
       deductProductStock(paidItems);
-
       const brandMap = {};
       paidItems.forEach(it => { brandMap[it.id] = getBrandFromCategory(it.category); });
       syncMasterEvent('SALE_COMPLETED', { ...trx, brandMap });
@@ -1630,20 +1547,10 @@
         const remCost = leftoverItems.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
         const openId = editingOpenOrderId || ('ORD-' + Math.floor(1000 + Math.random() * 9000));
         const openOrd = {
-          id: openId,
-          date: new Date().toISOString(),
-          orderType: cartOrderType,
-          customer: (cartCustomer || 'Sisa Split Bill'),
-          cashier: currentUser.name,
-          status: 'OPEN',
-          paymentMethod: 'OPEN',
-          subtotal: remTotal,
-          discount: 0,
-          total: remTotal,
-          costTotal: remCost,
-          cashPaid: 0,
-          change: 0,
-          items: leftoverItems
+          id: openId, date: new Date().toISOString(), orderType: cartOrderType,
+          customer: (cartCustomer || 'Sisa Split Bill'), cashier: currentUser.name,
+          status: 'OPEN', paymentMethod: 'OPEN', subtotal: remTotal, discount: 0,
+          total: remTotal, costTotal: remCost, cashPaid: 0, change: 0, items: leftoverItems
         };
         const exIdx = db.transactions.findIndex(t => t.id === openId);
         if (exIdx >= 0) db.transactions[exIdx] = openOrd;
@@ -1656,10 +1563,10 @@
       clearCart();
       closeModal();
       printThermalReceipt(trx);
-      showToast(`Split Bill ${trxId} lunas! Sisa item tersimpan di Open Order.`);
+      showToast(`Split Bill ${trxId} lunas`);
     }
 
-    // ==================== CHECKOUT MODAL (NON-FOCUS-LOSING INPUT) ====================
+    // ==================== CHECKOUT MODAL ====================
     let checkoutMethod = 'Cash';
 
     function openCheckoutModal(total, subtotal, discount) {
@@ -1671,34 +1578,34 @@
             <div style="font-size:11px;font-weight:800;color:var(--text-muted);">PEMBAYARAN TRANSAKSI</div>
             <div style="font-size:24px;font-weight:900;color:var(--green-deep);">${rp(total)}</div>
           </div>
-          <button class="close-circle" onclick="closeModal()">✕</button>
+          <button class="close-circle" onclick="closeModal()">x</button>
         </div>
 
         <label class="field-label">Pilihan Metode Pembayaran</label>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
-          <button type="button" id="payOptCash" class="btn btn-dark" onclick="selectCheckoutMethod('Cash', ${total})">💵 Cash</button>
-          <button type="button" id="payOptQRIS" class="btn btn-soft" onclick="selectCheckoutMethod('QRIS', ${total})">📱 QRIS</button>
-          <button type="button" id="payOptTransfer" class="btn btn-soft" onclick="selectCheckoutMethod('Transfer', ${total})">🏦 Transfer</button>
+          <button type="button" id="payOptCash" class="btn btn-dark" onclick="selectCheckoutMethod('Cash', ${total})">Cash</button>
+          <button type="button" id="payOptQRIS" class="btn btn-soft" onclick="selectCheckoutMethod('QRIS', ${total})">QRIS</button>
+          <button type="button" id="payOptTransfer" class="btn btn-soft" onclick="selectCheckoutMethod('Transfer', ${total})">Transfer</button>
         </div>
 
-        <div id="cashInputPanel" style="background:#F4F7F5;padding:14px;border-radius:16px;margin-bottom:14px;">
+        <div id="cashInputPanel" style="background:var(--green-soft);padding:14px;border-radius:16px;margin-bottom:14px;">
           <label class="field-label" for="cashReceivedField">Uang Cash Diterima (Rp)</label>
           <input id="cashReceivedField" type="text" inputmode="numeric" class="styled-input" style="font-size:18px;" value="${formatDigits(total)}" oninput="handleCashReceivedTyping(this, ${total})" />
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
-            <button type="button" class="btn btn-soft btn-sm" onclick="setQuickCash(${total}, ${total})">Uang Pas (${rp(total)})</button>
-            ${roundUp > total ? `<button type="button" class="btn btn-soft btn-sm" onclick="setQuickCash(${roundUp}, ${total})">${rp(roundUp)}</button>` : ''}
-            <button type="button" class="btn btn-soft btn-sm" onclick="setQuickCash(50000, ${total})">Rp 50.000</button>
-            <button type="button" class="btn btn-soft btn-sm" onclick="setQuickCash(100000, ${total})">Rp 100.000</button>
+            <button type="button" class="btn btn-soft btn-sm" style="background:#FFF;" onclick="setQuickCash(${total}, ${total})">Uang Pas (${rp(total)})</button>
+            ${roundUp > total ? `<button type="button" class="btn btn-soft btn-sm" style="background:#FFF;" onclick="setQuickCash(${roundUp}, ${total})">${rp(roundUp)}</button>` : ''}
+            <button type="button" class="btn btn-soft btn-sm" style="background:#FFF;" onclick="setQuickCash(50000, ${total})">Rp 50.000</button>
+            <button type="button" class="btn btn-soft btn-sm" style="background:#FFF;" onclick="setQuickCash(100000, ${total})">Rp 100.000</button>
             <button type="button" class="btn btn-pink btn-sm" onclick="setQuickCash(0, ${total})">Reset</button>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-soft);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-glass);">
             <span style="font-size:12px;font-weight:700;">Kembalian:</span>
             <strong id="cashChangeDisplay" style="font-size:18px;color:var(--green-deep);">Rp 0</strong>
           </div>
         </div>
 
         <button class="btn btn-yellow" style="width:100%;padding:14px;font-size:14px;" onclick="completeCheckout(${total}, ${subtotal}, ${discount})">
-          ✔ Selesaikan Pembayaran & Cetak Struk
+          Selesaikan Pembayaran & Cetak Struk
         </button>
       `);
     }
@@ -1747,7 +1654,7 @@
         const el = document.getElementById('cashReceivedField');
         cashPaid = parseDigits(el ? el.value : total);
         if (cashPaid < total) {
-          showToast('Nominal uang cash diterima masih kurang!', true);
+          showToast('Nominal uang cash diterima masih kurang.', true);
           return;
         }
         change = cashPaid - total;
@@ -1756,25 +1663,13 @@
       const trxId = 'TRX-' + Math.floor(1000 + Math.random() * 9000);
       const costTotal = cart.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
       const trx = {
-        id: trxId,
-        date: new Date().toISOString(),
-        orderType: cartOrderType,
-        customer: cartCustomer.trim() || 'Walk-in',
-        cashier: currentUser.name,
-        status: 'PAID',
-        paymentMethod: checkoutMethod,
-        subtotal,
-        discount,
-        total,
-        costTotal,
-        cashPaid,
-        change,
-        items: JSON.parse(JSON.stringify(cart))
+        id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
+        customer: cartCustomer.trim() || 'Walk-in', cashier: currentUser.name,
+        status: 'PAID', paymentMethod: checkoutMethod, subtotal, discount, total, costTotal,
+        cashPaid, change, items: JSON.parse(JSON.stringify(cart))
       };
 
-      if (editingOpenOrderId) {
-        db.transactions = db.transactions.filter(t => t.id !== editingOpenOrderId);
-      }
+      if (editingOpenOrderId) db.transactions = db.transactions.filter(t => t.id !== editingOpenOrderId);
       db.transactions.unshift(trx);
       deductProductStock(cart);
 
@@ -1786,7 +1681,7 @@
       clearCart();
       closeModal();
       printThermalReceipt(trx);
-      showToast(`Transaksi ${trxId} berhasil (${checkoutMethod})!`);
+      showToast(`Transaksi ${trxId} berhasil (${checkoutMethod})`);
     }
 
     function deductProductStock(items) {
@@ -1807,21 +1702,10 @@
         <div>Kasir: ${esc(trx.cashier)} | ${esc(trx.orderType)}</div>
         <div>Pelanggan: ${esc(trx.customer)}</div>
         <hr style="border-top:1px dashed #000;" />
-        ${trx.items.map(i => `
-          <div style="display:flex;justify-content:space-between;">
-            <span>${esc(i.name)} x${i.qty}</span>
-            <span>${rp(i.price * i.qty)}</span>
-          </div>
-        `).join('')}
+        ${trx.items.map(i => `<div style="display:flex;justify-content:space-between;"><span>${esc(i.name)} x${i.qty}</span><span>${rp(i.price * i.qty)}</span></div>`).join('')}
         <hr style="border-top:1px dashed #000;" />
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
-          <span>TOTAL (${esc(trx.paymentMethod)})</span>
-          <span>${rp(trx.total)}</span>
-        </div>
-        ${trx.paymentMethod === 'Cash' ? `
-          <div style="display:flex;justify-content:space-between;"><span>Bayar</span><span>${rp(trx.cashPaid)}</span></div>
-          <div style="display:flex;justify-content:space-between;"><span>Kembali</span><span>${rp(trx.change)}</span></div>
-        ` : ''}
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL (${esc(trx.paymentMethod)})</span><span>${rp(trx.total)}</span></div>
+        ${trx.paymentMethod === 'Cash' ? `<div style="display:flex;justify-content:space-between;"><span>Bayar</span><span>${rp(trx.cashPaid)}</span></div><div style="display:flex;justify-content:space-between;"><span>Kembali</span><span>${rp(trx.change)}</span></div>` : ''}
         <hr style="border-top:1px dashed #000;" />
         <div style="text-align:center;font-size:10px;">${esc(db.outlet.receiptFooter)}</div>
       `;
@@ -1830,8 +1714,7 @@
     // ==================== 2. TAB PENJUALAN DI KASIR ====================
     function renderCashierSalesTab(container) {
       const list = db.transactions.filter(t => {
-        const d = t.date.slice(0, 10);
-        const matchDate = !cashierSalesDate || d === cashierSalesDate;
+        const matchDate = !cashierSalesDate || t.date.slice(0, 10) === cashierSalesDate;
         const matchMethod = cashierSalesMethod === 'ALL' || t.paymentMethod === cashierSalesMethod;
         const q = cashierSalesQuery.trim().toLowerCase();
         const matchQ = !q || t.id.toLowerCase().includes(q) || (t.customer || '').toLowerCase().includes(q) || t.items.some(i => i.name.toLowerCase().includes(q));
@@ -1845,7 +1728,7 @@
 
       container.innerHTML = `
         <div style="margin-bottom:12px;">
-          <h2 style="margin:0;font-size:19px;">🧾 Rekaman Penjualan Kasir</h2>
+          <h2 style="margin:0;font-size:19px;">Rekaman Penjualan Kasir</h2>
           <div style="font-size:12px;color:var(--text-muted);">Daftar transaksi tersimpan di database • Filter berdasarkan tanggal & metode bayar</div>
         </div>
 
@@ -1863,14 +1746,14 @@
             <div class="kpi-label">QRIS & Transfer</div>
             <div class="kpi-value">${rp(totalNonCash)}</div>
           </div>
-          <div class="kpi-tile">
+          <div class="kpi-tile yellow">
             <div class="kpi-label">Order Tertunda (Open)</div>
             <div class="kpi-value">${list.filter(t => t.status === 'OPEN').length} Order</div>
           </div>
         </div>
 
         <div class="bento-card">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
             <div>
               <label class="field-label">Filter Tanggal</label>
               <input type="date" class="styled-input" style="padding:9px 11px;font-size:12px;" value="${esc(cashierSalesDate)}" onchange="cashierSalesDate=this.value;renderCashierSalesTab(document.getElementById('mainContentArea'))" />
@@ -1894,15 +1777,7 @@
             <div class="table-box">
               <table class="compact-table">
                 <thead>
-                  <tr>
-                    <th>No. Nota</th>
-                    <th>Waktu</th>
-                    <th>Pelanggan / Order</th>
-                    <th>Item Terjual</th>
-                    <th>Metode</th>
-                    <th>Total</th>
-                    <th>Aksi</th>
-                  </tr>
+                  <tr><th>No. Nota</th><th>Waktu</th><th>Pelanggan / Order</th><th>Item Terjual</th><th>Metode</th><th>Total</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
                   ${list.map(t => `
@@ -1913,7 +1788,7 @@
                       <td>${t.items.map(i => `${esc(i.name)} (${i.qty}x)`).join(', ')}</td>
                       <td><span class="badge-pill ${t.status === 'PAID' ? 'badge-green' : 'badge-pink'}">${esc(t.paymentMethod)}</span></td>
                       <td><strong>${rp(t.total)}</strong></td>
-                      <td><button class="btn btn-soft btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">🖨️ Struk</button></td>
+                      <td><button class="btn btn-soft btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak Struk</button></td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -1931,7 +1806,7 @@
       window.print();
     }
 
-    // ==================== 3. LAPORAN KASIR (DROPDOWN PERIODE TANPA CUSTOM DATE) ====================
+    // ==================== 3. LAPORAN KASIR (DROPDOWN PERIODE) ====================
     function filterTransactionsByPreset(preset) {
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
@@ -1944,28 +1819,20 @@
         const dStr = t.date.slice(0, 10);
         if (preset === 'Hari Ini') return dStr === todayStr;
         if (preset === 'Kemarin') return dStr === yestStr;
-        if (preset === '7 Hari Terakhir') {
-          const diff = (now - d) / (1000 * 60 * 60 * 24);
-          return diff <= 7;
-        }
+        if (preset === '7 Hari Terakhir') return (now - d) / (1000 * 60 * 60 * 24) <= 7;
         if (preset === 'Minggu Ini') {
-          const startOfWeek = new Date(now);
-          startOfWeek.setDate(now.getDate() - now.getDay());
-          return d >= startOfWeek;
+          const s = new Date(now); s.setDate(now.getDate() - now.getDay());
+          return d >= s;
         }
         if (preset === 'Minggu Lalu') {
-          const startOfThisWeek = new Date(now);
-          startOfThisWeek.setDate(now.getDate() - now.getDay());
-          const startOfLastWeek = new Date(startOfThisWeek);
-          startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
-          return d >= startOfLastWeek && d < startOfThisWeek;
+          const st = new Date(now); st.setDate(now.getDate() - now.getDay());
+          const sl = new Date(st); sl.setDate(st.getDate() - 7);
+          return d >= sl && d < st;
         }
-        if (preset === 'Bulan Ini') {
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        }
+        if (preset === 'Bulan Ini') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         if (preset === 'Bulan Lalu') {
-          const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          return d.getMonth() === lastM.getMonth() && d.getFullYear() === lastM.getFullYear();
+          const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
         }
         return true;
       });
@@ -1982,8 +1849,8 @@
 
       container.innerHTML = `
         <div class="bento-card" style="margin-bottom:14px;">
-          <h2 style="margin:0 0 10px;font-size:18px;">📊 Laporan Shift & Transaksi Kasir</h2>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <h2 style="margin:0 0 10px;font-size:18px;">Laporan Shift & Transaksi Kasir</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
             <div>
               <label class="field-label" for="cashierPeriodSelect">Periode Laporan</label>
               <select id="cashierPeriodSelect" class="styled-select" onchange="cashierReportPeriod=this.value;renderCashierReportTab(document.getElementById('mainContentArea'))">
@@ -2023,9 +1890,7 @@
         <div class="bento-card">
           <div class="table-box">
             <table class="compact-table">
-              <thead>
-                <tr><th>No. Nota</th><th>Tanggal</th><th>Kasir</th><th>Metode</th><th>Total</th></tr>
-              </thead>
+              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Kasir</th><th>Metode</th><th>Total</th></tr></thead>
               <tbody>
                 ${list.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Belum ada data pada periode ini.</td></tr>` : list.map(t => `
                   <tr>
@@ -2050,26 +1915,14 @@
 
       container.innerHTML = `
         <div class="bento-grid-4" style="margin-bottom:14px;">
-          <div class="kpi-tile dark">
-            <div class="kpi-label">Modal Awal Laci</div>
-            <div class="kpi-value">${rp(db.shift.openingCash)}</div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-label">Kas Masuk Tambahan</div>
-            <div class="kpi-value">${rp(cashIn)}</div>
-          </div>
-          <div class="kpi-tile pink">
-            <div class="kpi-label">Kas Keluar (Operasional)</div>
-            <div class="kpi-value">${rp(cashOut)}</div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-label">Mutasi Tercatat</div>
-            <div class="kpi-value">${db.cashDrawerLogs.length} Catatan</div>
-          </div>
+          <div class="kpi-tile dark"><div class="kpi-label">Modal Awal Laci</div><div class="kpi-value">${rp(db.shift.openingCash)}</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Kas Masuk Tambahan</div><div class="kpi-value">${rp(cashIn)}</div></div>
+          <div class="kpi-tile pink"><div class="kpi-label">Kas Keluar (Operasional)</div><div class="kpi-value">${rp(cashOut)}</div></div>
+          <div class="kpi-tile yellow"><div class="kpi-label">Mutasi Tercatat</div><div class="kpi-value">${db.cashDrawerLogs.length} Catatan</div></div>
         </div>
 
         <div class="bento-card" style="margin-bottom:14px;">
-          <h3 style="margin:0 0 10px;font-size:16px;">💵 Catat Mutasi Kas Laci (Masuk / Keluar)</h3>
+          <h3 style="margin:0 0 10px;font-size:16px;">Catat Mutasi Kas Laci (Masuk / Keluar)</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
             <div>
               <label class="field-label">Jenis Mutasi</label>
@@ -2087,7 +1940,7 @@
               <input id="cashMutNote" type="text" class="styled-input" placeholder="Contoh: Beli Gas 3kg 1 tabung" />
             </div>
           </div>
-          <button class="btn btn-dark" onclick="addCashDrawerMutation()">✔ Simpan Mutasi Kas</button>
+          <button class="btn btn-dark" onclick="addCashDrawerMutation()">Simpan Mutasi Kas</button>
         </div>
 
         <div class="bento-card">
@@ -2115,26 +1968,16 @@
       const type = document.getElementById('cashMutType').value;
       const amount = parseDigits(document.getElementById('cashMutAmount').value);
       const note = document.getElementById('cashMutNote').value.trim();
-      if (amount <= 0 || !note) {
-        showToast('Isi nominal dan keterangan mutasi kas!', true);
-        return;
-      }
-      const entry = {
-        id: 'CSH-' + Math.floor(1000 + Math.random() * 9000),
-        date: new Date().toISOString(),
-        type,
-        amount,
-        note,
-        cashier: currentUser.name
-      };
+      if (amount <= 0 || !note) { showToast('Isi nominal dan keterangan mutasi kas.', true); return; }
+      const entry = { id: 'CSH-' + Math.floor(1000 + Math.random() * 9000), date: new Date().toISOString(), type, amount, note, cashier: currentUser.name };
       db.cashDrawerLogs.unshift(entry);
       syncMasterEvent('CASH_DRAWER', entry);
       saveDB();
       renderCashDrawerTab(document.getElementById('mainContentArea'));
-      showToast('Mutasi kas berhasil dicatat & disinkronkan!');
+      showToast('Mutasi kas berhasil dicatat.');
     }
 
-    // ==================== 5. ABSENSI PEGAWAI ====================
+    // ==================== 5. ABSENSI ====================
     function renderAttendanceTab(container) {
       const today = new Date().toISOString().slice(0, 10);
       const myLog = db.attendanceLogs.find(a => a.date === today && a.staffName === currentUser.name);
@@ -2143,12 +1986,12 @@
         <div class="bento-card" style="margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
             <div>
-              <h3 style="margin:0;font-size:17px;">🕒 Absensi Harian — ${esc(currentUser.name)}</h3>
+              <h3 style="margin:0;font-size:17px;">Absensi Harian — ${esc(currentUser.name)}</h3>
               <div style="font-size:12px;color:var(--text-muted);">Tanggal: ${today} • Upah Harian: ${rp(currentUser.dailyWage || 0)}</div>
             </div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-dark" onclick="clockInStaff()" ${myLog ? 'disabled' : ''}>✔ Clock-In Masuk</button>
-              <button class="btn btn-pink" onclick="clockOutStaff()" ${!myLog || myLog.clockOut ? 'disabled' : ''}>👋 Clock-Out Pulang</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-dark" onclick="clockInStaff()" ${myLog ? 'disabled' : ''}>Clock-In Masuk</button>
+              <button class="btn btn-pink" onclick="clockOutStaff()" ${!myLog || myLog.clockOut ? 'disabled' : ''}>Clock-Out Pulang</button>
             </div>
           </div>
         </div>
@@ -2177,15 +2020,7 @@
     function clockInStaff() {
       const today = new Date().toISOString().slice(0, 10);
       const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const log = {
-        id: 'ATT-' + Math.floor(1000 + Math.random() * 9000),
-        date: today,
-        staffName: currentUser.name,
-        clockIn: time,
-        clockOut: '',
-        wage: currentUser.dailyWage || 0,
-        status: 'Hadir'
-      };
+      const log = { id: 'ATT-' + Math.floor(1000 + Math.random() * 9000), date: today, staffName: currentUser.name, clockIn: time, clockOut: '', wage: currentUser.dailyWage || 0, status: 'Hadir' };
       db.attendanceLogs.unshift(log);
       syncMasterEvent('ATTENDANCE', log);
       saveDB();
@@ -2204,7 +2039,7 @@
       showToast(`Clock-out berhasil pukul ${log.clockOut}`);
     }
 
-    // ==================== 6. KELUAR KASIR & TUTUP KASIR ====================
+    // ==================== 6. TUTUP KASIR ====================
     function renderCloseRegisterTab(container) {
       const todayStr = new Date().toISOString().slice(0, 10);
       const todayTrx = db.transactions.filter(t => t.date.slice(0, 10) === todayStr);
@@ -2220,21 +2055,18 @@
       const todayCashOut = db.cashDrawerLogs.filter(c => c.date.slice(0, 10) === todayStr && c.type === 'OUT').reduce((s, c) => s + c.amount, 0);
       const expectedCash = (db.shift.openingCash || 0) + cashSales + todayCashIn - todayCashOut;
 
-      // Aggregate sold items
       const itemMap = {};
-      paidTrx.forEach(t => {
-        t.items.forEach(it => {
-          if (!itemMap[it.name]) itemMap[it.name] = { name: it.name, qty: 0, total: 0 };
-          itemMap[it.name].qty += it.qty;
-          itemMap[it.name].total += it.price * it.qty;
-        });
-      });
+      paidTrx.forEach(t => t.items.forEach(it => {
+        if (!itemMap[it.name]) itemMap[it.name] = { name: it.name, qty: 0, total: 0 };
+        itemMap[it.name].qty += it.qty;
+        itemMap[it.name].total += it.price * it.qty;
+      }));
       const soldItems = Object.values(itemMap);
 
       container.innerHTML = `
         <div class="bento-card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
           <div>
-            <h3 style="margin:0;font-size:16px;">🔄 Ganti Shift Tanpa Tutup Buku</h3>
+            <h3 style="margin:0;font-size:16px;">Ganti Shift Tanpa Tutup Buku</h3>
             <div style="font-size:12px;color:var(--text-muted);">Keluar dari akun ${esc(currentUser.name)} sementara laci kasir tetap terbuka.</div>
           </div>
           <button class="btn btn-soft" onclick="doDirectLogout()">Logout Ganti Shift</button>
@@ -2245,22 +2077,10 @@
           <h2 style="margin:0 0 12px;font-size:19px;">Laporan Penjualan & Tutup Kasir</h2>
 
           <div class="bento-grid-4" style="margin-bottom:14px;">
-            <div class="kpi-tile">
-              <div class="kpi-label">Modal Awal Laci</div>
-              <div class="kpi-value">${rp(db.shift.openingCash)}</div>
-            </div>
-            <div class="kpi-tile">
-              <div class="kpi-label">Pembayaran Cash</div>
-              <div class="kpi-value">${rp(cashSales)}</div>
-            </div>
-            <div class="kpi-tile pink">
-              <div class="kpi-label">QRIS (${rp(qrisSales)}) + Transfer (${rp(transferSales)})</div>
-              <div class="kpi-value">${rp(qrisSales + transferSales)}</div>
-            </div>
-            <div class="kpi-tile dark">
-              <div class="kpi-label">Ekspektasi Cash Laci</div>
-              <div class="kpi-value">${rp(expectedCash)}</div>
-            </div>
+            <div class="kpi-tile"><div class="kpi-label">Modal Awal Laci</div><div class="kpi-value">${rp(db.shift.openingCash)}</div></div>
+            <div class="kpi-tile"><div class="kpi-label">Pembayaran Cash</div><div class="kpi-value">${rp(cashSales)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">QRIS (${rp(qrisSales)}) + Transfer (${rp(transferSales)})</div><div class="kpi-value">${rp(qrisSales + transferSales)}</div></div>
+            <div class="kpi-tile dark"><div class="kpi-label">Ekspektasi Cash Laci</div><div class="kpi-value">${rp(expectedCash)}</div></div>
           </div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
@@ -2268,7 +2088,7 @@
               <label class="field-label" for="closingActualCash">Total Uang Cash Fisik di Laci (Rp)</label>
               <input id="closingActualCash" type="text" inputmode="numeric" class="styled-input" placeholder="Masukkan total uang tunai..." oninput="updateClosingDiff(this, ${expectedCash})" />
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
-                <button type="button" class="btn btn-soft btn-sm" onclick="fillExpectedCash(${expectedCash})">✔ Sesuai Ekspektasi</button>
+                <button type="button" class="btn btn-soft btn-sm" onclick="fillExpectedCash(${expectedCash})">Sesuai Ekspektasi</button>
                 <button type="button" class="btn btn-soft btn-sm" onclick="fillExpectedCash(0)">Reset</button>
               </div>
               <div id="closingDiffLabel" style="font-size:12px;font-weight:800;margin-top:6px;color:var(--text-muted);">Selisih Laci: Rp 0</div>
@@ -2279,41 +2099,29 @@
             </div>
           </div>
 
-          <!-- DETAIL PRODUK TERJUAL & TRANSAKSI TERTUNDA -->
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:14px;">
-            <div style="border:1px solid var(--border-soft);border-radius:16px;padding:12px;">
-              <h4 style="margin:0 0 8px;font-size:13px;">📦 Daftar Produk Terjual (${soldItems.length} Item)</h4>
+            <div style="border:1px solid var(--border-glass);border-radius:16px;padding:12px;background:#FFF;">
+              <h4 style="margin:0 0 8px;font-size:13px;">Daftar Produk Terjual (${soldItems.length} Item)</h4>
               ${soldItems.length === 0 ? `<div style="font-size:12px;color:var(--text-muted);">Belum ada produk terjual hari ini.</div>` : `
                 <div style="max-height:180px;overflow-y:auto;">
-                  ${soldItems.map(s => `
-                    <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border-soft);">
-                      <span>${esc(s.name)} <strong>(${s.qty}x)</strong></span>
-                      <strong>${rp(s.total)}</strong>
-                    </div>
-                  `).join('')}
+                  ${soldItems.map(s => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border-glass);"><span>${esc(s.name)} <strong>(${s.qty}x)</strong></span><strong>${rp(s.total)}</strong></div>`).join('')}
                 </div>
               `}
             </div>
-
-            <div style="border:1px solid var(--border-soft);border-radius:16px;padding:12px;">
-              <h4 style="margin:0 0 8px;font-size:13px;">⏳ Transaksi Tertunda (${openTrx.length} Order)</h4>
-              ${openTrx.length === 0 ? `<div style="font-size:12px;color:#065F46;">✔ Semua transaksi hari ini sudah lunas.</div>` : `
+            <div style="border:1px solid var(--border-glass);border-radius:16px;padding:12px;background:#FFF;">
+              <h4 style="margin:0 0 8px;font-size:13px;">Transaksi Tertunda (${openTrx.length} Order)</h4>
+              ${openTrx.length === 0 ? `<div style="font-size:12px;color:#065F46;">Semua transaksi hari ini sudah lunas.</div>` : `
                 <div style="max-height:180px;overflow-y:auto;">
-                  ${openTrx.map(o => `
-                    <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border-soft);">
-                      <span>${esc(o.customer)} (${esc(o.id)})</span>
-                      <strong style="color:#BE185D;">${rp(o.total)}</strong>
-                    </div>
-                  `).join('')}
+                  ${openTrx.map(o => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border-glass);"><span>${esc(o.customer)} (${esc(o.id)})</span><strong style="color:#BE185D;">${rp(o.total)}</strong></div>`).join('')}
                 </div>
               `}
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">
-            <button class="btn btn-dark" onclick="window.print()">🖨️ Cetak Laporan Harian</button>
-            <button class="btn btn-pink" onclick="sendClosingWhatsApp(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash}, ${openTrx.length})">📱 Kirim via WhatsApp</button>
-            <button class="btn btn-yellow" onclick="finalizeShiftClosing(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash})">✔ Tutup Kasir</button>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+            <button class="btn btn-dark" onclick="window.print()">Cetak Laporan Harian</button>
+            <button class="btn btn-pink" onclick="sendClosingWhatsApp(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash}, ${openTrx.length})">Kirim via WhatsApp</button>
+            <button class="btn btn-yellow" onclick="finalizeShiftClosing(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${expectedCash})">Tutup Kasir</button>
           </div>
         </div>
       `;
@@ -2325,66 +2133,36 @@
       const diff = actual - expectedCash;
       const lbl = document.getElementById('closingDiffLabel');
       if (!lbl) return;
-      if (diff === 0) {
-        lbl.style.color = '#065F46';
-        lbl.textContent = 'Selisih Laci: Rp 0 (Klop / Sesuai)';
-      } else if (diff > 0) {
-        lbl.style.color = '#0B2E23';
-        lbl.textContent = `Selisih Laci: +${rp(diff)} (Lebih)`;
-      } else {
-        lbl.style.color = '#BE185D';
-        lbl.textContent = `Selisih Laci: -${rp(Math.abs(diff))} (Kurang)`;
-      }
+      if (diff === 0) { lbl.style.color = '#065F46'; lbl.textContent = 'Selisih Laci: Rp 0 (Klop / Sesuai)'; }
+      else if (diff > 0) { lbl.style.color = '#0B2E23'; lbl.textContent = `Selisih Laci: +${rp(diff)} (Lebih)`; }
+      else { lbl.style.color = '#BE185D'; lbl.textContent = `Selisih Laci: -${rp(Math.abs(diff))} (Kurang)`; }
     }
 
     function fillExpectedCash(val) {
       const el = document.getElementById('closingActualCash');
-      if (el) {
-        el.value = val > 0 ? formatDigits(val) : '';
-        updateClosingDiff(el, val);
-      }
+      if (el) { el.value = val > 0 ? formatDigits(val) : ''; updateClosingDiff(el, val); }
     }
 
     function sendClosingWhatsApp(totalSales, cashSales, qrisSales, transferSales, expectedCash, openCount) {
       const actual = parseDigits(document.getElementById('closingActualCash')?.value || 0);
-      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\n` +
-        `Tanggal: ${new Date().toLocaleDateString('id-ID')}\n` +
-        `Kasir: ${currentUser.name}\n` +
-        `• Total Omzet: ${rp(totalSales)}\n` +
-        `• Cash: ${rp(cashSales)}\n` +
-        `• QRIS: ${rp(qrisSales)}\n` +
-        `• Transfer: ${rp(transferSales)}\n` +
-        `• Ekspektasi Laci: ${rp(expectedCash)}\n` +
-        `• Cash Fisik: ${rp(actual)}\n` +
-        `• Transaksi Tertunda: ${openCount} order`;
+      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\nTanggal: ${new Date().toLocaleDateString('id-ID')}\nKasir: ${currentUser.name}\n• Total Omzet: ${rp(totalSales)}\n• Cash: ${rp(cashSales)}\n• QRIS: ${rp(qrisSales)}\n• Transfer: ${rp(transferSales)}\n• Ekspektasi Laci: ${rp(expectedCash)}\n• Cash Fisik: ${rp(actual)}\n• Transaksi Tertunda: ${openCount} order`;
       window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
     }
 
     function finalizeShiftClosing(totalSales, cashSales, qrisSales, transferSales, expectedCash) {
       const pin = document.getElementById('closingPinVerify').value;
-      if (pin !== currentUser.pin) {
-        showToast('PIN Kasir tidak sesuai!', true);
-        return;
-      }
+      if (pin !== currentUser.pin) { showToast('PIN Kasir tidak sesuai.', true); return; }
       const actualCash = parseDigits(document.getElementById('closingActualCash').value);
       const rec = {
-        id: 'CLS-' + Math.floor(1000 + Math.random() * 9000),
-        closedAt: new Date().toISOString(),
-        cashier: currentUser.name,
-        openingCash: db.shift.openingCash,
-        cashSales,
-        qrisSales,
-        transferSales,
-        totalSales,
-        expectedCash,
-        actualCash,
-        diff: actualCash - expectedCash
+        id: 'CLS-' + Math.floor(1000 + Math.random() * 9000), closedAt: new Date().toISOString(),
+        cashier: currentUser.name, openingCash: db.shift.openingCash, cashSales, qrisSales, transferSales,
+        totalSales, expectedCash, actualCash, diff: actualCash - expectedCash
       };
       db.shiftClosings.unshift(rec);
       db.shift.isOpen = false;
       syncMasterEvent('CLOSE_SHIFT', rec);
       saveDB();
-      showToast('Shift berhasil ditutup & laporan tersimpan!');
+      showToast('Shift berhasil ditutup & laporan tersimpan.');
       doDirectLogout();
     }
 
@@ -2399,7 +2177,7 @@
       container.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div>
-            <h2 style="margin:0;font-size:20px;">🧾 Penjualan & Riwayat Transaksi</h2>
+            <h2 style="margin:0;font-size:20px;">Penjualan & Riwayat Transaksi</h2>
             <div style="font-size:12px;color:var(--text-muted);">Rekap transaksi seluruh kanal & metode pembayaran</div>
           </div>
           <select class="styled-select" style="width:auto;min-width:180px;" onchange="ownerSalesPeriod=this.value;renderOwnerSalesTab(document.getElementById('mainContentArea'))">
@@ -2408,30 +2186,16 @@
         </div>
 
         <div class="bento-grid-4" style="margin-bottom:14px;">
-          <div class="kpi-tile dark">
-            <div class="kpi-label">Penjualan Bersih</div>
-            <div class="kpi-value">${rp(net)}</div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-label">Penjualan Kotor</div>
-            <div class="kpi-value">${rp(gross)}</div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-label">Transaksi Selesai</div>
-            <div class="kpi-value">${paid.length} Order</div>
-          </div>
-          <div class="kpi-tile pink">
-            <div class="kpi-label">Transaksi Tertunda</div>
-            <div class="kpi-value">${list.filter(t => t.status === 'OPEN').length} Order</div>
-          </div>
+          <div class="kpi-tile dark"><div class="kpi-label">Penjualan Bersih</div><div class="kpi-value">${rp(net)}</div></div>
+          <div class="kpi-tile"><div class="kpi-label">Penjualan Kotor</div><div class="kpi-value">${rp(gross)}</div></div>
+          <div class="kpi-tile yellow"><div class="kpi-label">Transaksi Selesai</div><div class="kpi-value">${paid.length} Order</div></div>
+          <div class="kpi-tile pink"><div class="kpi-label">Transaksi Tertunda</div><div class="kpi-value">${list.filter(t => t.status === 'OPEN').length} Order</div></div>
         </div>
 
         <div class="bento-card">
           <div class="table-box">
             <table class="compact-table">
-              <thead>
-                <tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode</th><th>Total</th></tr>
-              </thead>
+              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode</th><th>Total</th></tr></thead>
               <tbody>
                 ${list.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada transaksi pada periode ini.</td></tr>` : list.map(t => `
                   <tr>
@@ -2456,7 +2220,6 @@
       const hpp = paid.reduce((s, t) => s + (t.costTotal || 0), 0);
       const profit = net - hpp;
 
-      // Top 10 products
       const prodStats = {};
       paid.forEach(t => t.items.forEach(it => {
         if (!prodStats[it.name]) prodStats[it.name] = { name: it.name, qty: 0, rev: 0 };
@@ -2474,58 +2237,31 @@
 
         ${ownerReportSubTab === 'ringkasan' ? `
           <div class="bento-grid-4">
-            <div class="kpi-tile dark">
-              <div class="kpi-label">Penjualan Bersih</div>
-              <div class="kpi-value">${rp(net)}</div>
-            </div>
-            <div class="kpi-tile">
-              <div class="kpi-label">Total HPP (COGS)</div>
-              <div class="kpi-value">${rp(hpp)}</div>
-            </div>
-            <div class="kpi-tile">
-              <div class="kpi-label">Laba Kotor (Gross Profit)</div>
-              <div class="kpi-value">${rp(profit)}</div>
-            </div>
-            <div class="kpi-tile pink">
-              <div class="kpi-label">Margin Laba Kotor</div>
-              <div class="kpi-value">${net > 0 ? Math.round(profit / net * 100) : 0}%</div>
-            </div>
+            <div class="kpi-tile dark"><div class="kpi-label">Penjualan Bersih</div><div class="kpi-value">${rp(net)}</div></div>
+            <div class="kpi-tile"><div class="kpi-label">Total HPP (COGS)</div><div class="kpi-value">${rp(hpp)}</div></div>
+            <div class="kpi-tile yellow"><div class="kpi-label">Laba Kotor (Gross Profit)</div><div class="kpi-value">${rp(profit)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">Margin Laba Kotor</div><div class="kpi-value">${net > 0 ? Math.round(profit / net * 100) : 0}%</div></div>
           </div>
         ` : ownerReportSubTab === 'top10' ? `
           <div class="bento-card">
-            <h3 style="margin:0 0 10px;font-size:16px;">🏆 Top 10 Menu Terlaris</h3>
+            <h3 style="margin:0 0 10px;font-size:16px;">Top 10 Menu Terlaris</h3>
             <div class="table-box">
               <table class="compact-table">
                 <thead><tr><th>Rank</th><th>Nama Menu</th><th>Terjual</th><th>Total Omzet</th></tr></thead>
                 <tbody>
-                  ${top10.map((p, idx) => `
-                    <tr>
-                      <td><strong>#${idx + 1}</strong></td>
-                      <td>${esc(p.name)}</td>
-                      <td>${p.qty}x</td>
-                      <td><strong>${rp(p.rev)}</strong></td>
-                    </tr>
-                  `).join('')}
+                  ${top10.map((p, idx) => `<tr><td><strong>#${idx + 1}</strong></td><td>${esc(p.name)}</td><td>${p.qty}x</td><td><strong>${rp(p.rev)}</strong></td></tr>`).join('')}
                 </tbody>
               </table>
             </div>
           </div>
         ` : `
           <div class="bento-card">
-            <h3 style="margin:0 0 10px;font-size:16px;">🕒 Rekap Absensi & Estimasi Upah</h3>
+            <h3 style="margin:0 0 10px;font-size:16px;">Rekap Absensi & Estimasi Upah</h3>
             <div class="table-box">
               <table class="compact-table">
                 <thead><tr><th>Tanggal</th><th>Pegawai</th><th>Masuk</th><th>Pulang</th><th>Upah Harian</th></tr></thead>
                 <tbody>
-                  ${db.attendanceLogs.map(a => `
-                    <tr>
-                      <td>${esc(a.date)}</td>
-                      <td><strong>${esc(a.staffName)}</strong></td>
-                      <td>${esc(a.clockIn)}</td>
-                      <td>${esc(a.clockOut || '-')}</td>
-                      <td>${rp(a.wage)}</td>
-                    </tr>
-                  `).join('')}
+                  ${db.attendanceLogs.map(a => `<tr><td>${esc(a.date)}</td><td><strong>${esc(a.staffName)}</strong></td><td>${esc(a.clockIn)}</td><td>${esc(a.clockOut || '-')}</td><td>${rp(a.wage)}</td></tr>`).join('')}
                 </tbody>
               </table>
             </div>
@@ -2534,7 +2270,7 @@
       `;
     }
 
-    // ==================== 8. OWNER: INVENTORI (TANPA + TAMBAH KATEGORI) ====================
+    // ==================== 8. OWNER: INVENTORI ====================
     function renderOwnerInventoryTab(container) {
       const lowItems = db.inventory.filter(i => Number(i.stock) <= Number(i.minStock));
       const q = invSearch.trim().toLowerCase();
@@ -2544,7 +2280,7 @@
         <div class="bento-card" style="margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
             <div>
-              <h2 style="margin:0;font-size:19px;">📦 Inventori & Stok Gudang</h2>
+              <h2 style="margin:0;font-size:19px;">Inventori & Stok Gudang</h2>
               <div style="font-size:12px;color:var(--text-muted);">Kelola stok opname fisik, mutasi masuk, dan stok terbuang</div>
             </div>
             <button class="btn btn-yellow" onclick="openAddInventoryModal()">+ Tambah Bahan / Item</button>
@@ -2552,11 +2288,11 @@
 
           <div style="margin-bottom:10px;">
             <span class="badge-pill ${lowItems.length > 0 ? 'badge-pink' : 'badge-green'}">
-              ${lowItems.length > 0 ? `⚠️ ${lowItems.length} Item Menyentuh Stok Minimum` : '✅ Semua Stok Aman'}
+              ${lowItems.length > 0 ? `${lowItems.length} Item Menyentuh Stok Minimum` : 'Semua Stok Aman'}
             </span>
           </div>
 
-          <input type="text" class="styled-input" placeholder="🔍 Cari SKU atau nama bahan baku..." value="${esc(invSearch)}" oninput="invSearch=this.value;renderOwnerInventoryTab(document.getElementById('mainContentArea'))" />
+          <input type="text" class="styled-input" placeholder="Cari SKU atau nama bahan baku..." value="${esc(invSearch)}" oninput="invSearch=this.value;renderOwnerInventoryTab(document.getElementById('mainContentArea'))" />
         </div>
 
         <div class="subtab-bar no-scroll">
@@ -2574,50 +2310,41 @@
                   ${filteredInv.map(it => `
                     <tr>
                       <td><strong>${esc(it.sku)}</strong></td>
-                      <td>
-                        <div><strong>${esc(it.name)}</strong></div>
-                        <div style="font-size:11px;color:var(--text-muted);">${esc(it.category)}</div>
-                      </td>
+                      <td><div><strong>${esc(it.name)}</strong></div><div style="font-size:11px;color:var(--text-muted);">${esc(it.category)}</div></td>
                       <td><strong style="color:${it.stock <= it.minStock ? '#BE185D' : '#0B2E23'};">${it.stock} ${esc(it.unit)}</strong></td>
-                      <td>
-                        <input type="number" class="styled-input" style="width:92px;padding:7px 9px;font-size:12px;" value="${it.stock}" onchange="updateInventoryStock('${esc(it.id)}', this.value)" />
-                      </td>
+                      <td><input type="number" class="styled-input" style="width:96px;padding:7px 9px;font-size:12px;" value="${it.stock}" onchange="updateInventoryStock('${esc(it.id)}', this.value)" /></td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
-            <button class="btn btn-dark" onclick="syncFullMasterDatabase()">✔ Simpan & Sync Stok Opname ke GUDANG_STOK</button>
+            <button class="btn btn-dark" onclick="syncFullMasterDatabase()">Simpan & Sync Stok Opname ke GUDANG_STOK</button>
           ` : invSubTab === 'mutasi' ? `
-            <h3 style="margin:0 0 10px;font-size:15px;">📥 Terima Barang Masuk / Restock</h3>
+            <h3 style="margin:0 0 10px;font-size:15px;">Terima Barang Masuk / Restock</h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
               <div>
                 <label class="field-label">Pilih Bahan Baku</label>
-                <select id="mutInvSelect" class="styled-select">
-                  ${db.inventory.map(i => `<option value="${esc(i.id)}">${esc(i.name)} (${i.stock} ${esc(i.unit)})</option>`).join('')}
-                </select>
+                <select id="mutInvSelect" class="styled-select">${db.inventory.map(i => `<option value="${esc(i.id)}">${esc(i.name)} (${i.stock} ${esc(i.unit)})</option>`).join('')}</select>
               </div>
               <div>
                 <label class="field-label">Jumlah Masuk</label>
                 <input id="mutInvQty" type="number" class="styled-input" placeholder="Contoh: 10" />
               </div>
             </div>
-            <button class="btn btn-dark" onclick="applyInventoryDelta(1)">✔ Tambahkan ke Stok Gudang</button>
+            <button class="btn btn-dark" onclick="applyInventoryDelta(1)">Tambahkan ke Stok Gudang</button>
           ` : `
-            <h3 style="margin:0 0 10px;font-size:15px;">🗑️ Catat Stok Terbuang / Rusak (Waste)</h3>
+            <h3 style="margin:0 0 10px;font-size:15px;">Catat Stok Terbuang / Rusak (Waste)</h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
               <div>
                 <label class="field-label">Pilih Bahan Baku</label>
-                <select id="mutInvSelect" class="styled-select">
-                  ${db.inventory.map(i => `<option value="${esc(i.id)}">${esc(i.name)} (${i.stock} ${esc(i.unit)})</option>`).join('')}
-                </select>
+                <select id="mutInvSelect" class="styled-select">${db.inventory.map(i => `<option value="${esc(i.id)}">${esc(i.name)} (${i.stock} ${esc(i.unit)})</option>`).join('')}</select>
               </div>
               <div>
                 <label class="field-label">Jumlah Terbuang</label>
                 <input id="mutInvQty" type="number" class="styled-input" placeholder="Contoh: 2" />
               </div>
             </div>
-            <button class="btn btn-pink" onclick="applyInventoryDelta(-1)">✔ Kurangi Stok Terbuang</button>
+            <button class="btn btn-pink" onclick="applyInventoryDelta(-1)">Kurangi Stok Terbuang</button>
           `}
         </div>
       `;
@@ -2634,10 +2361,7 @@
     function applyInventoryDelta(sign) {
       const invId = document.getElementById('mutInvSelect').value;
       const qty = Math.max(0, Number(document.getElementById('mutInvQty').value) || 0);
-      if (qty <= 0) {
-        showToast('Masukkan jumlah valid!', true);
-        return;
-      }
+      if (qty <= 0) { showToast('Masukkan jumlah valid.', true); return; }
       const item = db.inventory.find(i => i.id === invId);
       if (!item) return;
       item.stock = Math.max(0, Number(item.stock) + sign * qty);
@@ -2647,44 +2371,23 @@
     }
 
     function openAddInventoryModal() {
-      const nextNum = db.inventory.length + 1;
-      const autoSku = 'BHN-' + String(nextNum).padStart(2, '0');
+      const autoSku = 'BHN-' + String(db.inventory.length + 1).padStart(2, '0');
       openModal(`
         <div class="modal-head">
           <h3 style="margin:0;font-size:17px;">+ Tambah Bahan / Item Gudang</h3>
-          <button class="close-circle" onclick="closeModal()">✕</button>
+          <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <div style="display:grid;gap:10px;margin-bottom:14px;">
-          <div>
-            <label class="field-label">Kode SKU</label>
-            <input id="newInvSku" class="styled-input" value="${autoSku}" />
-          </div>
-          <div>
-            <label class="field-label">Nama Bahan / Item</label>
-            <input id="newInvName" class="styled-input" placeholder="Contoh: Susu Kental Manis Putih" />
-          </div>
-          <div>
-            <label class="field-label">Kategori Gudang</label>
-            <select id="newInvCat" class="styled-select">
-              ${db.inventoryCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
-            </select>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <div>
-              <label class="field-label">Stok Awal</label>
-              <input id="newInvStock" type="number" class="styled-input" value="10" />
-            </div>
-            <div>
-              <label class="field-label">Min. Stok</label>
-              <input id="newInvMin" type="number" class="styled-input" value="5" />
-            </div>
-            <div>
-              <label class="field-label">Satuan</label>
-              <input id="newInvUnit" class="styled-input" value="Pcs" />
-            </div>
+          <div><label class="field-label">Kode SKU</label><input id="newInvSku" class="styled-input" value="${autoSku}" /></div>
+          <div><label class="field-label">Nama Bahan / Item</label><input id="newInvName" class="styled-input" placeholder="Contoh: Susu Kental Manis Putih" /></div>
+          <div><label class="field-label">Kategori Gudang</label><select id="newInvCat" class="styled-select">${db.inventoryCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div><label class="field-label">Stok Awal</label><input id="newInvStock" type="number" class="styled-input" value="10" /></div>
+            <div><label class="field-label">Min. Stok</label><input id="newInvMin" type="number" class="styled-input" value="5" /></div>
+            <div><label class="field-label">Satuan</label><input id="newInvUnit" class="styled-input" value="Pcs" /></div>
           </div>
         </div>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveNewInventoryItem()">✔ Simpan Bahan Baku</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveNewInventoryItem()">Simpan Bahan Baku</button>
       `);
     }
 
@@ -2695,26 +2398,15 @@
       const stock = Number(document.getElementById('newInvStock').value) || 0;
       const minStock = Number(document.getElementById('newInvMin').value) || 0;
       const unit = document.getElementById('newInvUnit').value.trim() || 'Pcs';
-      if (!name) {
-        showToast('Nama bahan wajib diisi!', true);
-        return;
-      }
-      db.inventory.push({
-        id: 'inv-' + Date.now(),
-        sku: sku || 'BHN-99',
-        name,
-        category,
-        stock,
-        minStock,
-        unit
-      });
+      if (!name) { showToast('Nama bahan wajib diisi.', true); return; }
+      db.inventory.push({ id: 'inv-' + Date.now(), sku: sku || 'BHN-99', name, category, stock, minStock, unit });
       saveDB();
       closeModal();
       renderOwnerInventoryTab(document.getElementById('mainContentArea'));
-      showToast(`Bahan "${name}" ditambahkan!`);
+      showToast(`Bahan "${name}" ditambahkan.`);
     }
 
-    // ==================== 9. OWNER: PENGATURAN (KATEGORI LIST, PRODUK PAGINATED + AKSI, PIN, INTEGRASI) ====================
+    // ==================== 9. OWNER: PENGATURAN ====================
     function renderOwnerSettingsTab(container) {
       container.innerHTML = `
         <div class="subtab-bar no-scroll">
@@ -2723,7 +2415,6 @@
           <button class="subtab-btn ${settingsSubTab === 'promo' ? 'active' : ''}" onclick="settingsSubTab='promo';renderOwnerSettingsTab(document.getElementById('mainContentArea'))">Promo</button>
           <button class="subtab-btn ${settingsSubTab === 'integrasi' ? 'active' : ''}" onclick="settingsSubTab='integrasi';renderOwnerSettingsTab(document.getElementById('mainContentArea'))">Info Outlet & Integrasi</button>
         </div>
-
         <div id="settingsSubBody"></div>
       `;
       const body = document.getElementById('settingsSubBody');
@@ -2734,14 +2425,12 @@
     }
 
     function renderSettingsProdukKategori(body) {
-      // 1. Kategori List
       const cq = catSearch.trim().toLowerCase();
       const filteredCats = db.categories.filter(c => !cq || c.toLowerCase().includes(cq));
       const totalCatPages = Math.max(1, Math.ceil(filteredCats.length / catPageSize));
       if (catPage > totalCatPages) catPage = totalCatPages;
       const pagedCats = filteredCats.slice((catPage - 1) * catPageSize, catPage * catPageSize);
 
-      // 2. Produk List
       const pq = prodSearch.trim().toLowerCase();
       const filteredProds = db.products.filter(p => {
         const matchCat = prodCatFilter === 'ALL' || p.category === prodCatFilter;
@@ -2753,18 +2442,17 @@
       const pagedProds = filteredProds.slice((prodPage - 1) * prodPageSize, prodPage * prodPageSize);
 
       body.innerHTML = `
-        <!-- KATEGORI MENU LIST -->
         <div class="bento-card" style="margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
             <div>
-              <h3 style="margin:0;font-size:16px;">📂 Daftar Kategori Menu</h3>
+              <h3 style="margin:0;font-size:16px;">Daftar Kategori Menu</h3>
               <div style="font-size:11px;color:var(--text-muted);">Kelola kategori menu yang tampil di layar kasir</div>
             </div>
             <button class="btn btn-pink btn-sm" onclick="openAddMenuCategoryModal()">+ Tambah Kategori</button>
           </div>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-            <input type="text" class="styled-input" style="flex:1;min-width:180px;padding:8px 11px;font-size:12px;" placeholder="🔍 Cari kategori..." value="${esc(catSearch)}" oninput="catSearch=this.value;catPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
+            <input type="text" class="styled-input" style="flex:1;min-width:180px;padding:8px 11px;font-size:12px;" placeholder="Cari kategori..." value="${esc(catSearch)}" oninput="catSearch=this.value;catPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
             <select class="styled-select" style="width:auto;padding:8px 11px;font-size:12px;" onchange="catPageSize=Number(this.value);catPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">
               ${[10, 20, 50, 100].map(sz => `<option value="${sz}" ${catPageSize === sz ? 'selected' : ''}>Tampil: ${sz}</option>`).join('')}
             </select>
@@ -2781,11 +2469,7 @@
                       <td>${(catPage - 1) * catPageSize + i + 1}</td>
                       <td><strong>${esc(cat)}</strong></td>
                       <td>${count} Produk</td>
-                      <td>
-                        ${cat === 'Favorit' ? `<span style="font-size:11px;color:var(--text-muted);">Default</span>` : `
-                          <button class="btn btn-soft btn-sm" onclick="openEditMenuCategoryModal('${esc(cat)}')">Edit →</button>
-                        `}
-                      </td>
+                      <td>${cat === 'Favorit' ? `<span style="font-size:11px;color:var(--text-muted);">Default</span>` : `<button class="btn btn-soft btn-sm" onclick="openEditMenuCategoryModal('${esc(cat)}')">Edit</button>`}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -2795,24 +2479,23 @@
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:12px;">
             <span>Halaman ${catPage} / ${totalCatPages} (${filteredCats.length} kategori)</span>
             <div style="display:flex;gap:5px;flex-wrap:wrap;">
-              <button class="btn btn-soft btn-sm" onclick="catPage=Math.max(1,catPage-1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${catPage <= 1 ? 'disabled' : ''}>‹ Sebelumnya</button>
-              <button class="btn btn-soft btn-sm" onclick="catPage=Math.min(${totalCatPages},catPage+1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${catPage >= totalCatPages ? 'disabled' : ''}>Selanjutnya ›</button>
+              <button class="btn btn-soft btn-sm" onclick="catPage=Math.max(1,catPage-1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${catPage <= 1 ? 'disabled' : ''}>Sebelumnya</button>
+              <button class="btn btn-soft btn-sm" onclick="catPage=Math.min(${totalCatPages},catPage+1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${catPage >= totalCatPages ? 'disabled' : ''}>Selanjutnya</button>
             </div>
           </div>
         </div>
 
-        <!-- DAFTAR PRODUK JUAL LIST + AKSI -->
         <div class="bento-card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
             <div>
-              <h3 style="margin:0;font-size:16px;">☕ Daftar Produk Jual</h3>
-              <div style="font-size:11px;color:var(--text-muted);">Klik Edit → atau baris produk untuk ubah harga, kategori, atau hapus</div>
+              <h3 style="margin:0;font-size:16px;">Daftar Produk Jual</h3>
+              <div style="font-size:11px;color:var(--text-muted);">Klik Edit atau baris produk untuk ubah harga, kategori, atau hapus</div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openProductFormModal(null)">+ Tambah Produk</button>
           </div>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-            <input type="text" class="styled-input" style="flex:2;min-width:180px;padding:8px 11px;font-size:12px;" placeholder="🔍 Cari nama produk atau SKU..." value="${esc(prodSearch)}" oninput="prodSearch=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
+            <input type="text" class="styled-input" style="flex:2;min-width:180px;padding:8px 11px;font-size:12px;" placeholder="Cari nama produk atau SKU..." value="${esc(prodSearch)}" oninput="prodSearch=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
             <select class="styled-select" style="flex:1;min-width:140px;padding:8px 11px;font-size:12px;" onchange="prodCatFilter=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">
               <option value="ALL" ${prodCatFilter === 'ALL' ? 'selected' : ''}>Semua Kategori</option>
               ${db.categories.filter(c => c !== 'Favorit').map(c => `<option value="${esc(c)}" ${prodCatFilter === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
@@ -2824,27 +2507,16 @@
 
           <div class="table-box">
             <table class="compact-table">
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Nama Produk</th>
-                  <th>Kategori</th>
-                  <th>Harga Jual</th>
-                  <th>Satuan</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
+              <thead><tr><th>SKU</th><th>Nama Produk</th><th>Kategori</th><th>Harga Jual</th><th>Satuan</th><th>Aksi</th></tr></thead>
               <tbody>
                 ${pagedProds.map(p => `
                   <tr style="cursor:pointer;" onclick="openProductFormModal('${esc(p.id)}')">
                     <td><strong>${esc(p.sku)}</strong></td>
-                    <td><strong>${esc(p.name)}</strong> ${p.fav ? '★' : ''}</td>
+                    <td><strong>${esc(p.name)}</strong> ${p.fav ? '<span class="badge-pill badge-yellow">Fav</span>' : ''}</td>
                     <td><span class="badge-pill badge-green">${esc(p.category)}</span></td>
                     <td><strong>${rp(p.price)}</strong></td>
                     <td>${esc(p.unit)}</td>
-                    <td>
-                      <button type="button" class="btn btn-soft btn-sm" onclick="event.stopPropagation();openProductFormModal('${esc(p.id)}')">Edit →</button>
-                    </td>
+                    <td><button type="button" class="btn btn-soft btn-sm" onclick="event.stopPropagation();openProductFormModal('${esc(p.id)}')">Edit</button></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -2854,11 +2526,11 @@
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:12px;">
             <span>Halaman ${prodPage} / ${totalProdPages} (${filteredProds.length} produk)</span>
             <div style="display:flex;gap:5px;flex-wrap:wrap;">
-              <button class="btn btn-soft btn-sm" onclick="prodPage=Math.max(1,prodPage-1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${prodPage <= 1 ? 'disabled' : ''}>‹ Sebelumnya</button>
+              <button class="btn btn-soft btn-sm" onclick="prodPage=Math.max(1,prodPage-1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${prodPage <= 1 ? 'disabled' : ''}>Sebelumnya</button>
               ${Array.from({ length: totalProdPages }, (_, idx) => idx + 1).map(pg => `
                 <button class="btn ${pg === prodPage ? 'btn-dark' : 'btn-soft'} btn-sm" onclick="prodPage=${pg};renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">${pg}</button>
               `).join('')}
-              <button class="btn btn-soft btn-sm" onclick="prodPage=Math.min(${totalProdPages},prodPage+1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${prodPage >= totalProdPages ? 'disabled' : ''}>Selanjutnya ›</button>
+              <button class="btn btn-soft btn-sm" onclick="prodPage=Math.min(${totalProdPages},prodPage+1);renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" ${prodPage >= totalProdPages ? 'disabled' : ''}>Selanjutnya</button>
             </div>
           </div>
         </div>
@@ -2867,45 +2539,30 @@
 
     function openAddMenuCategoryModal() {
       openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">+ Tambah Kategori Menu</h3>
-          <button class="close-circle" onclick="closeModal()">✕</button>
-        </div>
-        <div style="margin-bottom:14px;">
-          <label class="field-label">Nama Kategori Baru</label>
-          <input id="newCatInput" class="styled-input" placeholder="Contoh: Non-Kopi & Mocktail" />
-        </div>
-        <button class="btn btn-pink" style="width:100%;padding:12px;" onclick="saveNewMenuCategory()">✔ Simpan Kategori</button>
+        <div class="modal-head"><h3 style="margin:0;font-size:17px;">+ Tambah Kategori Menu</h3><button class="close-circle" onclick="closeModal()">x</button></div>
+        <div style="margin-bottom:14px;"><label class="field-label">Nama Kategori Baru</label><input id="newCatInput" class="styled-input" placeholder="Contoh: Non-Kopi & Mocktail" /></div>
+        <button class="btn btn-pink" style="width:100%;padding:12px;" onclick="saveNewMenuCategory()">Simpan Kategori</button>
       `);
     }
 
     function saveNewMenuCategory() {
       const val = document.getElementById('newCatInput').value.trim();
       if (!val) return;
-      if (db.categories.includes(val)) {
-        showToast('Kategori sudah ada!', true);
-        return;
-      }
+      if (db.categories.includes(val)) { showToast('Kategori sudah ada.', true); return; }
       db.categories.push(val);
       saveDB();
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast(`Kategori "${val}" ditambahkan!`);
+      showToast(`Kategori "${val}" ditambahkan.`);
     }
 
     function openEditMenuCategoryModal(oldName) {
       openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">Edit Kategori Menu</h3>
-          <button class="close-circle" onclick="closeModal()">✕</button>
-        </div>
-        <div style="margin-bottom:14px;">
-          <label class="field-label">Nama Kategori</label>
-          <input id="editCatInput" class="styled-input" value="${esc(oldName)}" />
-        </div>
+        <div class="modal-head"><h3 style="margin:0;font-size:17px;">Edit Kategori Menu</h3><button class="close-circle" onclick="closeModal()">x</button></div>
+        <div style="margin-bottom:14px;"><label class="field-label">Nama Kategori</label><input id="editCatInput" class="styled-input" value="${esc(oldName)}" /></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <button class="btn btn-danger" onclick="deleteMenuCategory('${esc(oldName)}')">🗑️ Hapus</button>
-          <button class="btn btn-dark" onclick="updateMenuCategory('${esc(oldName)}')">✔ Simpan Perubahan</button>
+          <button class="btn btn-danger" onclick="deleteMenuCategory('${esc(oldName)}')">Hapus</button>
+          <button class="btn btn-dark" onclick="updateMenuCategory('${esc(oldName)}')">Simpan</button>
         </div>
       `);
     }
@@ -2919,7 +2576,7 @@
       saveDB();
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Kategori diperbarui!');
+      showToast('Kategori diperbarui.');
     }
 
     function deleteMenuCategory(catName) {
@@ -2934,50 +2591,27 @@
       const prod = prodId ? db.products.find(p => p.id === prodId) : null;
       const cats = db.categories.filter(c => c !== 'Favorit');
       openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">${prod ? 'Edit Detail Produk' : '+ Tambah Produk Baru'}</h3>
-          <button class="close-circle" onclick="closeModal()">✕</button>
-        </div>
+        <div class="modal-head"><h3 style="margin:0;font-size:17px;">${prod ? 'Edit Detail Produk' : '+ Tambah Produk Baru'}</h3><button class="close-circle" onclick="closeModal()">x</button></div>
         <div style="display:grid;gap:10px;margin-bottom:14px;">
           <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;">
-            <div>
-              <label class="field-label">SKU</label>
-              <input id="pfSku" class="styled-input" value="${esc(prod ? prod.sku : 'JW-' + (db.products.length + 1))}" />
-            </div>
-            <div>
-              <label class="field-label">Nama Produk</label>
-              <input id="pfName" class="styled-input" value="${esc(prod ? prod.name : '')}" placeholder="Nama menu..." />
-            </div>
+            <div><label class="field-label">SKU</label><input id="pfSku" class="styled-input" value="${esc(prod ? prod.sku : 'JW-' + (db.products.length + 1))}" /></div>
+            <div><label class="field-label">Nama Produk</label><input id="pfName" class="styled-input" value="${esc(prod ? prod.name : '')}" placeholder="Nama menu..." /></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div>
-              <label class="field-label">Kategori</label>
-              <select id="pfCat" class="styled-select">
-                ${cats.map(c => `<option value="${esc(c)}" ${prod && prod.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="field-label">Satuan</label>
-              <input id="pfUnit" class="styled-input" value="${esc(prod ? prod.unit : 'Cup')}" />
-            </div>
+            <div><label class="field-label">Kategori</label><select id="pfCat" class="styled-select">${cats.map(c => `<option value="${esc(c)}" ${prod && prod.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+            <div><label class="field-label">Satuan</label><input id="pfUnit" class="styled-input" value="${esc(prod ? prod.unit : 'Cup')}" /></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div>
-              <label class="field-label">Harga Jual (Rp)</label>
-              <input id="pfPrice" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.price) : ''}" oninput="this.value=formatDigits(this.value)" />
-            </div>
-            <div>
-              <label class="field-label">HPP / Modal (Rp)</label>
-              <input id="pfCost" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.cost) : ''}" oninput="this.value=formatDigits(this.value)" />
-            </div>
+            <div><label class="field-label">Harga Jual (Rp)</label><input id="pfPrice" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.price) : ''}" oninput="this.value=formatDigits(this.value)" /></div>
+            <div><label class="field-label">HPP / Modal (Rp)</label><input id="pfCost" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.cost) : ''}" oninput="this.value=formatDigits(this.value)" /></div>
           </div>
           <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;">
-            <input id="pfFav" type="checkbox" ${prod && prod.fav ? 'checked' : ''} /> Tampilkan di Kategori Favorit (★)
+            <input id="pfFav" type="checkbox" ${prod && prod.fav ? 'checked' : ''} /> Tampilkan di Kategori Favorit
           </label>
         </div>
         <div style="display:grid;grid-template-columns:${prod ? '1fr 1.5fr' : '1fr'};gap:8px;">
-          ${prod ? `<button class="btn btn-danger" onclick="deleteProductById('${esc(prod.id)}')">🗑️ Hapus Produk</button>` : ''}
-          <button class="btn btn-yellow" onclick="saveProductForm('${prod ? esc(prod.id) : ''}')">✔ Simpan Produk</button>
+          ${prod ? `<button class="btn btn-danger" onclick="deleteProductById('${esc(prod.id)}')">Hapus Produk</button>` : ''}
+          <button class="btn btn-yellow" onclick="saveProductForm('${prod ? esc(prod.id) : ''}')">Simpan Produk</button>
         </div>
       `);
     }
@@ -2990,12 +2624,7 @@
       const price = parseDigits(document.getElementById('pfPrice').value);
       const cost = parseDigits(document.getElementById('pfCost').value);
       const fav = document.getElementById('pfFav').checked;
-
-      if (!name || price <= 0) {
-        showToast('Nama produk dan harga jual wajib diisi!', true);
-        return;
-      }
-
+      if (!name || price <= 0) { showToast('Nama produk dan harga jual wajib diisi.', true); return; }
       if (prodId) {
         const idx = db.products.findIndex(p => p.id === prodId);
         if (idx >= 0) db.products[idx] = { ...db.products[idx], sku, name, category, unit, price, cost, fav };
@@ -3005,7 +2634,7 @@
       saveDB();
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Data produk disimpan!');
+      showToast('Data produk disimpan.');
     }
 
     function deleteProductById(prodId) {
@@ -3019,9 +2648,9 @@
     function renderSettingsStaff(body) {
       body.innerHTML = `
         <div class="bento-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div>
-              <h3 style="margin:0;font-size:16px;">👥 Manajemen Pegawai & PIN</h3>
+              <h3 style="margin:0;font-size:16px;">Manajemen Pegawai & PIN</h3>
               <div style="font-size:11px;color:var(--text-muted);">Atur PIN 4-digit & upah harian staf</div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openAddStaffModal()">+ Tambah Staf</button>
@@ -3048,29 +2677,23 @@
 
     function updateStaffPin(staffId) {
       const val = document.getElementById('pinInp_' + staffId).value.trim();
-      if (!/^\d{4}$/.test(val)) {
-        showToast('PIN harus 4 digit angka!', true);
-        return;
-      }
+      if (!/^\d{4}$/.test(val)) { showToast('PIN harus 4 digit angka.', true); return; }
       const st = db.staff.find(s => s.id === staffId);
       if (st) st.pin = val;
       saveDB();
-      showToast(`PIN untuk ${st.name} berhasil diperbarui!`);
+      showToast(`PIN untuk ${st.name} berhasil diperbarui.`);
     }
 
     function openAddStaffModal() {
       openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">+ Tambah Pegawai Baru</h3>
-          <button class="close-circle" onclick="closeModal()">✕</button>
-        </div>
+        <div class="modal-head"><h3 style="margin:0;font-size:17px;">+ Tambah Pegawai Baru</h3><button class="close-circle" onclick="closeModal()">x</button></div>
         <div style="display:grid;gap:10px;margin-bottom:14px;">
           <div><label class="field-label">Nama Pegawai</label><input id="stNewName" class="styled-input" /></div>
           <div><label class="field-label">Jabatan</label><select id="stNewRole" class="styled-select"><option value="Kasir">Kasir</option><option value="Owner">Owner</option></select></div>
           <div><label class="field-label">PIN 4-Digit</label><input id="stNewPin" maxlength="4" inputmode="numeric" class="styled-input" value="1234" /></div>
           <div><label class="field-label">Upah Harian (Rp)</label><input id="stNewWage" inputmode="numeric" class="styled-input" value="70.000" oninput="this.value=formatDigits(this.value)" /></div>
         </div>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveNewStaff()">✔ Simpan Pegawai</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveNewStaff()">Simpan Pegawai</button>
       `);
     }
 
@@ -3079,33 +2702,23 @@
       const role = document.getElementById('stNewRole').value;
       const pin = document.getElementById('stNewPin').value.trim();
       const dailyWage = parseDigits(document.getElementById('stNewWage').value);
-      if (!name || !/^\d{4}$/.test(pin)) {
-        showToast('Isi nama dan PIN 4 digit angka!', true);
-        return;
-      }
+      if (!name || !/^\d{4}$/.test(pin)) { showToast('Isi nama dan PIN 4 digit angka.', true); return; }
       db.staff.push({ id: 'stf-' + Date.now(), name, role, pin, active: true, dailyWage });
       saveDB();
       closeModal();
       renderSettingsStaff(document.getElementById('settingsSubBody'));
-      showToast(`Pegawai ${name} ditambahkan!`);
+      showToast(`Pegawai ${name} ditambahkan.`);
     }
 
     function renderSettingsPromo(body) {
       body.innerHTML = `
         <div class="bento-card">
-          <h3 style="margin:0 0 10px;font-size:16px;">🎟️ Daftar Kode Promo Aktif</h3>
+          <h3 style="margin:0 0 10px;font-size:16px;">Daftar Kode Promo Aktif</h3>
           <div class="table-box">
             <table class="compact-table">
               <thead><tr><th>Kode</th><th>Nama Promo</th><th>Potongan</th><th>Status</th></tr></thead>
               <tbody>
-                ${db.promos.map(pr => `
-                  <tr>
-                    <td><strong>${esc(pr.code)}</strong></td>
-                    <td>${esc(pr.name)}</td>
-                    <td>${pr.type === 'percent' ? pr.value + '%' : rp(pr.value)}</td>
-                    <td><span class="badge-pill badge-green">${pr.active ? 'Aktif' : 'Nonaktif'}</span></td>
-                  </tr>
-                `).join('')}
+                ${db.promos.map(pr => `<tr><td><strong>${esc(pr.code)}</strong></td><td>${esc(pr.name)}</td><td>${pr.type === 'percent' ? pr.value + '%' : rp(pr.value)}</td><td><span class="badge-pill badge-green">${pr.active ? 'Aktif' : 'Nonaktif'}</span></td></tr>`).join('')}
               </tbody>
             </table>
           </div>
@@ -3116,25 +2729,16 @@
     function renderSettingsOutletSync(body) {
       body.innerHTML = `
         <div class="bento-card" style="margin-bottom:14px;">
-          <h3 style="margin:0 0 10px;font-size:16px;">🏪 Info Outlet & Sinkronisasi Master POS & ERP</h3>
+          <h3 style="margin:0 0 10px;font-size:16px;">Info Outlet & Sinkronisasi Master POS & ERP</h3>
           <div style="display:grid;gap:10px;margin-bottom:12px;">
-            <div>
-              <label class="field-label">Nama Outlet</label>
-              <input id="outNameInp" class="styled-input" value="${esc(db.outlet.name)}" />
-            </div>
-            <div>
-              <label class="field-label">Alamat Outlet</label>
-              <input id="outAddrInp" class="styled-input" value="${esc(db.outlet.address)}" />
-            </div>
-            <div>
-              <label class="field-label">Google Apps Script Webhook URL (Master POS & ERP - KOPI JIWARA)</label>
-              <input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" />
-            </div>
+            <div><label class="field-label">Nama Outlet</label><input id="outNameInp" class="styled-input" value="${esc(db.outlet.name)}" /></div>
+            <div><label class="field-label">Alamat Outlet</label><input id="outAddrInp" class="styled-input" value="${esc(db.outlet.address)}" /></div>
+            <div><label class="field-label">Google Apps Script Webhook URL (Master POS & ERP - KOPI JIWARA)</label><input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" /></div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-dark" onclick="saveOutletIntegration()">✔ Simpan Pengaturan & URL</button>
-            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">☁️ Sync Semua Data ke Master</button>
-            <button class="btn btn-pink" onclick="openMasterScriptModal()">📜 Skrip Google Sheets (Master POS & ERP)</button>
+            <button class="btn btn-dark" onclick="saveOutletIntegration()">Simpan Pengaturan & URL</button>
+            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data ke Master</button>
+            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets (Master POS & ERP)</button>
           </div>
         </div>
       `;
@@ -3146,7 +2750,7 @@
       db.outlet.webhookUrl = document.getElementById('outWebhookInp').value.trim();
       saveDB();
       renderWorkspace();
-      showToast('Pengaturan Outlet & URL Master Sheets disimpan!');
+      showToast('Pengaturan Outlet & URL Master Sheets disimpan.');
     }
 
     function openMasterScriptModal() {
@@ -3154,13 +2758,13 @@
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:16px;">📜 Google Apps Script — Master POS & ERP</h3>
+            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP</h3>
             <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script pada file Master POS & ERP - KOPI JIWARA</div>
           </div>
-          <button class="close-circle" onclick="closeModal()">✕</button>
+          <button class="close-circle" onclick="closeModal()">x</button>
         </div>
-        <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-soft);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">📋 Salin Kode Apps Script</button>
+        <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script</button>
       `);
     }
 
@@ -3168,11 +2772,10 @@
       const ta = document.getElementById('appsScriptBox');
       if (!ta) return;
       ta.select();
-      navigator.clipboard?.writeText(ta.value);
-      showToast('Kode Google Apps Script berhasil disalin!');
+      document.execCommand('copy');
+      showToast('Kode Google Apps Script berhasil disalin.');
     }
 
-    // ==================== BOOTSTRAP ====================
     initLoginScreen();
   </script>
 </body>
