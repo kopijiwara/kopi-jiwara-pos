@@ -1664,10 +1664,42 @@
       ui.paymentOrderSource = src;
       ui.paymentMethod = 'Cash';
       const total = src ? src.total : getCartTotals().total;
-      ui.cashTendered = total;
+      ui.cashTendered = formatDigitsWithDots(total);
       ui.showPaymentModal = true;
       render();
     };
+
+    window.handleCashTenderedInput = function(el, total) {
+      const formatted = formatDigitsWithDots(el.value);
+      el.value = formatted;
+      ui.cashTendered = formatted;
+      updatePaymentChangeBanner(total);
+    };
+
+    window.setCashTenderedPreset = function(amount, total) {
+      const formatted = amount === '' ? '' : formatDigitsWithDots(amount);
+      ui.cashTendered = formatted;
+      const inp = document.getElementById('payment-cash-tendered-inp');
+      if (inp) inp.value = formatted;
+      updatePaymentChangeBanner(total);
+    };
+
+    function updatePaymentChangeBanner(total) {
+      const box = document.getElementById('paymentChangeDisplay');
+      if (!box) return;
+      const tenderedNum = parseFormattedNumber(ui.cashTendered);
+      if (tenderedNum === null) {
+        box.innerHTML = `<span class="font-extrabold text-lg" style="color:var(--text-muted);">Rp 0</span>`;
+        return;
+      }
+      if (tenderedNum < total) {
+        const kurang = total - tenderedNum;
+        box.innerHTML = `<span class="font-extrabold text-sm" style="color:var(--pink-600);">Kurang ${formatRp(kurang)}</span>`;
+      } else {
+        const change = tenderedNum - total;
+        box.innerHTML = `<span class="font-extrabold text-lg" style="color:var(--green-700);">${formatRp(change)}</span>`;
+      }
+    }
 
     window.completePaymentTransaction = function() {
       const src = ui.paymentOrderSource;
@@ -1697,7 +1729,13 @@
         total = totals.total;
       }
 
-      const cashRec = ui.paymentMethod === 'Cash' ? Math.max(total, Number(ui.cashTendered) || total) : total;
+      const parsedTendered = parseFormattedNumber(ui.cashTendered);
+      if (ui.paymentMethod === 'Cash' && parsedTendered !== null && parsedTendered < total) {
+        showToast(`Uang cash diterima kurang ${formatRp(total - parsedTendered)}!`, 'error');
+        return;
+      }
+
+      const cashRec = ui.paymentMethod === 'Cash' ? (parsedTendered !== null ? parsedTendered : total) : total;
       const change = ui.paymentMethod === 'Cash' ? Math.max(0, cashRec - total) : 0;
       const totalHpp = items.reduce((s, it) => s + ((it.hpp || 0) * it.qty), 0);
       const itemComm = items.reduce((s, it) => s + ((it.commission || 0) * it.qty), 0);
@@ -4244,8 +4282,9 @@
       if (ui.showPaymentModal) {
         const src = ui.paymentOrderSource;
         const total = src ? src.total : getCartTotals().total;
-        const tendered = Number(ui.cashTendered) || 0;
-        const change = Math.max(0, tendered - total);
+        const tendered = parseFormattedNumber(ui.cashTendered);
+        const isShort = tendered !== null && tendered < total;
+        const change = tendered !== null ? Math.max(0, tendered - total) : 0;
         const quickCash = [total, Math.ceil(total / 10000) * 10000, 50000, 100000].filter((v, i, a) => v >= total && a.indexOf(v) === i);
 
         html += `
@@ -4263,7 +4302,7 @@
                   <label class="form-label">Pilihan Pembayaran</label>
                   <div class="grid-3">
                     ${['Cash', 'QRIS', 'Transfer'].map(pm => `
-                      <button type="button" onclick="ui.paymentMethod='${pm}'; if('${pm}'!=='Cash'){ ui.cashTendered=${total}; } render();"
+                      <button type="button" onclick="ui.paymentMethod='${pm}'; if('${pm}'!=='Cash'){ ui.cashTendered=formatDigitsWithDots(${total}); } render();"
                         class="btn ${ui.paymentMethod === pm ? 'btn-green' : 'btn-outline'}">
                         ${pm === 'Cash' ? '💵 Cash' : pm === 'QRIS' ? '📱 QRIS' : '🏦 Transfer'}
                       </button>
@@ -4274,13 +4313,18 @@
                 ${ui.paymentMethod === 'Cash' ? `
                   <div class="card mb-3" style="background:var(--green-50);">
                     <label class="form-label">Uang Cash Diterima (Rp)</label>
-                    <input type="number" value="${ui.cashTendered}" oninput="ui.cashTendered=Number(this.value)||0; render();" style="font-size:17px;font-weight:800;" />
+                    <input id="payment-cash-tendered-inp" type="text" inputmode="numeric" value="${escapeHtml(ui.cashTendered)}" oninput="handleCashTenderedInput(this, ${total})" placeholder="Ketik nominal uang diterima..." style="font-size:17px;font-weight:800;" />
                     <div class="flex flex-wrap gap-2 mt-2">
-                      ${quickCash.map(amt => `<button type="button" onclick="ui.cashTendered=${amt}; render();" class="btn btn-sm btn-outline">${formatRp(amt)}</button>`).join('')}
+                      ${quickCash.map(amt => `<button type="button" onclick="setCashTenderedPreset(${amt}, ${total})" class="btn btn-sm btn-outline">${formatRp(amt)}</button>`).join('')}
+                      <button type="button" onclick="setCashTenderedPreset('', ${total})" class="btn btn-sm btn-pink-soft">Reset</button>
                     </div>
                     <div class="flex justify-between items-center mt-3" style="border-top:1px solid var(--border);padding-top:8px;">
                       <span class="text-xs font-bold">Kembalian:</span>
-                      <span class="font-extrabold text-lg">${formatRp(change)}</span>
+                      <div id="paymentChangeDisplay">
+                        ${isShort
+                          ? `<span class="font-extrabold text-sm" style="color:var(--pink-600);">Kurang ${formatRp(total - tendered)}</span>`
+                          : `<span class="font-extrabold text-lg" style="color:var(--green-700);">${formatRp(change)}</span>`}
+                      </div>
                     </div>
                   </div>
                 ` : `
