@@ -926,108 +926,106 @@
           tiktok: '@kopijiwara',
           outletLogo: DEFAULT_OUTLET_LOGO,
           receiptLogo: DEFAULT_RECEIPT_LOGO,
-          webhookUrl: ''
+          webhookUrl: '',
+          lastSyncAt: '',
+          lastSyncStatus: 'Belum Tersinkronisasi'
         },
         categories: [
           { id: 'CAT-FAV', name: 'Favorit', isSystem: true },
-          { id: 'CAT-PKT', name: 'Menu Paket', isSystem: false },
-          { id: 'CAT-KPJ', name: 'Kopi Jiwara', isSystem: false },
-          { id: 'CAT-AYM', name: 'Ayam Jiwara', isSystem: false },
-          { id: 'CAT-JVG', name: 'Jovangels', isSystem: false },
-          { id: 'CAT-JHY', name: 'Jihyo Dimsum', isSystem: false },
-          { id: 'CAT-PON', name: 'Paket Online', isSystem: false },
-          { id: 'CAT-MON', name: 'Makanan Online', isSystem: false },
-          { id: 'CAT-MIN', name: 'Minuman Online', isSystem: false }
+          { id: 'CAT-01', name: 'Kopi Jiwara', isSystem: false },
+          { id: 'CAT-02', name: 'Non-Kopi & Juice', isSystem: false },
+          { id: 'CAT-03', name: 'Ayam Baba Jay', isSystem: false },
+          { id: 'CAT-04', name: 'Bento Jovangels', isSystem: false },
+          { id: 'CAT-05', name: 'Dimsum Jihyo', isSystem: false }
         ],
         products: [
-          { id: 'JW-01', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', price: 18000, hpp: 7200, stock: 120, minStock: 20, unit: 'Cup', isFavorite: true, commission: 1000 },
-          { id: 'JW-02', sku: 'JW-02', name: 'Kopi Susu Cream', category: 'Kopi Jiwara', price: 18000, hpp: 7500, stock: 95, minStock: 20, unit: 'Cup', isFavorite: true, commission: 1000 },
-          { id: 'JW-03', sku: 'JW-03', name: 'Black Coffee', category: 'Kopi Jiwara', price: 15000, hpp: 4800, stock: 100, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'JW-04', sku: 'JW-04', name: 'Ice Black Coffee', category: 'Kopi Jiwara', price: 17000, hpp: 5200, stock: 100, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'JW-05', sku: 'JW-05', name: 'v60 Manual Brew', category: 'Kopi Jiwara', price: 21000, hpp: 7500, stock: 45, minStock: 10, unit: 'Cup', isFavorite: false, commission: 1500 },
-          { id: 'JW-06', sku: 'JW-06', name: 'Tropical Coffee Lemon', category: 'Kopi Jiwara', price: 23000, hpp: 8400, stock: 60, minStock: 15, unit: 'Cup', isFavorite: true, commission: 1500 },
-          { id: 'JW-07', sku: 'JW-07', name: 'Tropical Coffee Leci', category: 'Kopi Jiwara', price: 23000, hpp: 8600, stock: 18, minStock: 20, unit: 'Cup', isFavorite: false, commission: 1500 },
-          { id: 'JW-08', sku: 'JW-08', name: 'Tropical Coffee Mix Berry', category: 'Kopi Jiwara', price: 23000, hpp: 8900, stock: 40, minStock: 15, unit: 'Cup', isFavorite: false, commission: 1500 },
-          { id: 'JW-09', sku: 'JW-09', name: 'Korean Strawberry Milk', category: 'Kopi Jiwara', price: 18000, hpp: 7800, stock: 55, minStock: 15, unit: 'Cup', isFavorite: true, commission: 1000 },
-          { id: 'JW-10', sku: 'JW-10', name: 'Juice Strawberry', category: 'Kopi Jiwara', price: 15000, hpp: 6000, stock: 35, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'JW-11', sku: 'JW-11', name: 'Juice Mangga', category: 'Kopi Jiwara', price: 15000, hpp: 6000, stock: 35, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'JW-12', sku: 'JW-12', name: 'Juice Alpukat', category: 'Kopi Jiwara', price: 15000, hpp: 6200, stock: 35, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'JW-13', sku: 'JW-13', name: 'Juice Sirsak', category: 'Kopi Jiwara', price: 15000, hpp: 6000, stock: 35, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
-
-          { id: 'PK-01', sku: 'PK-01', name: 'Paket Jiwa Pagi (Kopi Aren + Dimsum Ori)', category: 'Menu Paket', price: 29000, hpp: 13500, stock: 30, minStock: 10, unit: 'Porsi', isFavorite: true, commission: 1500 },
-          { id: 'PK-02', sku: 'PK-02', name: 'Paket Kenyang Berdua (Ayam TL + Kopi)', category: 'Menu Paket', price: 78000, hpp: 38000, stock: 25, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 2500 },
-          { id: 'PK-03', sku: 'PK-03', name: 'Paket Nongkrong (Tropical + Dimsum Mentai)', category: 'Menu Paket', price: 58000, hpp: 25500, stock: 25, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 2000 },
-
-          { id: 'BJ-01', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Ayam Jiwara', price: 28000, hpp: 14500, stock: 40, minStock: 12, unit: 'Porsi', isFavorite: true, commission: 1000 },
-          { id: 'BJ-02', sku: 'BJ-02', name: 'Paket A Goreng TL', category: 'Ayam Jiwara', price: 25000, hpp: 13200, stock: 42, minStock: 12, unit: 'Porsi', isFavorite: true, commission: 1000 },
-          { id: 'BJ-03', sku: 'BJ-03', name: 'A Bakar TL', category: 'Ayam Jiwara', price: 20000, hpp: 11000, stock: 30, minStock: 10, unit: 'Pcs', isFavorite: false, commission: 500 },
-          { id: 'BJ-04', sku: 'BJ-04', name: 'A Goreng TL', category: 'Ayam Jiwara', price: 18000, hpp: 9800, stock: 30, minStock: 10, unit: 'Pcs', isFavorite: false, commission: 500 },
-          { id: 'BJ-05', sku: 'BJ-05', name: 'Kulit Goreng', category: 'Ayam Jiwara', price: 8000, hpp: 4000, stock: 40, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 0 },
-          { id: 'BJ-06', sku: 'BJ-06', name: 'Usus Goreng / Jukut / Kol Goreng', category: 'Ayam Jiwara', price: 5000, hpp: 2200, stock: 50, minStock: 15, unit: 'Porsi', isFavorite: false, commission: 0 },
-          { id: 'BJ-07', sku: 'BJ-07', name: 'Tahu / Tempe Goreng', category: 'Ayam Jiwara', price: 2000, hpp: 900, stock: 80, minStock: 20, unit: 'Pcs', isFavorite: false, commission: 0 },
-          { id: 'BJ-08', sku: 'BJ-08', name: 'Teh Botol', category: 'Ayam Jiwara', price: 5000, hpp: 3200, stock: 103, minStock: 15, unit: 'Pcs', isFavorite: false, commission: 0 },
-
-          { id: 'JV-01', sku: 'JV-01', name: 'Bento 1', category: 'Jovangels', price: 21000, hpp: 10500, stock: 28, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-          { id: 'JV-02', sku: 'JV-02', name: 'Bento 2', category: 'Jovangels', price: 23000, hpp: 11800, stock: 26, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-          { id: 'JV-03', sku: 'JV-03', name: 'Egg Roll', category: 'Jovangels', price: 15000, hpp: 7200, stock: 20, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 500 },
-          { id: 'JV-04', sku: 'JV-04', name: 'Udang Keju', category: 'Jovangels', price: 17000, hpp: 8500, stock: 19, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 500 },
-
-          { id: 'JH-01', sku: 'JH-01', name: 'Dimsum Original', category: 'Jihyo Dimsum', price: 14000, hpp: 6800, stock: 50, minStock: 15, unit: 'Porsi', isFavorite: false, commission: 500 },
-          { id: 'JH-02', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', price: 18000, hpp: 8500, stock: 45, minStock: 15, unit: 'Porsi', isFavorite: true, commission: 1000 },
-          { id: 'JH-03', sku: 'JH-03', name: 'Dimsum Tar Tar', category: 'Jihyo Dimsum', price: 18000, hpp: 8300, stock: 30, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-          { id: 'JH-04', sku: 'JH-04', name: 'Dimsum Keju Lumer', category: 'Jihyo Dimsum', price: 18000, hpp: 8600, stock: 30, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-          { id: 'JH-05', sku: 'JH-05', name: 'Dimsum Family', category: 'Jihyo Dimsum', price: 85000, hpp: 39000, stock: 12, minStock: 5, unit: 'Porsi', isFavorite: false, commission: 3000 },
-
-          { id: 'ON-PK1', sku: 'ON-PK1', name: 'Paket Komplit Jiwara Online', category: 'Paket Online', price: 49000, hpp: 21700, stock: 30, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-          { id: 'ON-PK2', sku: 'ON-PK2', name: 'Duo Kopi Susu Gula Aren Online', category: 'Paket Online', price: 42000, hpp: 14400, stock: 50, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
-
-          { id: 'ON-MK1', sku: 'ON-MK1', name: 'Paket A Ayam Bakar TL Online', category: 'Makanan Online', price: 34000, hpp: 14500, stock: 40, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 500 },
-          { id: 'ON-MK2', sku: 'ON-MK2', name: 'Paket A Ayam Goreng TL Online', category: 'Makanan Online', price: 31000, hpp: 13200, stock: 40, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 500 },
-          { id: 'ON-MK3', sku: 'ON-MK3', name: 'Dimsum Mentai Spesial Online', category: 'Makanan Online', price: 23000, hpp: 8500, stock: 40, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 500 },
-
-          { id: 'ON-MN1', sku: 'ON-MN1', name: 'Kopi Susu Gula Aren Online', category: 'Minuman Online', price: 23000, hpp: 7200, stock: 80, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'ON-MN2', sku: 'ON-MN2', name: 'Kopi Susu Cream Online', category: 'Minuman Online', price: 23000, hpp: 7500, stock: 80, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
-          { id: 'ON-MN3', sku: 'ON-MN3', name: 'Tropical Coffee Online', category: 'Minuman Online', price: 28000, hpp: 8400, stock: 50, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 }
+          { id: 'PRD-01', sku: 'KJW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', price: 18000, hpp: 6800, stock: 85, minStock: 15, unit: 'Cup', isFavorite: true, commission: 1000 },
+          { id: 'PRD-02', sku: 'KJW-02', name: 'Kopi Susu Cream', category: 'Kopi Jiwara', price: 18000, hpp: 7200, stock: 70, minStock: 15, unit: 'Cup', isFavorite: true, commission: 1000 },
+          { id: 'PRD-03', sku: 'KJW-03', name: 'Black Coffee / Americano', category: 'Kopi Jiwara', price: 15000, hpp: 4800, stock: 90, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
+          { id: 'PRD-04', sku: 'KJW-04', name: 'Ice Black Coffee', category: 'Kopi Jiwara', price: 17000, hpp: 5200, stock: 80, minStock: 15, unit: 'Cup', isFavorite: false, commission: 500 },
+          { id: 'PRD-05', sku: 'KJW-05', name: 'Manual Brew V60', category: 'Kopi Jiwara', price: 21000, hpp: 7500, stock: 40, minStock: 10, unit: 'Cup', isFavorite: false, commission: 1000 },
+          { id: 'PRD-06', sku: 'KJW-06', name: 'Tropical Coffee Lemon', category: 'Kopi Jiwara', price: 23000, hpp: 7900, stock: 45, minStock: 10, unit: 'Cup', isFavorite: true, commission: 1000 },
+          { id: 'PRD-07', sku: 'KJW-07', name: 'Tropical Coffee Leci', category: 'Kopi Jiwara', price: 23000, hpp: 8100, stock: 45, minStock: 10, unit: 'Cup', isFavorite: false, commission: 1000 },
+          { id: 'PRD-08', sku: 'KJW-08', name: 'Tropical Coffee Mix Berry', category: 'Kopi Jiwara', price: 23000, hpp: 8400, stock: 40, minStock: 10, unit: 'Cup', isFavorite: false, commission: 1000 },
+          { id: 'PRD-09', sku: 'NKJ-01', name: 'Korean Strawberry Milk', category: 'Non-Kopi & Juice', price: 18000, hpp: 7000, stock: 55, minStock: 12, unit: 'Cup', isFavorite: true, commission: 1000 },
+          { id: 'PRD-10', sku: 'NKJ-02', name: 'Juice Strawberry', category: 'Non-Kopi & Juice', price: 15000, hpp: 6000, stock: 40, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
+          { id: 'PRD-11', sku: 'NKJ-03', name: 'Juice Mangga', category: 'Non-Kopi & Juice', price: 15000, hpp: 5800, stock: 42, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
+          { id: 'PRD-12', sku: 'NKJ-04', name: 'Juice Alpukat', category: 'Non-Kopi & Juice', price: 15000, hpp: 6500, stock: 38, minStock: 10, unit: 'Cup', isFavorite: false, commission: 500 },
+          { id: 'PRD-13', sku: 'ABJ-01', name: 'Paket Ayam Bakar TL', category: 'Ayam Baba Jay', price: 28000, hpp: 16500, stock: 30, minStock: 8, unit: 'Porsi', isFavorite: true, commission: 1500 },
+          { id: 'PRD-14', sku: 'ABJ-02', name: 'Paket Ayam Goreng TL', category: 'Ayam Baba Jay', price: 25000, hpp: 14800, stock: 35, minStock: 8, unit: 'Porsi', isFavorite: true, commission: 1500 },
+          { id: 'PRD-15', sku: 'ABJ-03', name: 'Ayam Bakar TL (Ala Carte)', category: 'Ayam Baba Jay', price: 20000, hpp: 12000, stock: 30, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 1000 },
+          { id: 'PRD-16', sku: 'ABJ-04', name: 'Ayam Goreng TL (Ala Carte)', category: 'Ayam Baba Jay', price: 18000, hpp: 11000, stock: 32, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 1000 },
+          { id: 'PRD-17', sku: 'ABJ-05', name: 'Kulit Goreng Crispy', category: 'Ayam Baba Jay', price: 8000, hpp: 4000, stock: 45, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 500 },
+          { id: 'PRD-18', sku: 'JVG-01', name: 'Bento 1 (Chicken Katsu)', category: 'Bento Jovangels', price: 21000, hpp: 12500, stock: 28, minStock: 6, unit: 'Porsi', isFavorite: true, commission: 1000 },
+          { id: 'PRD-19', sku: 'JVG-02', name: 'Bento 2 (Egg Roll + Shrimp)', category: 'Bento Jovangels', price: 23000, hpp: 13800, stock: 25, minStock: 6, unit: 'Porsi', isFavorite: false, commission: 1000 },
+          { id: 'PRD-20', sku: 'JVG-03', name: 'Udang Keju (3 pcs)', category: 'Bento Jovangels', price: 17000, hpp: 9500, stock: 30, minStock: 8, unit: 'Porsi', isFavorite: false, commission: 500 },
+          { id: 'PRD-21', sku: 'JHY-01', name: 'Dimsum Original (4 pcs)', category: 'Dimsum Jihyo', price: 14000, hpp: 8000, stock: 40, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 500 },
+          { id: 'PRD-22', sku: 'JHY-02', name: 'Dimsum Mentai (4 pcs)', category: 'Dimsum Jihyo', price: 18000, hpp: 10200, stock: 45, minStock: 10, unit: 'Porsi', isFavorite: true, commission: 1000 },
+          { id: 'PRD-23', sku: 'JHY-03', name: 'Dimsum Keju Lumer (4 pcs)', category: 'Dimsum Jihyo', price: 18000, hpp: 10500, stock: 35, minStock: 10, unit: 'Porsi', isFavorite: false, commission: 1000 },
+          { id: 'PRD-24', sku: 'JHY-04', name: 'Dimsum Family Pack (20 pcs)', category: 'Dimsum Jihyo', price: 85000, hpp: 48000, stock: 12, minStock: 3, unit: 'Porsi', isFavorite: false, commission: 2500 }
         ],
         promos: [
-          { id: 'PRM-01', name: 'Grand Rebranding Jiwara', code: 'JIWARA10', type: 'percent', value: 10, active: true },
-          { id: 'PRM-02', name: 'Diskon Bundling Nongkrong', code: 'NONGKRONG5K', type: 'nominal', value: 5000, active: true },
-          { id: 'PRM-03', name: 'Voucher Member Setia', code: 'MEMBER3K', type: 'nominal', value: 3000, active: true }
-        ],
-        customers: [
-          { id: 'CRM-01', name: 'Raka Pratama', phone: '0813-8899-1122', visits: 8, totalSpent: 284000 },
-          { id: 'CRM-02', name: 'Nadia Putri', phone: '0857-2211-4433', visits: 5, totalSpent: 165000 },
-          { id: 'CRM-03', name: 'Dimas Saputra', phone: '0821-7766-5544', visits: 12, totalSpent: 510000 }
+          { id: 'PRM-01', name: 'Diskon Member Jiwara 10%', code: 'JIWARA10', type: 'percent', value: 10, active: true },
+          { id: 'PRM-02', name: 'Promo Ngopi Sore', code: 'NGOPI5K', type: 'nominal', value: 5000, active: true },
+          { id: 'PRM-03', name: 'Bundling Makan + Kopi', code: 'BUNDLING8K', type: 'nominal', value: 8000, active: true }
         ],
         inventory: [
-          { id: 'INV-01', sku: 'BHN-01', name: 'Robusta Espresso Based', stock: 1071, minStock: 500, unit: 'Gram' },
-          { id: 'INV-02', sku: 'BHN-02', name: 'Arabika Espresso Based', stock: 1285, minStock: 500, unit: 'Gram' },
-          { id: 'INV-03', sku: 'BHN-03', name: 'Susu UHT Full Cream', stock: 14, minStock: 10, unit: 'Liter' },
-          { id: 'INV-04', sku: 'BHN-04', name: 'Gula Aren Cair Organik', stock: 2400, minStock: 1000, unit: 'ml' },
-          { id: 'INV-05', sku: 'BHN-05', name: 'Syrup Leci', stock: 163, minStock: 250, unit: 'ml' },
-          { id: 'INV-06', sku: 'BHN-06', name: 'Cup Plastik 16 Oz', stock: 56, minStock: 100, unit: 'Pcs' },
-          { id: 'INV-07', sku: 'BHN-07', name: 'Ayam Tulang Lunak', stock: 52, minStock: 20, unit: 'Porsi' },
-          { id: 'INV-08', sku: 'BHN-08', name: 'Dimsum Ayam Udang', stock: 44, minStock: 40, unit: 'Pcs' },
-          { id: 'INV-09', sku: 'BHN-09', name: 'Gas LPG', stock: 3, minStock: 2, unit: 'Tabung' },
-          { id: 'INV-10', sku: 'BHN-10', name: 'Air Galon', stock: 1, minStock: 3, unit: 'Galon' }
+          { id: 'INV-01', sku: 'BHN-01', name: 'House Blend Arabica Robusta', stock: 4500, minStock: 1500, unit: 'gram' },
+          { id: 'INV-02', sku: 'BHN-02', name: 'Susu UHT Full Cream', stock: 18, minStock: 8, unit: 'Liter' },
+          { id: 'INV-03', sku: 'BHN-03', name: 'Gula Aren Cair Premium', stock: 3200, minStock: 1000, unit: 'ml' },
+          { id: 'INV-04', sku: 'BHN-04', name: 'Sirup Strawberry Korea', stock: 1400, minStock: 800, unit: 'ml' },
+          { id: 'INV-05', sku: 'BHN-05', name: 'Saus Mentai Spesial', stock: 950, minStock: 1000, unit: 'gram' },
+          { id: 'INV-06', sku: 'BHN-06', name: 'Cup 14oz + Lid + Sedotan', stock: 240, minStock: 100, unit: 'Pcs' },
+          { id: 'INV-07', sku: 'BHN-07', name: 'Ayam Ungkep Bumbu TL', stock: 22, minStock: 10, unit: 'Potong' },
+          { id: 'INV-08', sku: 'BHN-08', name: 'Dimsum Ayam Udang Frozen', stock: 48, minStock: 60, unit: 'Pcs' }
         ],
         inventoryLogs: [
-          { id: 'LOG-01', date: yesterday, type: 'Terima Mutasi', itemName: 'Susu UHT Full Cream', qty: 12, unit: 'Liter', note: 'Restock supplier pagi', pic: 'Aldi' },
-          { id: 'LOG-02', date: yesterday, type: 'Stok Terbuang', itemName: 'Air Galon', qty: -1, unit: 'Galon', note: 'Galon bocor saat pengiriman', pic: 'Angga' }
+          { id: 'LOG-01', date: yesterday, type: 'Terima Mutasi', itemName: 'Susu UHT Full Cream', qty: 12, unit: 'Liter', note: 'Restock dari Gudang Pusat', pic: 'Gordon' },
+          { id: 'LOG-02', date: today, type: 'Stok Terbuang', itemName: 'Susu UHT Full Cream', qty: -1, unit: 'Liter', note: 'Kemasan bocor saat penyimpanan', pic: 'Aldi' }
+        ],
+        activeShift: {
+          id: 'SHF-TODAY',
+          date: today,
+          openedAt: '08:00',
+          cashierName: 'Aldi',
+          outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
+          openingCash: 300000,
+          note: 'Modal laci pagi',
+          status: 'Belum Tutup Kasir'
+        },
+        shifts: [
+          {
+            id: 'SHF-001',
+            date: yesterday,
+            openedAt: '08:00',
+            closedAt: '22:00',
+            cashierName: 'Aldi',
+            outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
+            openingCash: 300000,
+            cashSales: 189000,
+            qrisSales: 312000,
+            transferSales: 85000,
+            cashIn: 0,
+            cashOut: 30000,
+            expectedCash: 459000,
+            actualCash: 459000,
+            variance: 0,
+            status: 'Tutup Kasir'
+          }
         ],
         openOrders: [
           {
-            id: 'ORD-OPEN-A',
-            createdAt: `${today}T10:15:00`,
+            id: 'ORD-101',
+            createdAt: new Date().toISOString(),
             orderType: 'Meja',
-            tableNote: 'Meja Teras',
+            tableNote: 'Meja 04 - Teras',
             customerName: 'Raka Pratama',
-            customerPhone: '0813-8899-1122',
+            customerPhone: '0813-9988-7766',
             cashierName: 'Aldi',
             outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
             items: [
-              { productId: 'JW-01', name: 'Kopi Susu Gula Aren', price: 18000, hpp: 7200, qty: 2, commission: 1000, note: 'Less sugar' },
-              { productId: 'JH-02', name: 'Dimsum Mentai', price: 18000, hpp: 8500, qty: 1, commission: 1000, note: '' }
+              { productId: 'PRD-01', name: 'Kopi Susu Gula Aren', price: 18000, hpp: 6800, qty: 2, commission: 1000, note: 'Less ice' },
+              { productId: 'PRD-22', name: 'Dimsum Mentai (4 pcs)', price: 18000, hpp: 10200, qty: 1, commission: 1000, note: 'Extra saus' }
             ],
             promoId: '',
             manualDiscountType: 'nominal',
@@ -1039,154 +1037,113 @@
         ],
         completedOrders: [
           {
-            id: 'TRX-JW-A',
+            id: 'TRX-8901',
             date: today,
-            time: '09:12',
-            orderType: 'Bungkus',
-            tableNote: '',
+            time: '10:15',
+            orderType: 'Meja',
+            tableNote: 'Meja 02',
             customerName: 'Nadia Putri',
-            customerPhone: '0857-2211-4433',
+            customerPhone: '0812-1122-3344',
             cashierName: 'Aldi',
             outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
             paymentMethod: 'QRIS',
-            cashReceived: 36000,
+            cashReceived: 46000,
             change: 0,
             status: 'Selesai',
             items: [
-              { productId: 'JW-01', name: 'Kopi Susu Gula Aren', price: 18000, hpp: 7200, qty: 2, commission: 1000, note: '' }
+              { productId: 'PRD-13', name: 'Paket Ayam Bakar TL', price: 28000, hpp: 16500, qty: 1, commission: 1500, note: '' },
+              { productId: 'PRD-01', name: 'Kopi Susu Gula Aren', price: 18000, hpp: 6800, qty: 1, commission: 1000, note: '' }
+            ],
+            subtotal: 46000,
+            discountAmount: 0,
+            total: 46000,
+            totalHpp: 23300,
+            commissionTotal: 3500
+          },
+          {
+            id: 'TRX-8902',
+            date: today,
+            time: '12:40',
+            orderType: 'Bungkus',
+            tableNote: 'Takeaway',
+            customerName: 'Dimas Saputra',
+            customerPhone: '0857-4433-2211',
+            cashierName: 'Aldi',
+            outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
+            paymentMethod: 'Cash',
+            cashReceived: 50000,
+            change: 14000,
+            status: 'Selesai',
+            items: [
+              { productId: 'PRD-02', name: 'Kopi Susu Cream', price: 18000, hpp: 7200, qty: 2, commission: 1000, note: '' }
             ],
             subtotal: 36000,
             discountAmount: 0,
             total: 36000,
             totalHpp: 14400,
-            commissionTotal: 2500
-          },
-          {
-            id: 'TRX-JW-B',
-            date: today,
-            time: '10:34',
-            orderType: 'GoFood',
-            tableNote: 'Driver Gojek',
-            customerName: 'Pelanggan GoFood',
-            customerPhone: '-',
-            cashierName: 'Aldi',
-            outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
-            paymentMethod: 'Transfer',
-            cashReceived: 57000,
-            change: 0,
-            status: 'Selesai',
-            items: [
-              { productId: 'ON-MK1', name: 'Paket A Ayam Bakar TL Online', price: 34000, hpp: 14500, qty: 1, commission: 500, note: '' },
-              { productId: 'ON-MN1', name: 'Kopi Susu Gula Aren Online', price: 23000, hpp: 7200, qty: 1, commission: 500, note: '' }
-            ],
-            subtotal: 57000,
-            discountAmount: 0,
-            total: 57000,
-            totalHpp: 21700,
-            commissionTotal: 1500
-          },
-          {
-            id: 'TRX-JW-C',
-            date: today,
-            time: '11:45',
-            orderType: 'Meja',
-            tableNote: 'Meja Utama',
-            customerName: 'Dimas Saputra',
-            customerPhone: '0821-7766-5544',
-            cashierName: 'Aldi',
-            outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
-            paymentMethod: 'Cash',
-            cashReceived: 100000,
-            change: 39000,
-            status: 'Selesai',
-            items: [
-              { productId: 'BJ-02', name: 'Paket A Goreng TL', price: 25000, hpp: 13200, qty: 1, commission: 1000, note: '' },
-              { productId: 'JW-02', name: 'Kopi Susu Cream', price: 18000, hpp: 7500, qty: 1, commission: 1000, note: '' },
-              { productId: 'JH-01', name: 'Dimsum Original', price: 14000, hpp: 6800, qty: 1, commission: 500, note: '' },
-              { productId: 'BJ-07', name: 'Tahu / Tempe Goreng', price: 2000, hpp: 900, qty: 2, commission: 0, note: '' }
-            ],
-            subtotal: 61000,
-            discountAmount: 0,
-            total: 61000,
-            totalHpp: 29300,
             commissionTotal: 3000
           },
           {
-            id: 'TRX-JW-D',
+            id: 'TRX-8890',
             date: yesterday,
             time: '19:20',
-            orderType: 'Grab Food',
-            tableNote: 'GrabExpress',
-            customerName: 'Pelanggan Grab',
+            orderType: 'GoFood',
+            tableNote: 'GF-9912',
+            customerName: 'Salsa Bila',
             customerPhone: '-',
-            cashierName: 'Angga',
-            outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
-            paymentMethod: 'Transfer',
-            cashReceived: 112000,
-            change: 0,
-            status: 'Selesai',
-            items: [
-              { productId: 'ON-PK1', name: 'Paket Komplit Jiwara Online', price: 49000, hpp: 21700, qty: 2, commission: 1000, note: '' },
-              { productId: 'ON-MN3', name: 'Tropical Coffee Online', price: 28000, hpp: 8400, qty: 1, commission: 500, note: '' }
-            ],
-            subtotal: 126000,
-            discountAmount: 14000,
-            total: 112000,
-            totalHpp: 51800,
-            commissionTotal: 3000
-          },
-          {
-            id: 'TRX-JW-E',
-            date: twoDaysAgo,
-            time: '14:05',
-            orderType: 'Shopee Food',
-            tableNote: 'Shopee Driver',
-            customerName: 'Pelanggan Shopee',
-            customerPhone: '-',
-            cashierName: 'Pandu',
-            outlet: 'Kopi Jiwara - Cabang Bandung',
-            paymentMethod: 'Transfer',
-            cashReceived: 84000,
-            change: 0,
-            status: 'Selesai',
-            items: [
-              { productId: 'ON-PK2', name: 'Duo Kopi Susu Gula Aren Online', price: 42000, hpp: 14400, qty: 2, commission: 1000, note: '' }
-            ],
-            subtotal: 84000,
-            discountAmount: 0,
-            total: 84000,
-            totalHpp: 28800,
-            commissionTotal: 2500
-          }
-        ],
-        shifts: [
-          {
-            id: 'SHF-PREV',
-            date: yesterday,
-            openedAt: '08:00',
-            closedAt: '21:30',
             cashierName: 'Aldi',
             outlet: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
-            openingCash: 300000,
-            cashSales: 126000,
-            qrisSales: 0,
-            transferSales: 112000,
-            cashIn: 100000,
-            cashOut: 24000,
-            expectedCash: 502000,
-            actualCash: 502000,
-            variance: 0,
-            status: 'Tutup Kasir'
+            paymentMethod: 'Transfer',
+            cashReceived: 85000,
+            change: 0,
+            status: 'Selesai',
+            items: [
+              { productId: 'PRD-24', name: 'Dimsum Family Pack (20 pcs)', price: 85000, hpp: 48000, qty: 1, commission: 2500, note: '' }
+            ],
+            subtotal: 85000,
+            discountAmount: 0,
+            total: 85000,
+            totalHpp: 48000,
+            commissionTotal: 3500
+          },
+          {
+            id: 'TRX-8875',
+            date: twoDaysAgo,
+            time: '16:10',
+            orderType: 'Grab Food',
+            tableNote: 'GRB-441',
+            customerName: 'Fajar Nugraha',
+            customerPhone: '-',
+            cashierName: 'Angga',
+            outlet: 'Kopi Jiwara - Cabang Bandung',
+            paymentMethod: 'Transfer',
+            cashReceived: 64000,
+            change: 0,
+            status: 'Selesai',
+            items: [
+              { productId: 'PRD-18', name: 'Bento 1 (Chicken Katsu)', price: 21000, hpp: 12500, qty: 2, commission: 1000, note: '' },
+              { productId: 'PRD-06', name: 'Tropical Coffee Lemon', price: 23000, hpp: 7900, qty: 1, commission: 1000, note: '' }
+            ],
+            subtotal: 65000,
+            discountAmount: 1000,
+            total: 64000,
+            totalHpp: 32900,
+            commissionTotal: 3500
           }
         ],
-        activeShift: null,
         cashDrawerLogs: [
-          { id: 'CSH-A', date: today, time: '10:05', type: 'out', amount: 12000, category: 'Beli Galon', note: 'Beli Air Galon isi ulang', staff: 'Aldi' },
-          { id: 'CSH-B', date: yesterday, time: '16:20', type: 'out', amount: 24000, category: 'Beli Gas', note: 'Beli Gas tabung baru', staff: 'Angga' }
+          { id: 'CSH-01', date: today, time: '09:30', type: 'out', amount: 12000, category: 'Beli Galon', note: 'Air Galon 2 pcs', staff: 'Aldi' },
+          { id: 'CSH-02', date: today, time: '11:00', type: 'out', amount: 24000, category: 'Beli Gas', note: 'Gas Elpiji 3kg', staff: 'Angga' }
         ],
         attendance: [
-          { id: 'ATT-A', date: today, staffId: 'STF-02', staffName: 'Aldi', role: 'Barista', clockIn: '08:02', clockOut: null, duration: 'Aktif Shift', wage: 80000 },
-          { id: 'ATT-B', date: yesterday, staffId: 'STF-02', staffName: 'Aldi', role: 'Barista', clockIn: '08:00', clockOut: '17:05', duration: '9j 5m', wage: 80000 }
+          { id: 'ATT-01', date: today, staffId: 'STF-02', staffName: 'Aldi', role: 'Barista', clockIn: '07:55', clockOut: null, duration: 'Aktif Shift', wage: 80000 },
+          { id: 'ATT-02', date: today, staffId: 'STF-03', staffName: 'Angga', role: 'Helper', clockIn: '09:00', clockOut: null, duration: 'Aktif Shift', wage: 70000 },
+          { id: 'ATT-03', date: yesterday, staffId: 'STF-02', staffName: 'Aldi', role: 'Barista', clockIn: '08:00', clockOut: '22:05', duration: '14j 5m', wage: 80000 }
+        ],
+        customers: [
+          { id: 'CRM-01', name: 'Nadia Putri', phone: '0812-1122-3344', visits: 5, totalSpent: 230000 },
+          { id: 'CRM-02', name: 'Raka Pratama', phone: '0813-9988-7766', visits: 3, totalSpent: 162000 },
+          { id: 'CRM-03', name: 'Dimas Saputra', phone: '0857-4433-2211', visits: 2, totalSpent: 72000 }
         ]
       };
     }
@@ -1220,6 +1177,67 @@
         if (showFeedback) showToast('Masukkan URL Google Apps Script Webhook terlebih dahulu!', 'error');
         return;
       }
+
+      // Pemetaan otomatis sesuai struktur kolom Dapur Jiwara Financial Records
+      let sheetTarget = 'POS_Transactions';
+      let cashflowRow = null;
+      let sellingProductBreakdown = null;
+
+      if (eventType === 'SALE_COMPLETED' && payload) {
+        sheetTarget = 'Selling Product & Cashflow';
+        const brandTotals = {
+          kopiJiwara: 0,
+          ayamBabaJay: 0,
+          jovangels: 0,
+          jihyo: 0
+        };
+        (payload.items || []).forEach(it => {
+          const prod = db.products.find(p => p.id === it.productId);
+          const cat = (prod ? prod.category : '').toLowerCase();
+          const lineTotal = (it.price || 0) * (it.qty || 1);
+          if (cat.includes('ayam')) brandTotals.ayamBabaJay += lineTotal;
+          else if (cat.includes('jovangel')) brandTotals.jovangels += lineTotal;
+          else if (cat.includes('jihyo') || cat.includes('dimsum')) brandTotals.jihyo += lineTotal;
+          else brandTotals.kopiJiwara += lineTotal;
+        });
+
+        sellingProductBreakdown = {
+          date: payload.date,
+          channel: payload.orderType,
+          paymentMethod: payload.paymentMethod,
+          orderCount: 1,
+          grossSales: payload.subtotal,
+          discount: payload.discountAmount,
+          netSales: payload.total,
+          hpp: payload.totalHpp || 0,
+          profit: (payload.total || 0) - (payload.totalHpp || 0),
+          brands: brandTotals
+        };
+
+        cashflowRow = {
+          debit: payload.total,
+          kredit: 0,
+          tgl: payload.date,
+          nomorNota: payload.id,
+          pihak: payload.customerName || 'Pelanggan Umum',
+          keterangan: payload.paymentMethod === 'Cash' ? 'Sales Cash' : `Sales ${payload.paymentMethod}`,
+          kategoriAkun: 'Pendapatan Penjualan Tunai'
+        };
+      } else if (eventType === 'CASH_DRAWER' && payload) {
+        sheetTarget = 'Cashflow';
+        cashflowRow = {
+          debit: payload.type === 'in' ? payload.amount : 0,
+          kredit: payload.type === 'out' ? payload.amount : 0,
+          tgl: payload.date,
+          nomorNota: payload.id,
+          pihak: payload.staff || 'Kasir',
+          keterangan: payload.note || payload.category,
+          kategoriAkun: payload.type === 'in' ? 'Kas Masuk' : 'Biaya Operasional Warung'
+        };
+      } else if (eventType === 'CLOSE_SHIFT' && payload) {
+        sheetTarget = 'Jiwara Chart Reports & Cashflow';
+      }
+
       try {
         await fetch(url, {
           method: 'POST',
@@ -1227,16 +1245,100 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             timestamp: new Date().toISOString(),
+            merchant: 'Dapur Jiwara',
             brand: db.outletInfo.name,
+            outlet: db.outletInfo.branch,
+            sheetTarget,
             eventType,
-            payload
+            payload,
+            sellingProductBreakdown,
+            cashflowRow
           })
         });
-        if (showFeedback) showToast('Sinkronisasi berhasil dikirim ke Google Sheets!');
+        db.outletInfo.lastSyncAt = new Date().toLocaleString('id-ID');
+        db.outletInfo.lastSyncStatus = `Terkirim (${eventType})`;
+        saveState();
+        if (showFeedback) {
+          showToast('Sinkronisasi berhasil dikirim ke Google Sheets Dapur Jiwara!');
+          render();
+        }
       } catch (err) {
-        if (showFeedback) showToast('Gagal mengirim ke Google Sheets Webhook.', 'error');
+        db.outletInfo.lastSyncStatus = 'Gagal Terhubung';
+        saveState();
+        if (showFeedback) {
+          showToast('Gagal mengirim ke Google Sheets Webhook.', 'error');
+          render();
+        }
       }
     }
+
+    window.syncAllHistoryToSheets = async function() {
+      const url = (db.outletInfo.webhookUrl || '').trim();
+      if (!url) {
+        showToast('Isi & simpan URL Google Apps Script Webhook terlebih dahulu!', 'error');
+        return;
+      }
+      const validOrders = db.completedOrders.filter(o => o.status === 'Selesai');
+      await syncToGoogleSheets('BULK_SYNC_ALL', {
+        completedOrders: validOrders,
+        cashDrawerLogs: db.cashDrawerLogs,
+        shifts: db.shifts,
+        inventory: db.inventory
+      }, true);
+    };
+
+    window.exportDapurJiwaraCsv = function(type) {
+      let csvContent = '';
+      let filename = '';
+      if (type === 'cashflow') {
+        csvContent = 'Debit (Pemasukan),Kredit (Pengeluaran),Tgl,Nomor Nota,Terima dari/dibayarkan kepada,Keterangan\n';
+        db.completedOrders.filter(o => o.status === 'Selesai').forEach(o => {
+          const ket = o.paymentMethod === 'Cash' ? 'Sales Cash' : `Sales ${o.paymentMethod}`;
+          csvContent += `${o.total},0,${o.date},${o.id},"${o.customerName}","${ket} (${o.orderType})"\n`;
+        });
+        db.cashDrawerLogs.forEach(c => {
+          const deb = c.type === 'in' ? c.amount : 0;
+          const kre = c.type === 'out' ? c.amount : 0;
+          csvContent += `${deb},${kre},${c.date},${c.id},"${c.staff}","${c.note}"\n`;
+        });
+        filename = `Dapur_Jiwara_Cashflow_${getTodayStr(0)}.csv`;
+      } else {
+        csvContent = 'Date,Channel,No Nota,Kopi Jiwara,Ayam Baba Jay,Jovangels,Jihyo,Total Order,Total Sales,Total Profit\n';
+        db.completedOrders.filter(o => o.status === 'Selesai').forEach(o => {
+          let kj = 0, abj = 0, jvg = 0, jhy = 0;
+          o.items.forEach(it => {
+            const p = db.products.find(x => x.id === it.productId);
+            const cat = (p ? p.category : '').toLowerCase();
+            const sub = it.price * it.qty;
+            if (cat.includes('ayam')) abj += sub;
+            else if (cat.includes('jovangel')) jvg += sub;
+            else if (cat.includes('jihyo') || cat.includes('dimsum')) jhy += sub;
+            else kj += sub;
+          });
+          const profit = o.total - (o.totalHpp || 0);
+          csvContent += `${o.date},${o.orderType},${o.id},${kj},${abj},${jvg},${jhy},1,${o.total},${profit}\n`;
+        });
+        filename = `Dapur_Jiwara_Selling_Product_${getTodayStr(0)}.csv`;
+      }
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`File ${filename} berhasil diunduh!`);
+    };
+
+    window.copyAppsScriptTemplate = function() {
+      const codeEl = document.getElementById('gas-template-code');
+      if (!codeEl) return;
+      codeEl.select();
+      codeEl.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      showToast('Kode Google Apps Script disalin! Tempel di Extensions > Apps Script.');
+    };
 
     const ui = {
       screen: 'login', // 'login' | 'kasir' | 'owner'
@@ -1316,6 +1418,7 @@
       settingsCatModal: null,
       settingsProdModal: null,
       settingsStaffModal: null,
+      showGasGuideModal: false,
       settingsProdSearch: '',
       settingsProdCategory: 'Semua Kategori',
       settingsProdPageSize: 10,
@@ -4221,6 +4324,20 @@
                 <input id="out-webhook" type="url" value="${escapeHtml(info.webhookUrl || '')}" placeholder="https://script.google.com/macros/s/.../exec" class="font-mono text-xs" />
                 <button type="button" onclick="testSheetsWebhook()" class="btn btn-sm btn-outline">🔗 Test Sync</button>
               </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 mt-2" style="background:var(--green-50);padding:9px 12px;border-radius:11px;border:1px solid var(--border);">
+                <div class="text-xs">
+                  Status: <strong style="color:${info.webhookUrl ? 'var(--green-700)' : 'var(--pink-600)'};">${escapeHtml(info.lastSyncStatus || 'Belum Terhubung')}</strong>
+                  ${info.lastSyncAt ? `<span class="text-muted">(${escapeHtml(info.lastSyncAt)})</span>` : ''}
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <button type="button" onclick="ui.showGasGuideModal=true; render();" class="btn btn-sm btn-green" style="font-size:11px;padding:5px 10px;">📜 Skrip Google Sheets</button>
+                  <button type="button" onclick="syncAllHistoryToSheets()" class="btn btn-sm btn-yellow" style="font-size:11px;padding:5px 10px;">☁️ Sync Semua Data</button>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <button type="button" onclick="exportDapurJiwaraCsv('selling')" class="btn btn-sm btn-outline" style="font-size:11px;">📥 Unduh CSV Selling Product</button>
+                <button type="button" onclick="exportDapurJiwaraCsv('cashflow')" class="btn btn-sm btn-outline" style="font-size:11px;">📥 Unduh CSV Cashflow</button>
+              </div>
             </div>
             <div class="flex flex-wrap justify-between gap-2 mt-4">
               <button type="button" onclick="resetDemoData()" class="btn btn-sm btn-pink-soft">Reset Data Awal</button>
@@ -4648,6 +4765,100 @@
                   <span class="text-xs font-bold">Hak Akses Owner / Manager (Otorisasi Void &amp; Laporan)</span>
                 </label>
                 <button type="button" onclick="saveStaffModal()" class="btn btn-yellow w-full">Simpan Pegawai &amp; PIN</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Google Apps Script Setup Guide Modal
+      if (ui.showGasGuideModal) {
+        const gasCode = `function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = JSON.parse(e.postData.contents);
+  var eventType = data.eventType || 'UNKNOWN';
+  var payload = data.payload || {};
+
+  // 1. Catat ke sheet POS_Transactions (Log Lengkap)
+  var logSheet = ss.getSheetByName('POS_Transactions') || ss.insertSheet('POS_Transactions');
+  if (logSheet.getLastRow() === 0) {
+    logSheet.appendRow(['Timestamp', 'Event', 'ID', 'Tanggal', 'Outlet', 'Channel', 'Pelanggan', 'Metode Bayar', 'Subtotal', 'Diskon', 'Total Net', 'HPP', 'Laba Kotor', 'Kasir', 'Detail Item']);
+  }
+
+  if (eventType === 'SALE_COMPLETED' && data.sellingProductBreakdown) {
+    var sp = data.sellingProductBreakdown;
+    var itemsSummary = (payload.items || []).map(function(i){ return i.qty + 'x ' + i.name; }).join(', ');
+    logSheet.appendRow([
+      new Date(), eventType, payload.id, payload.date, data.outlet, payload.orderType,
+      payload.customerName, payload.paymentMethod, sp.grossSales, sp.discount, sp.netSales,
+      sp.hpp, sp.profit, payload.cashierName, itemsSummary
+    ]);
+
+    // 2. Catat ke sheet Selling Product (Pemisahan Brand Kopi Jiwara, Ayam Baba Jay, Jovangels, Jihyo)
+    var sellSheet = ss.getSheetByName('POS_Selling_Product') || ss.insertSheet('POS_Selling_Product');
+    if (sellSheet.getLastRow() === 0) {
+      sellSheet.appendRow(['Date', 'No Nota', 'Channel', 'Payment', 'Kopi Jiwara', 'Ayam Baba Jay', 'Jovangels', 'Jihyo', 'Total Order', 'Total Sales', 'Total Profit']);
+    }
+    sellSheet.appendRow([
+      sp.date, payload.id, sp.channel, sp.paymentMethod,
+      sp.brands.kopiJiwara, sp.brands.ayamBabaJay, sp.brands.jovangels, sp.brands.jihyo,
+      1, sp.netSales, sp.profit
+    ]);
+  }
+
+  // 3. Catat ke sheet POS_Cashflow (Debit / Kredit sesuai format Cashflow Dapur Jiwara)
+  if (data.cashflowRow) {
+    var cf = data.cashflowRow;
+    var cfSheet = ss.getSheetByName('POS_Cashflow') || ss.insertSheet('POS_Cashflow');
+    if (cfSheet.getLastRow() === 0) {
+      cfSheet.appendRow(['Debit (Pemasukan)', 'Kredit (Pengeluaran)', 'Tgl', 'Nomor Nota', 'Terima dari / Dibayarkan kepada', 'Keterangan', 'Kategori Akun']);
+    }
+    cfSheet.appendRow([cf.debit, cf.kredit, cf.tgl, cf.nomorNota, cf.pihak, cf.keterangan, cf.kategoriAkun]);
+  }
+
+  // 4. Catat Rekap Tutup Kasir Harian
+  if (eventType === 'CLOSE_SHIFT') {
+    var shiftSheet = ss.getSheetByName('POS_Tutup_Kasir') || ss.insertSheet('POS_Tutup_Kasir');
+    if (shiftSheet.getLastRow() === 0) {
+      shiftSheet.appendRow(['Tanggal', 'Jam Buka', 'Jam Tutup', 'Kasir', 'Modal Awal', 'Sales Cash', 'Sales QRIS', 'Sales Transfer', 'Kas Masuk', 'Kas Keluar', 'Ekspektasi Cash', 'Aktual Fisik', 'Selisih']);
+    }
+    shiftSheet.appendRow([
+      payload.date, payload.openedAt, payload.closedAt, payload.cashierName,
+      payload.openingCash, payload.cashSales, payload.qrisSales, payload.transferSales,
+      payload.cashIn, payload.cashOut, payload.expectedCash, payload.actualCash, payload.variance
+    ]);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+        html += `
+          <div class="modal-backdrop">
+            <div class="modal-card" style="max-width:620px;">
+              <div class="modal-header">
+                <div>
+                  <span class="badge badge-yellow">INTEGRASI GOOGLE SHEETS</span>
+                  <h3 class="text-base font-extrabold mt-1">Panduan &amp; Skrip Database Dapur Jiwara</h3>
+                </div>
+                <button type="button" onclick="ui.showGasGuideModal=false; render();" class="btn btn-sm btn-outline">✕</button>
+              </div>
+              <div class="modal-body">
+                <div class="text-xs mb-3" style="line-height:1.6;">
+                  <strong>Langkah Pemasangan pada Google Spreadsheet Anda:</strong><br/>
+                  1. Buka file Spreadsheet <em>Dapur Jiwara Financial Records</em> Anda.<br/>
+                  2. Klik menu <strong>Extensions (Ekstensi) &rarr; Apps Script</strong>.<br/>
+                  3. Hapus kode lama, lalu <strong>Salin &amp; Tempel</strong> kode di bawah ini.<br/>
+                  4. Klik <strong>Deploy &rarr; New Deployment &rarr; Web App</strong> (Execute as: <em>Me</em>, Who has access: <em>Anyone</em>).<br/>
+                  5. Salin <strong>Web App URL</strong> lalu tempel pada kolom Webhook di menu <em>Info Outlet &amp; Integrasi</em>.
+                </div>
+
+                <textarea id="gas-template-code" readonly rows="11" class="font-mono text-xs" style="background:var(--green-950);color:#FDE047;padding:12px;">${escapeHtml(gasCode)}</textarea>
+
+                <div class="flex justify-between items-center gap-2 mt-3">
+                  <button type="button" onclick="ui.showGasGuideModal=false; render();" class="btn btn-outline">Tutup</button>
+                  <button type="button" onclick="copyAppsScriptTemplate()" class="btn btn-yellow">📋 Salin Kode Apps Script</button>
+                </div>
               </div>
             </div>
           </div>
