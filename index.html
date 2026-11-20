@@ -4,9 +4,94 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0B2E23" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Kopi Jiwara POS" />
   <title>KOPI JIWARA — POS & Management System</title>
+  <script>
+    // Dynamic PWA Manifest & Service Worker Generator for Single-File GitHub Pages Installability
+    (function setupInstallablePWA() {
+      try {
+        function createPngIcon(size) {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#0B2E23';
+          ctx.fillRect(0, 0, size, size);
+
+          // Decorative accents
+          ctx.fillStyle = '#FACC15';
+          ctx.beginPath();
+          ctx.arc(size * 0.78, size * 0.22, size * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#EC4899';
+          ctx.beginPath();
+          ctx.arc(size * 0.22, size * 0.78, size * 0.065, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Brand Monogram
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = `900 ${Math.round(size * 0.34)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('KJ', size * 0.5, size * 0.48);
+
+          ctx.fillStyle = '#FACC15';
+          ctx.font = `800 ${Math.round(size * 0.11)}px sans-serif`;
+          ctx.fillText('POS', size * 0.5, size * 0.74);
+
+          return canvas.toDataURL('image/png');
+        }
+
+        const icon192 = createPngIcon(192);
+        const icon512 = createPngIcon(512);
+
+        const appleIcon = document.createElement('link');
+        appleIcon.rel = 'apple-touch-icon';
+        appleIcon.href = icon192;
+        document.head.appendChild(appleIcon);
+
+        const manifestObj = {
+          name: 'KOPI JIWARA POS & Management',
+          short_name: 'Kopi Jiwara',
+          description: 'Sistem Kasir POS & ERP All-in-One Kopi Jiwara',
+          start_url: window.location.href,
+          scope: window.location.origin + '/',
+          display: 'standalone',
+          orientation: 'any',
+          background_color: '#0B2E23',
+          theme_color: '#0B2E23',
+          icons: [
+            { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          ]
+        };
+
+        const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = URL.createObjectURL(manifestBlob);
+        document.head.appendChild(manifestLink);
+
+        if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+          const swCode = `
+            self.addEventListener('install', function(e) { self.skipWaiting(); });
+            self.addEventListener('activate', function(e) { e.waitUntil(clients.claim()); });
+            self.addEventListener('fetch', function(e) {
+              e.respondWith(fetch(e.request).catch(function() { return caches.match(e.request); }));
+            });
+          `;
+          const swBlob = new Blob([swCode], { type: 'application/javascript' });
+          navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(function() {});
+        }
+      } catch (err) {
+        console.warn('PWA init warning:', err);
+      }
+    })();
+  </script>
   <style>
     :root {
       --green-950: #061D16;
@@ -88,7 +173,6 @@
       box-shadow: 0 0 0 3.5px rgba(23, 77, 60, 0.12);
     }
 
-    /* Utility Classes */
     .hidden { display: none !important; }
     .flex { display: flex; }
     .flex-col { flex-direction: column; }
@@ -124,7 +208,6 @@
     .text-xl { font-size: 22px; }
     .text-muted { color: var(--text-muted); }
 
-    /* Modern Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -176,7 +259,6 @@
       border-color: var(--green-700);
     }
 
-    /* Modern Badges & Animated Pulse Dot */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -208,7 +290,6 @@
     .status-dot.pink { background: var(--pink-400); }
     .status-dot.green { background: #10B981; }
 
-    /* Bento Cards & Tables */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -307,7 +388,6 @@
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: rgba(243, 248, 246, 0.75); }
 
-    /* Modern Glassmorphism Login Screen */
     .login-layout {
       min-height: 100vh;
       display: grid;
@@ -409,7 +489,6 @@
       font-size: 17px;
     }
 
-    /* Modern Glass Topbar (Kasir) */
     .topbar {
       background: rgba(11, 46, 35, 0.96);
       backdrop-filter: blur(12px);
@@ -465,7 +544,6 @@
       color: #FFFFFF;
     }
 
-    /* Kasir Bento Workspace */
     .kasir-workspace {
       display: grid;
       grid-template-columns: 1fr 425px;
@@ -556,7 +634,6 @@
       box-shadow: 0 4px 10px rgba(219, 39, 119, 0.4);
     }
 
-    /* Right Cart Panel */
     .kasir-cart {
       background: #FFFFFF;
       border-left: 1px solid var(--border);
@@ -617,7 +694,6 @@
       padding: 12px 15px;
     }
 
-    /* Owner Modern Sidebar Layout */
     .owner-layout {
       display: grid;
       grid-template-columns: 260px 1fr;
@@ -665,7 +741,6 @@
       margin: 0 auto;
     }
 
-    /* Pill Sub-tabs */
     .subtab-bar {
       display: flex;
       gap: 8px;
@@ -697,7 +772,6 @@
       font-weight: 800;
     }
 
-    /* Modals */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -748,7 +822,6 @@
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
-    /* Toast */
     .toast-box {
       position: fixed;
       bottom: 20px;
@@ -771,7 +844,6 @@
     .mobile-cart-bar { display: none; }
     .mobile-close-cart { display: none; }
 
-    /* Responsive Breakpoints */
     @media (max-width: 960px) {
       .login-layout { grid-template-columns: 1fr; }
       .login-pin-area { border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
@@ -825,7 +897,6 @@
       .order-type-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
-    /* Thermal Print Styles */
     #printable-receipt-area { display: none; }
     @media print {
       body * { visibility: hidden !important; }
@@ -1178,7 +1249,6 @@
         return;
       }
 
-      // Pemetaan otomatis sesuai struktur kolom Dapur Jiwara Financial Records
       let sheetTarget = 'POS_Transactions';
       let cashflowRow = null;
       let sellingProductBreakdown = null;
@@ -1341,15 +1411,14 @@
     };
 
     const ui = {
-      screen: 'login', // 'login' | 'kasir' | 'owner'
+      screen: 'login',
       currentUser: null,
       selectedLoginStaffId: 'STF-02',
       pinBuffer: '',
       pinError: '',
 
-      // Kasir state
-      kasirTab: 'kasir', // 'kasir' | 'laporan' | 'kas' | 'absensi' | 'keluar'
-      kasirSubView: 'menu', // 'menu' | 'open_orders'
+      kasirTab: 'kasir',
+      kasirSubView: 'menu',
       selectedCategory: 'Favorit',
       menuSearch: '',
       mobileCartOpen: false,
@@ -1364,47 +1433,40 @@
       manualDiscountType: 'nominal',
       manualDiscountValue: 0,
 
-      // Buka Kasir Modal
       showOpenShiftModal: false,
       openShiftNominal: 300000,
       openShiftNote: 'Modal awal laci kasir',
 
-      // Payment Modal
       showPaymentModal: false,
       paymentOrderSource: null,
       paymentMethod: 'Cash',
       cashTendered: 0,
 
-      // Void Modal
       voidTargetOrder: null,
       voidManagerPin: '',
       voidReason: 'Batal Pesanan',
       voidNote: '',
       voidError: '',
 
-      // Receipt Modal
       receiptModalData: null,
 
-      // Kasir Laporan Filters
       kasirReportPreset: 'Hari Ini',
       kasirReportStart: getTodayStr(0),
       kasirReportEnd: getTodayStr(0),
       kasirReportStatus: 'Semua',
 
-      // Tutup Kasir
       closingActualCash: '',
       closingStaffPin: '',
       closingPinError: '',
 
-      // Owner state
-      ownerTab: 'penjualan', // 'penjualan' | 'laporan' | 'inventori' | 'pengaturan'
+      ownerTab: 'penjualan',
       ownerSalesFilterOpen: false,
       ownerSalesStart: getTodayStr(-7),
       ownerSalesEnd: getTodayStr(0),
       ownerSalesOutlet: 'Semua Outlet',
       ownerSalesType: 'Semua',
 
-      ownerReportSubTab: 'ringkasan', // 'ringkasan' | 'top_report' | 'kasir' | 'absensi'
+      ownerReportSubTab: 'ringkasan',
       ownerReportStart: getTodayStr(-7),
       ownerReportEnd: getTodayStr(0),
       ownerReportOutlet: 'Semua Outlet',
@@ -1412,9 +1474,9 @@
       ownerKasirSubType: 'kas_kasir',
       ownerAbsensiStart: getTodayStr(-7),
       ownerAbsensiEnd: getTodayStr(0),
-      ownerInvSubTab: 'stok_opname', // 'stok_opname' | 'mutasi_stok' | 'stok_terbuang'
+      ownerInvSubTab: 'stok_opname',
 
-      ownerSettingsSubTab: 'produk_kategori', // 'produk_kategori' | 'pegawai' | 'promo' | 'info_outlet'
+      ownerSettingsSubTab: 'produk_kategori',
       settingsCatModal: null,
       settingsProdModal: null,
       settingsStaffModal: null,
@@ -2324,7 +2386,7 @@
     };
 
     /*************************************************************************
-     * OWNER / MANAGEMENT ACTIONS (INVENTORI, KATEGORI, PRODUK, PEGAWAI, PROMO)
+     * OWNER / MANAGEMENT ACTIONS
      *************************************************************************/
     window.submitStokOpname = function(itemId) {
       const item = db.inventory.find(i => i.id === itemId);
@@ -2381,7 +2443,6 @@
       render();
     };
 
-    // Kategori CRUD
     window.openAddCategoryModal = function() {
       ui.settingsCatModal = { mode: 'add', name: '' };
       render();
@@ -2436,7 +2497,6 @@
       render();
     };
 
-    // Produk CRUD
     window.openAddProductModal = function() {
       const firstCat = db.categories.find(c => c.name !== 'Favorit');
       ui.settingsProdModal = {
@@ -2532,7 +2592,6 @@
       render();
     };
 
-    // Pegawai & PIN CRUD
     window.openAddStaffModal = function() {
       ui.settingsStaffModal = {
         mode: 'add',
@@ -2618,7 +2677,6 @@
       render();
     };
 
-    // Promo CRUD
     window.addNewPromo = function() {
       const name = document.getElementById('prm-name').value.trim();
       const code = document.getElementById('prm-code').value.trim();
@@ -2655,7 +2713,6 @@
       render();
     };
 
-    // Outlet Info & Logos
     window.handleLogoUpload = function(event, targetField) {
       const file = event.target.files[0];
       if (!file) return;
@@ -2698,7 +2755,7 @@
     };
 
     /*************************************************************************
-     * VIEW RENDERERS (CLEAN LABELS WITHOUT NUMBERING)
+     * VIEW RENDERERS
      *************************************************************************/
     function renderLoginScreen() {
       const activeStaff = db.staff.filter(s => s.active !== false);
@@ -2787,7 +2844,7 @@
     }
 
     /*************************************************************************
-     * TAMPILAN KASIR (CLEAN LABELS)
+     * TAMPILAN KASIR
      *************************************************************************/
     function renderKasirHeader() {
       const tabs = [
@@ -2849,7 +2906,6 @@
 
       return `
         <div class="kasir-workspace">
-          <!-- Left: Menu & Open Orders -->
           <div class="kasir-left">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div class="flex gap-2">
@@ -2905,13 +2961,11 @@
             ` : renderOpenOrdersPanel()}
           </div>
 
-          <!-- Mobile Floating Cart Button -->
           <button type="button" onclick="ui.mobileCartOpen=true; render();" class="mobile-cart-bar">
             <span>🛒 Keranjang Pesanan</span>
             <span style="color:var(--yellow-400);">${formatRp(totals.total)} ▲</span>
           </button>
 
-          <!-- Right: Order Cart -->
           <aside class="kasir-cart ${ui.mobileCartOpen ? 'mobile-open' : ''}">
             <div class="cart-header">
               <div>
@@ -3445,7 +3499,7 @@
     }
 
     /*************************************************************************
-     * TAMPILAN OWNER / MANAGEMENT (CLEAN LABELS WITHOUT NUMBERING)
+     * TAMPILAN OWNER / MANAGEMENT
      *************************************************************************/
     function renderOwnerShell() {
       const menu = [
@@ -3776,7 +3830,6 @@
 
       return `
         <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start;" class="settings-split">
-          <!-- Kategori Panel (Compact Scrollable) -->
           <div class="card" style="padding:16px;">
             <div class="flex items-center justify-between mb-1">
               <h3 class="font-extrabold text-sm">Daftar Kategori</h3>
@@ -3795,7 +3848,6 @@
             </div>
           </div>
 
-          <!-- Produk Panel (Compact 1-Screen with Pagination & 10/20/50/100) -->
           <div class="card" style="padding:16px;">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div>
@@ -4354,7 +4406,6 @@
     function renderModals() {
       let html = '';
 
-      // Pop-Up Buka Kasir
       if (ui.showOpenShiftModal && ui.currentUser) {
         const presets = [100000, 200000, 300000, 500000];
         html += `
@@ -4395,7 +4446,6 @@
         `;
       }
 
-      // Payment Modal
       if (ui.showPaymentModal) {
         const src = ui.paymentOrderSource;
         const total = src ? src.total : getCartTotals().total;
@@ -4459,7 +4509,6 @@
         `;
       }
 
-      // Void / Cancel Open Order Modal
       if (ui.voidTargetOrder) {
         const ord = ui.voidTargetOrder;
         html += `
@@ -4500,7 +4549,6 @@
         `;
       }
 
-      // Thermal Receipt Modal
       if (ui.receiptModalData) {
         const d = ui.receiptModalData;
         const o = d.order;
@@ -4587,7 +4635,6 @@
         `;
       }
 
-      // Owner Sales Filter Modal
       if (ui.ownerSalesFilterOpen) {
         const orderTypes = ['Semua', 'Meja', 'Bungkus', 'Pengiriman', 'Catering', 'Reservasi', 'GoFood', 'Grab Food', 'Shopee Food'];
         html += `
@@ -4630,7 +4677,6 @@
         `;
       }
 
-      // Settings Category Modal
       if (ui.settingsCatModal) {
         const m = ui.settingsCatModal;
         html += `
@@ -4655,7 +4701,6 @@
         `;
       }
 
-      // Settings Product Modal
       if (ui.settingsProdModal) {
         const m = ui.settingsProdModal;
         html += `
@@ -4725,7 +4770,6 @@
         `;
       }
 
-      // Settings Staff & PIN Modal
       if (ui.settingsStaffModal) {
         const m = ui.settingsStaffModal;
         html += `
@@ -4771,7 +4815,6 @@
         `;
       }
 
-      // Google Apps Script Setup Guide Modal
       if (ui.showGasGuideModal) {
         const gasCode = `function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -4779,7 +4822,6 @@
   var eventType = data.eventType || 'UNKNOWN';
   var payload = data.payload || {};
 
-  // 1. Catat ke sheet POS_Transactions (Log Lengkap)
   var logSheet = ss.getSheetByName('POS_Transactions') || ss.insertSheet('POS_Transactions');
   if (logSheet.getLastRow() === 0) {
     logSheet.appendRow(['Timestamp', 'Event', 'ID', 'Tanggal', 'Outlet', 'Channel', 'Pelanggan', 'Metode Bayar', 'Subtotal', 'Diskon', 'Total Net', 'HPP', 'Laba Kotor', 'Kasir', 'Detail Item']);
@@ -4794,7 +4836,6 @@
       sp.hpp, sp.profit, payload.cashierName, itemsSummary
     ]);
 
-    // 2. Catat ke sheet Selling Product (Pemisahan Brand Kopi Jiwara, Ayam Baba Jay, Jovangels, Jihyo)
     var sellSheet = ss.getSheetByName('POS_Selling_Product') || ss.insertSheet('POS_Selling_Product');
     if (sellSheet.getLastRow() === 0) {
       sellSheet.appendRow(['Date', 'No Nota', 'Channel', 'Payment', 'Kopi Jiwara', 'Ayam Baba Jay', 'Jovangels', 'Jihyo', 'Total Order', 'Total Sales', 'Total Profit']);
@@ -4806,7 +4847,6 @@
     ]);
   }
 
-  // 3. Catat ke sheet POS_Cashflow (Debit / Kredit sesuai format Cashflow Dapur Jiwara)
   if (data.cashflowRow) {
     var cf = data.cashflowRow;
     var cfSheet = ss.getSheetByName('POS_Cashflow') || ss.insertSheet('POS_Cashflow');
@@ -4816,7 +4856,6 @@
     cfSheet.appendRow([cf.debit, cf.kredit, cf.tgl, cf.nomorNota, cf.pihak, cf.keterangan, cf.kategoriAkun]);
   }
 
-  // 4. Catat Rekap Tutup Kasir Harian
   if (eventType === 'CLOSE_SHIFT') {
     var shiftSheet = ss.getSheetByName('POS_Tutup_Kasir') || ss.insertSheet('POS_Tutup_Kasir');
     if (shiftSheet.getLastRow() === 0) {
@@ -4865,7 +4904,6 @@
         `;
       }
 
-      // Toast
       if (ui.toast) {
         const cls = ui.toast.type === 'error' ? 'toast-error' : ui.toast.type === 'warning' ? 'toast-warning' : 'toast-success';
         html += `
@@ -4905,7 +4943,6 @@
       root.innerHTML = screenHtml + renderModals();
     }
 
-    // Physical Keyboard Support for Login PIN
     document.addEventListener('keydown', function(e) {
       if (ui.screen === 'login' && !ui.showOpenShiftModal) {
         if (e.key >= '0' && e.key <= '9') {
