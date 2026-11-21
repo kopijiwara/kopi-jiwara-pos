@@ -256,6 +256,36 @@
     .shift-pill.open { background: var(--yellow); color: var(--green-deep); }
     .shift-pill.closed { background: var(--pink); color: var(--green-deep); }
 
+    .live-sync-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 800;
+      border: 1px solid rgba(167, 243, 208, 0.35);
+      background: rgba(255, 255, 255, 0.10);
+      color: #A7F3D0;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .live-sync-pill.syncing {
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34D399;
+      box-shadow: 0 0 6px #34D399;
+    }
+    .live-sync-pill.syncing .live-dot {
+      background: var(--yellow);
+      box-shadow: 0 0 6px var(--yellow);
+    }
+
     .nav-bar {
       display: flex;
       gap: 6px;
@@ -419,7 +449,7 @@
     .btn-danger { background: #FEE2E2; color: #B91C1C; }
     .btn-sm { padding: 7px 11px; font-size: 11px; border-radius: 10px; }
 
-    /* POS RESPONSIVE GRID (HP / TAB / DESKTOP) */
+    /* POS RESPONSIVE GRID */
     .pos-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -715,7 +745,11 @@
             <div class="outlet-sub" id="headerUserMeta">Staf Aktif</div>
           </div>
 
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;">
+            <button id="headerCloudSyncBtn" type="button" class="live-sync-pill hidden" onclick="pullFromCloudMaster(true)" title="Tarik data terbaru dari Google Sheets sekarang">
+              <span class="live-dot"></span>
+              <span id="headerCloudSyncLabel">Live Sync</span>
+            </button>
             <button id="modeSwitchBtn" class="btn btn-yellow btn-sm hidden" onclick="toggleWorkspaceMode()">Mode Kasir</button>
             <button class="btn btn-pink btn-sm" onclick="handleLogoutAction()">Keluar</button>
           </div>
@@ -786,7 +820,7 @@
         const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v3';
+            const CACHE_NAME = 'kopi-jiwara-offline-v5';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -805,6 +839,7 @@
             });
             self.addEventListener('fetch', function(e) {
               if (e.request.method !== 'GET') return;
+              if (e.request.url.includes('script.google.com')) return;
               e.respondWith(
                 fetch(e.request).then(function(res) {
                   if (res && res.status === 200) {
@@ -831,7 +866,7 @@
     const SESSION_KEY = 'kopi_jiwara_session_v1';
     const ORDER_TYPES = ['Meja', 'Bungkus', 'GoFood', 'GrabFood', 'ShopeeFood'];
     const PAYMENT_METHODS = ['Cash', 'QRIS', 'Transfer', 'Online Food'];
-    const CANCEL_REASONS = ['Pesanan Salah', 'Pesanan Batal', 'Pesanan Habis'];
+    const CANCEL_REASONS = ['Salah proses', 'Batal Pesan', 'Rubah pesanan'];
     const DEFAULT_MENU_CATEGORIES = [
       'Favorit',
       'Kopi Jiwara',
@@ -907,6 +942,7 @@
           logoDataUrl: DEFAULT_JIWARA_LOGO_URL,
           receiptFooter: 'Terima kasih telah menikmati Kopi Jiwara!',
           webhookUrl: '',
+          autoPullIntervalSec: 15,
           printerName: '',
           printerDeviceId: '',
           printerNote: '',
@@ -984,6 +1020,9 @@
         if (merged.outlet && (!merged.outlet.logoDataUrl || merged.outlet.logoDataUrl.includes('#0F5127'))) {
           merged.outlet.logoDataUrl = DEFAULT_JIWARA_LOGO_URL;
         }
+        if (merged.outlet && merged.outlet.autoPullIntervalSec === undefined) {
+          merged.outlet.autoPullIntervalSec = 15;
+        }
         return merged;
       } catch (e) {
         return getSeedData();
@@ -1047,6 +1086,11 @@
     let btPrinterCharacteristic = null;
     let btPrinterConnected = false;
 
+    // 2-Way Real-Time Sync State
+    let cloudSyncInProgress = false;
+    let lastCloudPullTime = '';
+    let autoPullTimer = null;
+
     function saveDB() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
     }
@@ -1084,6 +1128,8 @@
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('appWorkspace').classList.remove('hidden');
         renderWorkspace();
+        startAutoCloudPolling();
+        pullFromCloudMaster(false);
         return true;
       } catch (e) {
         return false;
@@ -1204,6 +1250,8 @@
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appWorkspace').classList.remove('hidden');
       renderWorkspace();
+      startAutoCloudPolling();
+      pullFromCloudMaster(false);
       showToast(`Selamat bertugas, ${staff.name}!`);
     }
 
@@ -1250,7 +1298,7 @@
       }
     });
 
-    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
+    // ==================== 2-WAY REAL-TIME GOOGLE SHEETS SYNC (PUSH + PULL) ====================
     const OFFLINE_QUEUE_KEY = 'kopi_jiwara_sync_queue_v1';
 
     function enqueueOfflineSync(item) {
@@ -1283,6 +1331,7 @@
     window.addEventListener('online', () => {
       showToast('Koneksi internet kembali aktif.');
       flushOfflineSyncQueue();
+      pullFromCloudMaster(false);
     });
 
     function syncMasterEvent(eventType, payload) {
@@ -1330,7 +1379,240 @@
       if (slices.includes('promos')) {
         data.promos = db.promos || [];
       }
+      if (slices.includes('openOrders')) {
+        data.openOrders = (db.transactions || []).filter(t => t.status === 'OPEN');
+      }
       syncMasterEvent('SYNC_MASTER_TABLES', data);
+    }
+
+    function updateHeaderCloudSyncBadge(isSyncing, customText = '') {
+      const btn = document.getElementById('headerCloudSyncBtn');
+      const lbl = document.getElementById('headerCloudSyncLabel');
+      if (!btn || !lbl) return;
+      const hasUrl = Boolean((db.outlet && db.outlet.webhookUrl || '').trim());
+      if (!hasUrl) {
+        btn.classList.add('hidden');
+        return;
+      }
+      btn.classList.remove('hidden');
+      if (isSyncing) {
+        btn.classList.add('syncing');
+        lbl.textContent = customText || 'Menarik Data...';
+      } else {
+        btn.classList.remove('syncing');
+        lbl.textContent = customText || (lastCloudPullTime ? `Live • ${lastCloudPullTime}` : 'Live Sync');
+      }
+    }
+
+    function isUserActivelyTyping() {
+      const ae = document.activeElement;
+      if (!ae) return false;
+      const tag = (ae.tagName || '').toUpperCase();
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    }
+
+    async function pullFromCloudMaster(manualTrigger = false) {
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url) {
+        if (manualTrigger) showToast('Isi & simpan URL Google Apps Script terlebih dahulu.', true);
+        return;
+      }
+      if (!navigator.onLine) {
+        if (manualTrigger) showToast('Perangkat sedang offline. Sync otomatis berjalan saat online.', true);
+        return;
+      }
+      if (cloudSyncInProgress) return;
+      if (!manualTrigger && isUserActivelyTyping()) return;
+
+      cloudSyncInProgress = true;
+      updateHeaderCloudSyncBadge(true, 'Syncing...');
+
+      try {
+        const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'action=pull&t=' + Date.now();
+        const res = await fetch(fetchUrl, { method: 'GET', redirect: 'follow' });
+        const data = await res.json();
+
+        if (!data || data.status !== 'OK') {
+          throw new Error((data && data.message) || 'Respon tidak valid');
+        }
+
+        let changed = false;
+
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          const prevStr = JSON.stringify(db.products);
+          const existingBySku = {};
+          (db.products || []).forEach(p => { existingBySku[p.sku] = p; });
+
+          db.products = data.products.map((rpItem, idx) => {
+            const old = existingBySku[rpItem.sku];
+            return {
+              id: old ? old.id : ('prd-cloud-' + (rpItem.sku || idx)),
+              sku: String(rpItem.sku || ('SKU-' + (idx + 1))),
+              name: String(rpItem.name || 'Menu'),
+              category: String(rpItem.category || 'Kopi Jiwara'),
+              fav: Boolean(rpItem.fav),
+              price: Number(rpItem.price) || 0,
+              cost: Number(rpItem.cost) || 0,
+              unit: String(rpItem.unit || 'Cup'),
+              stock: old ? old.stock : 50
+            };
+          });
+
+          const catSet = new Set(['Favorit', ...(db.categories || [])]);
+          db.products.forEach(p => { if (p.category) catSet.add(p.category); });
+          db.categories = Array.from(catSet);
+
+          if (JSON.stringify(db.products) !== prevStr) changed = true;
+        }
+
+        if (Array.isArray(data.inventory) && data.inventory.length > 0) {
+          const prevInv = JSON.stringify(db.inventory);
+          const oldInvMap = {};
+          (db.inventory || []).forEach(i => { oldInvMap[i.sku] = i; });
+          db.inventory = data.inventory.map((it, idx) => {
+            const old = oldInvMap[it.sku];
+            return {
+              id: old ? old.id : ('inv-cloud-' + (it.sku || idx)),
+              sku: String(it.sku || ('BHN-' + (idx + 1))),
+              name: String(it.name || 'Bahan'),
+              category: String(it.category || 'Operasional Dapur'),
+              stock: Number(it.stock) || 0,
+              minStock: Number(it.minStock) || 0,
+              unit: String(it.unit || 'Pcs')
+            };
+          });
+          if (JSON.stringify(db.inventory) !== prevInv) changed = true;
+        }
+
+        if (Array.isArray(data.staff) && data.staff.length > 0) {
+          const prevStf = JSON.stringify(db.staff);
+          db.staff = data.staff.map((s, idx) => ({
+            id: String(s.id || ('stf-' + (idx + 1))),
+            name: String(s.name || 'Staf'),
+            role: String(s.role || 'Kasir'),
+            pin: String(s.pin || '1111'),
+            dailyWage: Number(s.dailyWage) || 0,
+            active: s.active !== false
+          }));
+          if (JSON.stringify(db.staff) !== prevStf) changed = true;
+        }
+
+        if (Array.isArray(data.promos) && data.promos.length > 0) {
+          const prevPrm = JSON.stringify(db.promos);
+          db.promos = data.promos.map((pr, idx) => ({
+            id: String(pr.id || ('prm-' + (idx + 1))),
+            code: String(pr.code || '').toUpperCase(),
+            name: String(pr.name || 'Promo'),
+            type: pr.type === 'fixed' ? 'fixed' : 'percent',
+            value: Number(pr.value) || 0,
+            startDate: String(pr.startDate || ''),
+            endDate: String(pr.endDate || ''),
+            active: pr.active !== false
+          }));
+          if (JSON.stringify(db.promos) !== prevPrm) changed = true;
+        }
+
+        if (Array.isArray(data.customers) && data.customers.length > 0) {
+          const prevCrm = JSON.stringify(db.customers);
+          db.customers = data.customers.map((c, idx) => ({
+            id: String(c.id || ('CRM-' + (idx + 1))),
+            name: String(c.name || 'Pelanggan'),
+            phone: String(c.phone === '-' ? '' : (c.phone || '')),
+            tier: String(c.tier || 'Regular'),
+            totalVisits: Number(c.totalVisits) || 0,
+            totalSpent: Number(c.totalSpent) || 0,
+            lastVisit: String(c.lastVisit || new Date().toISOString()),
+            specialVoucher: String(c.specialVoucher === '-' ? '' : (c.specialVoucher || '')),
+            notes: String(c.notes === '-' ? '' : (c.notes || ''))
+          }));
+          if (JSON.stringify(db.customers) !== prevCrm) changed = true;
+        }
+
+        if (Array.isArray(data.transactions) || Array.isArray(data.openOrders)) {
+          const prevTrx = JSON.stringify(db.transactions);
+          const trxMap = {};
+          (db.transactions || []).forEach(t => { trxMap[t.id] = t; });
+
+          if (Array.isArray(data.transactions)) {
+            data.transactions.forEach(ct => {
+              if (!ct || !ct.id) return;
+              const existingLocal = trxMap[ct.id];
+              trxMap[ct.id] = {
+                ...existingLocal,
+                ...ct,
+                status: (existingLocal && existingLocal.status === 'CANCELLED') ? 'CANCELLED' : 'PAID'
+              };
+            });
+          }
+
+          if (Array.isArray(data.openOrders)) {
+            const cloudOpenIds = new Set();
+            data.openOrders.forEach(oo => {
+              if (!oo || !oo.id) return;
+              cloudOpenIds.add(oo.id);
+              if (!trxMap[oo.id] || trxMap[oo.id].status === 'OPEN') {
+                trxMap[oo.id] = {
+                  ...oo,
+                  status: 'OPEN',
+                  paymentMethod: 'OPEN'
+                };
+              }
+            });
+            Object.keys(trxMap).forEach(k => {
+              if (trxMap[k].status === 'OPEN' && !cloudOpenIds.has(k) && k !== editingOpenOrderId) {
+                delete trxMap[k];
+              }
+            });
+          }
+
+          db.transactions = Object.values(trxMap).sort((a, b) => new Date(b.date) - new Date(a.date));
+          if (JSON.stringify(db.transactions) !== prevTrx) changed = true;
+        }
+
+        if (Array.isArray(data.cashDrawerLogs) && data.cashDrawerLogs.length > 0) {
+          const prevCf = JSON.stringify(db.cashDrawerLogs);
+          const cfMap = {};
+          (db.cashDrawerLogs || []).forEach(c => { cfMap[c.id] = c; });
+          data.cashDrawerLogs.forEach(cc => {
+            if (cc && cc.id && !cfMap[cc.id]) cfMap[cc.id] = cc;
+          });
+          db.cashDrawerLogs = Object.values(cfMap).sort((a, b) => new Date(b.date) - new Date(a.date));
+          if (JSON.stringify(db.cashDrawerLogs) !== prevCf) changed = true;
+        }
+
+        lastCloudPullTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (changed) {
+          saveDB();
+          const modalOpen = !document.getElementById('modalBackdrop').classList.contains('hidden');
+          if (!modalOpen && currentUser) {
+            renderWorkspace();
+          }
+          if (manualTrigger) showToast('Data terbaru berhasil ditarik dari Google Sheets!');
+        } else if (manualTrigger) {
+          showToast('Semua data sudah sinkron & paling baru.');
+        }
+      } catch (err) {
+        if (manualTrigger) {
+          showToast('Gagal menarik data. Pastikan Skrip Google Sheets sudah diperbarui ke v2.3 (doGet).', true);
+        }
+      } finally {
+        cloudSyncInProgress = false;
+        updateHeaderCloudSyncBadge(false);
+        if (settingsSubTab === 'sinkronisasi' && currentTab === 'pengaturan') {
+          const subBody = document.getElementById('settingsSubBody');
+          if (subBody) renderSettingsSystemSync(subBody);
+        }
+      }
+    }
+
+    function startAutoCloudPolling() {
+      if (autoPullTimer) clearInterval(autoPullTimer);
+      const sec = Math.max(5, Number(db.outlet && db.outlet.autoPullIntervalSec) || 15);
+      autoPullTimer = setInterval(() => {
+        if (currentUser && (db.outlet && db.outlet.webhookUrl || '').trim()) {
+          pullFromCloudMaster(false);
+        }
+      }, sec * 1000);
     }
 
     function testWebhookConnection() {
@@ -1368,20 +1650,22 @@
         staff: db.staff,
         promos: db.promos,
         transactions: db.transactions,
+        openOrders: (db.transactions || []).filter(t => t.status === 'OPEN'),
         cashDrawerLogs: db.cashDrawerLogs,
         attendanceLogs: db.attendanceLogs,
         customers: db.customers,
         orderAuditLogs: db.orderAuditLogs || [],
         shiftClosings: db.shiftClosings || []
       });
-      showToast('Seluruh database (12 Sheet Master) sedang disinkronkan ke Google Sheets!');
+      showToast('Seluruh database (13 Sheet Master) sedang disinkronkan ke Google Sheets!');
     }
 
     function getMasterAppsScriptCode() {
       return `/**
- * MASTER POS & ERP - KOPI JIWARA v2.2 (Google Apps Script)
- * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 12 tab database otomatis.
- * 2. Klik Deploy -> New deployment -> Web app (Execute as: Me, Who has access: Anyone).
+ * MASTER POS & ERP - KOPI JIWARA v2.3 (2-Way Real-Time Sync: doPost + doGet)
+ * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 13 tab database otomatis.
+ * 2. Klik Deploy -> New deployment (atau Manage deployments -> Edit -> New version) -> Web app.
+ *    Execute as: Me | Who has access: Anyone.
  */
 function inisialisasiSemuaSheetMaster() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1390,13 +1674,18 @@ function inisialisasiSemuaSheetMaster() {
     'Timestamp', 'No_Nota', 'Tanggal', 'Jam', 'Outlet', 'Jenis_Order',
     'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar',
     'Subtotal', 'Diskon_Promo', 'Total_Net', 'Total_HPP', 'Laba_Kotor',
-    'Uang_Diterima', 'Kembalian', 'Ringkasan_Item'
+    'Uang_Diterima', 'Kembalian', 'Ringkasan_Item', 'Items_JSON'
   ]);
   
   getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
     'Timestamp', 'Tanggal', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu',
     'Kategori', 'Brand', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
     'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'
+  ]);
+
+  getOrCreateSheet(ss, 'OPEN_ORDERS', [
+    'Update_Time', 'No_Order', 'Tanggal_Order', 'Jenis_Order',
+    'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Subtotal', 'Items_JSON'
   ]);
   
   getOrCreateSheet(ss, 'CRM_PELANGGAN', [
@@ -1465,6 +1754,210 @@ function inisialisasiSemuaSheetMaster() {
   }
 }
 
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var result = {
+      status: 'OK',
+      serverTime: new Date().toISOString(),
+      products: readMenuSheet(ss),
+      inventory: readInventorySheet(ss),
+      staff: readStaffSheet(ss),
+      promos: readPromoSheet(ss),
+      customers: readCustomersSheet(ss),
+      openOrders: readOpenOrdersSheet(ss),
+      transactions: readRecentTransactionsSheet(ss),
+      cashDrawerLogs: readCashDrawerSheet(ss)
+    };
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'ERROR', message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function readMenuSheet(ss) {
+  var sh = ss.getSheetByName('MASTER_MENU');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][2]) continue;
+    out.push({
+      sku: String(rows[r][1] || ''),
+      name: String(rows[r][2] || ''),
+      category: String(rows[r][3] || 'Kopi Jiwara'),
+      brand: String(rows[r][4] || 'Kopi Jiwara'),
+      unit: String(rows[r][5] || 'Cup'),
+      price: Number(rows[r][6]) || 0,
+      cost: Number(rows[r][7]) || 0,
+      fav: String(rows[r][10] || '').toLowerCase() === 'ya'
+    });
+  }
+  return out;
+}
+
+function readInventorySheet(ss) {
+  var sh = ss.getSheetByName('GUDANG_STOK');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][2]) continue;
+    out.push({
+      sku: String(rows[r][1] || ''),
+      name: String(rows[r][2] || ''),
+      category: String(rows[r][3] || 'Operasional Dapur'),
+      stock: Number(rows[r][4]) || 0,
+      minStock: Number(rows[r][5]) || 0,
+      unit: String(rows[r][6] || 'Pcs')
+    });
+  }
+  return out;
+}
+
+function readStaffSheet(ss) {
+  var sh = ss.getSheetByName('MASTER_PEGAWAI');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][2]) continue;
+    out.push({
+      id: String(rows[r][1] || ''),
+      name: String(rows[r][2] || ''),
+      role: String(rows[r][3] || 'Kasir'),
+      pin: String(rows[r][4] || '1111'),
+      dailyWage: Number(rows[r][5]) || 0,
+      active: String(rows[r][6] || 'Aktif').toLowerCase() === 'aktif'
+    });
+  }
+  return out;
+}
+
+function readPromoSheet(ss) {
+  var sh = ss.getSheetByName('MASTER_PROMO');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][2]) continue;
+    var tipeRaw = String(rows[r][4] || '').toLowerCase();
+    out.push({
+      id: String(rows[r][1] || ''),
+      code: String(rows[r][2] || ''),
+      name: String(rows[r][3] || ''),
+      type: tipeRaw.indexOf('nominal') >= 0 ? 'fixed' : 'percent',
+      value: Number(rows[r][5]) || 0,
+      startDate: String(rows[r][6] || ''),
+      endDate: String(rows[r][7] || ''),
+      active: String(rows[r][8] || 'Aktif').toLowerCase() === 'aktif'
+    });
+  }
+  return out;
+}
+
+function readCustomersSheet(ss) {
+  var sh = ss.getSheetByName('CRM_PELANGGAN');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][1]) continue;
+    out.push({
+      id: String(rows[r][0] || ''),
+      name: String(rows[r][1] || ''),
+      phone: String(rows[r][2] || ''),
+      tier: String(rows[r][3] || 'Regular'),
+      totalVisits: Number(rows[r][4]) || 0,
+      totalSpent: Number(rows[r][5]) || 0,
+      lastVisit: String(rows[r][6] || ''),
+      specialVoucher: String(rows[r][7] || ''),
+      notes: String(rows[r][8] || '')
+    });
+  }
+  return out;
+}
+
+function readOpenOrdersSheet(ss) {
+  var sh = ss.getSheetByName('OPEN_ORDERS');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    if (!rows[r][1]) continue;
+    var items = [];
+    try { items = JSON.parse(rows[r][8] || '[]'); } catch (e) {}
+    out.push({
+      id: String(rows[r][1]),
+      date: String(rows[r][2] || rows[r][0]),
+      orderType: String(rows[r][3] || 'Meja'),
+      customer: String(rows[r][4] || 'Pelanggan'),
+      customerPhone: String(rows[r][5] || ''),
+      cashier: String(rows[r][6] || 'Kasir'),
+      subtotal: Number(rows[r][7]) || 0,
+      total: Number(rows[r][7]) || 0,
+      items: items
+    });
+  }
+  return out;
+}
+
+function readRecentTransactionsSheet(ss) {
+  var sh = ss.getSheetByName('POS_TRANSAKSI');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var startRow = Math.max(1, rows.length - 100);
+  var out = [];
+  for (var r = startRow; r < rows.length; r++) {
+    if (!rows[r][1]) continue;
+    var items = [];
+    try { items = JSON.parse(rows[r][18] || '[]'); } catch (e) {}
+    if (items.length === 0 && rows[r][17]) {
+      items = [{ name: String(rows[r][17]), qty: 1, price: Number(rows[r][12]) || 0 }];
+    }
+    out.push({
+      date: String(rows[r][0] || new Date().toISOString()),
+      id: String(rows[r][1]),
+      orderType: String(rows[r][5] || 'Meja'),
+      customer: String(rows[r][6] || 'Walk-in'),
+      customerPhone: String(rows[r][7] || ''),
+      cashier: String(rows[r][8] || 'Kasir'),
+      paymentMethod: String(rows[r][9] || 'Cash'),
+      subtotal: Number(rows[r][10]) || 0,
+      discount: Number(rows[r][11]) || 0,
+      total: Number(rows[r][12]) || 0,
+      costTotal: Number(rows[r][13]) || 0,
+      cashPaid: Number(rows[r][15]) || 0,
+      change: Number(rows[r][16]) || 0,
+      items: items
+    });
+  }
+  return out;
+}
+
+function readCashDrawerSheet(ss) {
+  var sh = ss.getSheetByName('ARUS_KAS_CASHFLOW');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var startRow = Math.max(1, rows.length - 100);
+  var out = [];
+  for (var r = startRow; r < rows.length; r++) {
+    var cat = String(rows[r][3] || '');
+    if (cat === 'Penjualan POS') continue;
+    var debit = Number(rows[r][6]) || 0;
+    var kredit = Number(rows[r][7]) || 0;
+    out.push({
+      date: String(rows[r][0] || new Date().toISOString()),
+      id: String(rows[r][2] || ('CSH-' + r)),
+      type: debit > 0 ? 'IN' : 'OUT',
+      amount: debit > 0 ? debit : kredit,
+      note: String(rows[r][5] || '-'),
+      cashier: String(rows[r][8] || 'Kasir')
+    });
+  }
+  return out;
+}
+
 function writeMasterTables(ss, ts, p) {
   if (p.products) {
     var shMenu = getOrCreateSheet(ss, 'MASTER_MENU', [
@@ -1526,6 +2019,17 @@ function writeMasterTables(ss, ts, p) {
       shPrm.appendRow([ts, pr.id, pr.code, pr.name, tipeStr, pr.value || 0, pr.startDate || '-', pr.endDate || '-', pr.active ? 'Aktif' : 'Dihentikan']);
     });
   }
+  if (p.openOrders) {
+    var shOpen = getOrCreateSheet(ss, 'OPEN_ORDERS', [
+      'Update_Time', 'No_Order', 'Tanggal_Order', 'Jenis_Order',
+      'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Subtotal', 'Items_JSON'
+    ]);
+    shOpen.clearContents();
+    shOpen.appendRow(['Update_Time', 'No_Order', 'Tanggal_Order', 'Jenis_Order', 'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Subtotal', 'Items_JSON']);
+    p.openOrders.forEach(function(oo) {
+      shOpen.appendRow([ts, oo.id, oo.date, oo.orderType, oo.customer, oo.customerPhone || '', oo.cashier, oo.total || oo.subtotal || 0, JSON.stringify(oo.items || [])]);
+    });
+  }
 }
 
 function doPost(e) {
@@ -1550,7 +2054,7 @@ function doPost(e) {
         'Timestamp', 'No_Nota', 'Tanggal', 'Jam', 'Outlet', 'Jenis_Order',
         'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar',
         'Subtotal', 'Diskon_Promo', 'Total_Net', 'Total_HPP', 'Laba_Kotor',
-        'Uang_Diterima', 'Kembalian', 'Ringkasan_Item'
+        'Uang_Diterima', 'Kembalian', 'Ringkasan_Item', 'Items_JSON'
       ]);
       var itemsText = (p.items || []).map(function(i) { return i.name + ' x' + i.qty; }).join(', ');
       var hppTotal = Number(p.costTotal) || 0;
@@ -1558,7 +2062,7 @@ function doPost(e) {
         ts, p.id, tgl, jam, data.outlet, p.orderType,
         p.customer || 'Walk-in', p.customerPhone || '', p.cashier, p.paymentMethod,
         p.subtotal, p.discount || 0, p.total, hppTotal, (p.total - hppTotal),
-        p.cashPaid || p.total, p.change || 0, itemsText
+        p.cashPaid || p.total, p.change || 0, itemsText, JSON.stringify(p.items || [])
       ]);
 
       var shItems = getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
@@ -1630,13 +2134,25 @@ function doPost(e) {
         p.totalSales, p.expectedCash, p.actualCash, p.diff
       ]);
 
-    } else if (eventType === 'ORDER_AUDIT' || eventType === 'ORDER_CANCELLED') {
+    } else if (eventType === 'ORDER_AUDIT' || eventType === 'ORDER_CANCELLED' || eventType === 'PAID_TRX_CANCELLED') {
       var shAud = getOrCreateSheet(ss, 'AUDIT_OTORISASI', [
         'Timestamp', 'ID_Audit', 'Jenis_Aksi', 'No_Order',
         'Detail_Perubahan', 'Alasan', 'Kasir_Pelaksana', 'Disetujui_Oleh_PIN'
       ]);
-      var detail = p.itemName ? (p.itemName + ' (' + p.fromQty + ' -> ' + p.toQty + ')') : ('Batal Order (' + (p.customer || '-') + ')');
+      var detail = p.itemName ? (p.itemName + ' (' + p.fromQty + ' -> ' + p.toQty + ')') : ('Batal Transaksi (' + (p.customer || '-') + ' - Rp ' + (p.total || 0) + ')');
       shAud.appendRow([ts, p.id, p.action || eventType, p.orderId, detail, p.reason, p.cashier, p.approvedBy]);
+
+      if (eventType === 'PAID_TRX_CANCELLED' && p.total > 0) {
+        var shCfVoid = getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
+          'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
+          'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
+        ]);
+        shCfVoid.appendRow([
+          ts, tgl, p.orderId, 'Pembatalan Transaksi (Void)', p.paymentMethod || 'POS',
+          'Void Nota ' + p.orderId + ' (' + p.reason + ') - Disetujui ' + p.approvedBy,
+          0, p.total, p.cashier
+        ]);
+      }
 
     } else if (eventType === 'SYNC_MASTER_TABLES' || eventType === 'FULL_MASTER_SYNC') {
       writeMasterTables(ss, ts, p);
@@ -1661,6 +2177,10 @@ function getOrCreateSheet(ss, name, headers) {
     }
 
     function doDirectLogout() {
+      if (autoPullTimer) {
+        clearInterval(autoPullTimer);
+        autoPullTimer = null;
+      }
       currentUser = null;
       saveSessionState();
       document.getElementById('appWorkspace').classList.add('hidden');
@@ -1688,6 +2208,8 @@ function getOrCreateSheet(ss, name, headers) {
         badge.className = 'shift-pill closed';
         badge.textContent = 'Shift Tutup';
       }
+
+      updateHeaderCloudSyncBadge(cloudSyncInProgress);
 
       const modeBtn = document.getElementById('modeSwitchBtn');
       if (currentUser.role === 'Owner') {
@@ -1843,7 +2365,10 @@ function getOrCreateSheet(ss, name, headers) {
 
             ${posSubTab === 'open' ? `
               <div>
-                <h3 style="margin:0 0 10px;font-size:15px;">Pesanan Belum Dibayar (Open Bill)</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+                  <h3 style="margin:0;font-size:15px;">Pesanan Belum Dibayar (Open Bill)</h3>
+                  ${(db.outlet && db.outlet.webhookUrl) ? `<button class="btn btn-soft btn-sm" onclick="pullFromCloudMaster(true)">Segarkan dari Cloud</button>` : ''}
+                </div>
                 ${openOrders.length === 0 ? `<p style="font-size:13px;color:var(--text-muted);text-align:center;padding:24px 0;">Tidak ada order tertunda.</p>` : `
                   <div style="display:grid;gap:10px;">
                     ${openOrders.map(o => `
@@ -2064,12 +2589,19 @@ function getOrCreateSheet(ss, name, headers) {
     function openManagerPinAuthModal(actionType, orderId, prodId = '') {
       const ord = db.transactions.find(t => t.id === orderId);
       const item = prodId ? cart.find(c => c.id === prodId) : null;
-      const title = actionType === 'CANCEL_ORDER'
-        ? `Batalkan Pesanan Tersimpan (${esc(orderId)})`
-        : `Kurangi Item Tersimpan (${esc(item ? item.name : '')})`;
-      const desc = actionType === 'CANCEL_ORDER'
-        ? `Pesanan milik "${esc(ord ? ord.customer : orderId)}" akan dibatalkan permanen. Wajib verifikasi PIN Owner / Manager & alasan.`
-        : `Item "${esc(item ? item.name : '')}" sudah tersimpan pada pesanan ${esc(orderId)}. Pengurangan item wajib verifikasi PIN Owner / Manager & alasan.`;
+      let title = `Kurangi Item Tersimpan (${esc(item ? item.name : '')})`;
+      let desc = `Item "${esc(item ? item.name : '')}" sudah tersimpan pada pesanan ${esc(orderId)}. Pengurangan item wajib verifikasi PIN Owner / Manager & alasan.`;
+      let btnText = 'Verifikasi & Kurangi Item';
+
+      if (actionType === 'CANCEL_ORDER') {
+        title = `Batalkan Pesanan Tersimpan (${esc(orderId)})`;
+        desc = `Pesanan milik "${esc(ord ? ord.customer : orderId)}" akan dibatalkan permanen. Wajib verifikasi PIN Owner / Manager & alasan.`;
+        btnText = 'Verifikasi & Batalkan Order';
+      } else if (actionType === 'CANCEL_PAID_TRX') {
+        title = `Batalkan Transaksi Lunas (${esc(orderId)})`;
+        desc = `Transaksi lunas milik "${esc(ord ? ord.customer : orderId)}" sebesar <strong>${rp(ord ? ord.total : 0)}</strong> akan dibatalkan (Void). Saldo omzet akan dikurangi & wajib otorisasi PIN Owner / Manager.`;
+        btnText = 'Verifikasi & Batalkan Transaksi';
+      }
 
       openModal(`
         <div class="modal-head">
@@ -2084,7 +2616,7 @@ function getOrCreateSheet(ss, name, headers) {
 
         <div style="display:grid;gap:10px;margin-bottom:14px;">
           <div>
-            <label class="field-label">Pilih Alasan</label>
+            <label class="field-label">Pilih Alasan Pembatalan / Perubahan</label>
             <select id="mgrAuthReason" class="styled-select">
               ${CANCEL_REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}
             </select>
@@ -2096,9 +2628,9 @@ function getOrCreateSheet(ss, name, headers) {
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;">
-          <button type="button" class="btn btn-soft" onclick="closeModal()">Batal</button>
+          <button type="button" class="btn btn-soft" onclick="closeModal()">Kembali</button>
           <button type="button" class="btn btn-pink" style="padding:12px;" onclick="confirmManagerPinAuth('${esc(actionType)}', '${esc(orderId)}', '${esc(prodId)}')">
-            ${actionType === 'CANCEL_ORDER' ? 'Verifikasi & Batalkan Order' : 'Verifikasi & Kurangi Item'}
+            ${btnText}
           </button>
         </div>
       `);
@@ -2165,6 +2697,7 @@ function getOrCreateSheet(ss, name, headers) {
         };
         db.orderAuditLogs.unshift(logEntry);
         syncMasterEvent('ORDER_AUDIT', logEntry);
+        autoSyncMasterSlices(['openOrders']);
         saveDB();
         closeModal();
 
@@ -2199,16 +2732,143 @@ function getOrCreateSheet(ss, name, headers) {
         };
         db.orderAuditLogs.unshift(logEntry);
         syncMasterEvent('ORDER_CANCELLED', logEntry);
+        autoSyncMasterSlices(['openOrders']);
         saveDB();
         closeModal();
 
         if (editingOpenOrderId === orderId) {
           clearCart();
         } else {
-          renderCashierPOS(document.getElementById('mainContentArea'));
+          renderWorkspace();
         }
         showToast(`Order ${orderId} dibatalkan (${reason}) — Disetujui ${approver.name}`);
+      } else if (actionType === 'CANCEL_PAID_TRX') {
+        const ordIdx = db.transactions.findIndex(t => t.id === orderId);
+        const ordObj = ordIdx >= 0 ? db.transactions[ordIdx] : null;
+        const prevMethod = ordObj ? ordObj.paymentMethod : 'POS';
+        if (ordObj) {
+          ordObj.status = 'CANCELLED';
+          ordObj.prevPaymentMethod = prevMethod;
+          ordObj.paymentMethod = 'BATAL';
+          ordObj.cancelReason = reason;
+          ordObj.cancelledBy = approver.name;
+          ordObj.cancelledAt = new Date().toISOString();
+
+          // Restore product stock
+          (ordObj.items || []).forEach(it => {
+            const prod = db.products.find(p => p.id === it.id);
+            if (prod) prod.stock = (Number(prod.stock) || 0) + (Number(it.qty) || 0);
+          });
+        }
+
+        const logEntry = {
+          id: 'AUD-' + Date.now(),
+          date: new Date().toISOString(),
+          action: 'CANCEL_PAID_TRANSACTION',
+          orderId,
+          customer: ordObj ? ordObj.customer : '-',
+          paymentMethod: prevMethod,
+          total: ordObj ? ordObj.total : 0,
+          reason,
+          cashier: currentUser.name,
+          approvedBy: approver.name
+        };
+        db.orderAuditLogs.unshift(logEntry);
+        syncMasterEvent('PAID_TRX_CANCELLED', logEntry);
+        saveDB();
+        closeModal();
+        renderWorkspace();
+        showToast(`Transaksi ${orderId} dibatalkan (${reason}) — Disetujui ${approver.name}`);
       }
+    }
+
+    // ==================== POP-UP DETAIL TRANSAKSI ====================
+    function openTransactionDetailModal(trxId) {
+      const trx = db.transactions.find(t => t.id === trxId);
+      if (!trx) return;
+      const isPaid = trx.status === 'PAID';
+      const isCancelled = trx.status === 'CANCELLED';
+      const totalQty = (trx.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+
+      openModal(`
+        <div class="modal-head">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+              <span class="badge-pill ${isCancelled ? 'badge-pink' : (isPaid ? 'badge-green' : 'badge-yellow')}">
+                ${isCancelled ? 'DIBATALKAN' : (isPaid ? 'LUNAS (' + esc(trx.paymentMethod) + ')' : 'OPEN ORDER')}
+              </span>
+              <span class="badge-pill badge-yellow">${esc(trx.orderType)}</span>
+            </div>
+            <h3 style="margin:0;font-size:18px;">Detail Transaksi ${esc(trx.id)}</h3>
+          </div>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+
+        <div style="background:var(--green-soft);border-radius:16px;padding:12px 14px;margin-bottom:12px;font-size:12px;display:grid;gap:5px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--text-muted);">Waktu Transaksi</span>
+            <strong>${formatOrderDateTime(trx.date)}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--text-muted);">Pelanggan / Meja</span>
+            <strong>${esc(trx.customer || 'Walk-in')}${trx.customerPhone ? ' (' + esc(trx.customerPhone) + ')' : ''}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:var(--text-muted);">Kasir Bertugas</span>
+            <strong>${esc(trx.cashier || '-')}</strong>
+          </div>
+          ${isCancelled ? `
+            <div style="margin-top:4px;padding-top:6px;border-top:1px dashed rgba(190,24,93,0.3);color:#BE185D;">
+              <div><strong>Alasan Pembatalan:</strong> ${esc(trx.cancelReason || '-')}</div>
+              <div><strong>Otorisasi PIN Oleh:</strong> ${esc(trx.cancelledBy || '-')} (${trx.cancelledAt ? formatOrderDateTime(trx.cancelledAt) : '-'})</div>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">
+            Rincian Produk (${totalQty} Item)
+          </div>
+          <div style="border:1px solid var(--border-glass);border-radius:14px;padding:10px 12px;background:#FFF;max-height:210px;overflow-y:auto;">
+            ${(trx.items || []).map(it => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border-glass);font-size:12px;">
+                <div>
+                  <div style="font-weight:800;color:var(--green-deep);">${esc(it.name)}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">${rp(it.price)} x ${it.qty}</div>
+                </div>
+                <strong>${rp((Number(it.price) || 0) * (Number(it.qty) || 0))}</strong>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="background:#FFF;border:1.5px solid var(--border-glass);border-radius:14px;padding:12px;margin-bottom:14px;font-size:12px;display:grid;gap:4px;">
+          <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><strong>${rp(trx.subtotal || trx.total)}</strong></div>
+          ${(trx.discount || 0) > 0 ? `<div style="display:flex;justify-content:space-between;color:#BE185D;"><span>Diskon Promo</span><strong>-${rp(trx.discount)}</strong></div>` : ''}
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:900;padding-top:6px;border-top:1px solid var(--border-glass);">
+            <span>Total Tagihan</span>
+            <span>${rp(trx.total)}</span>
+          </div>
+          ${isPaid && trx.paymentMethod === 'Cash' ? `
+            <div style="display:flex;justify-content:space-between;color:var(--text-muted);font-size:11px;margin-top:2px;">
+              <span>Tunai Diterima: ${rp(trx.cashPaid)}</span>
+              <span>Kembalian: ${rp(trx.change)}</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="display:grid;grid-template-columns:${isCancelled ? '1fr' : '1fr 1fr'};gap:8px;">
+          ${isPaid ? `
+            <button type="button" class="btn btn-dark" onclick="reprintReceiptById('${esc(trx.id)}')">Cetak Ulang Struk</button>
+            <button type="button" class="btn btn-danger" onclick="openManagerPinAuthModal('CANCEL_PAID_TRX', '${esc(trx.id)}')">Batalkan Pesanan (PIN)</button>
+          ` : (!isCancelled ? `
+            <button type="button" class="btn btn-dark" onclick="closeModal();loadOpenOrderToCart('${esc(trx.id)}')">Muat ke Kasir</button>
+            <button type="button" class="btn btn-danger" onclick="openManagerPinAuthModal('CANCEL_ORDER', '${esc(trx.id)}')">Batalkan Order (PIN)</button>
+          ` : `
+            <button type="button" class="btn btn-soft" onclick="closeModal()">Tutup Detail</button>
+          `)}
+        </div>
+      `);
     }
 
     function handleCartCustomerInput(val) {
@@ -2296,8 +2956,9 @@ function getOrCreateSheet(ss, name, headers) {
       if (exIdx >= 0) db.transactions[exIdx] = orderObj;
       else db.transactions.unshift(orderObj);
       saveDB();
+      autoSyncMasterSlices(['openOrders']);
       clearCart();
-      showToast(`Order ${trxId} disimpan ke Daftar Open`);
+      showToast(`Order ${trxId} disimpan & disinkronkan ke semua kasir.`);
     }
 
     function loadOpenOrderToCart(trxId) {
@@ -2313,8 +2974,12 @@ function getOrCreateSheet(ss, name, headers) {
       ord.items.forEach(it => {
         savedOpenOrderBaseline[it.id] = (savedOpenOrderBaseline[it.id] || 0) + (Number(it.qty) || 0);
       });
+      if (workspaceMode === 'owner') {
+        workspaceMode = 'cashier';
+        currentTab = 'kasir';
+      }
       posSubTab = 'menu';
-      renderCashierPOS(document.getElementById('mainContentArea'));
+      renderWorkspace();
       showToast(`Order ${ord.id} (${formatOrderDateTime(ord.date)}) dimuat ke keranjang.`);
     }
 
@@ -2540,7 +3205,6 @@ function getOrCreateSheet(ss, name, headers) {
       const brandMap = {};
       trx.items.forEach(it => { brandMap[it.id] = getBrandFromCategory(it.category); });
       syncMasterEvent('SALE_COMPLETED', { ...trx, brandMap });
-      if (crmUpdated) autoSyncMasterSlices(['customers']);
 
       if (isSplitFlow && leftoverItems.length > 0) {
         const remTotal = leftoverItems.reduce((s, i) => s + i.price * i.qty, 0);
@@ -2559,6 +3223,10 @@ function getOrCreateSheet(ss, name, headers) {
       } else if (editingOpenOrderId) {
         db.transactions = db.transactions.filter(t => t.id !== editingOpenOrderId);
       }
+
+      const slicesToSync = ['openOrders'];
+      if (crmUpdated) slicesToSync.push('customers');
+      autoSyncMasterSlices(slicesToSync);
 
       pendingSplitContext = null;
       saveDB();
@@ -2621,7 +3289,7 @@ function getOrCreateSheet(ss, name, headers) {
       container.innerHTML = `
         <div style="margin-bottom:12px;">
           <h2 style="margin:0;font-size:19px;">Rekaman Penjualan Kasir</h2>
-          <div style="font-size:12px;color:var(--text-muted);">Daftar transaksi tersimpan di database • Filter berdasarkan tanggal & metode bayar</div>
+          <div style="font-size:12px;color:var(--text-muted);">Klik baris transaksi untuk melihat rincian menu atau membatalkan pesanan (PIN Owner/Manager)</div>
         </div>
 
         <div class="bento-grid-4" style="margin-bottom:14px;">
@@ -2674,7 +3342,7 @@ function getOrCreateSheet(ss, name, headers) {
                 </thead>
                 <tbody>
                   ${list.map(t => `
-                    <tr>
+                    <tr style="cursor:pointer;" onclick="openTransactionDetailModal('${esc(t.id)}')">
                       <td><strong>${esc(t.id)}</strong></td>
                       <td>${new Date(t.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td>
                       <td>${esc(t.customer || '-')} <span class="badge-pill badge-yellow">${esc(t.orderType)}</span></td>
@@ -2684,7 +3352,12 @@ function getOrCreateSheet(ss, name, headers) {
                         ${t.status === 'CANCELLED' && t.cancelReason ? `<div style="font-size:10px;color:#BE185D;margin-top:2px;">${esc(t.cancelReason)} (${esc(t.cancelledBy || '-')})</div>` : ''}
                       </td>
                       <td><strong>${rp(t.total)}</strong></td>
-                      <td>${t.status === 'PAID' ? `<button class="btn btn-soft btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak Struk</button>` : `<span style="font-size:11px;color:var(--text-muted);">-</span>`}</td>
+                      <td onclick="event.stopPropagation()">
+                        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                          <button class="btn btn-soft btn-sm" onclick="openTransactionDetailModal('${esc(t.id)}')">Detail</button>
+                          ${t.status === 'PAID' ? `<button class="btn btn-dark btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak</button>` : ''}
+                        </div>
+                      </td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -2699,7 +3372,7 @@ function getOrCreateSheet(ss, name, headers) {
       const trx = db.transactions.find(t => t.id === trxId);
       if (!trx) return;
       printThermalReceipt(trx);
-      if (db.outlet && db.outlet.printerLocked && (btPrinterConnected || db.outlet.printerDeviceId)) {
+      if (db.outlet && db.outlet.printerLocked && (btPrinterConnected || btPrinterCharacteristic)) {
         sendReceiptToBluetoothPrinter(trx, false);
       } else {
         window.print();
@@ -2849,11 +3522,11 @@ function getOrCreateSheet(ss, name, headers) {
               <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Kasir</th><th>Metode</th><th>Total</th></tr></thead>
               <tbody>
                 ${list.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Belum ada data pada periode ini.</td></tr>` : list.map(t => `
-                  <tr>
+                  <tr style="cursor:pointer;" onclick="openTransactionDetailModal('${esc(t.id)}')">
                     <td><strong>${esc(t.id)}</strong></td>
                     <td>${new Date(t.date).toLocaleDateString('id-ID')}</td>
                     <td>${esc(t.cashier)}</td>
-                    <td><span class="badge-pill badge-green">${esc(t.paymentMethod)}</span></td>
+                    <td><span class="badge-pill ${t.status === 'PAID' ? 'badge-green' : 'badge-pink'}">${esc(t.status === 'CANCELLED' ? 'Dibatalkan' : t.paymentMethod)}</span></td>
                     <td><strong>${rp(t.total)}</strong></td>
                   </tr>
                 `).join('')}
@@ -2995,8 +3668,8 @@ function getOrCreateSheet(ss, name, headers) {
       showToast(`Clock-out berhasil pukul ${log.clockOut}`);
     }
 
-    // ==================== 6. TUTUP KASIR ====================
-    function renderCloseRegisterTab(container) {
+    // ==================== 6. TUTUP KASIR (LAPORAN HARIAN CETAK & WA) ====================
+    function getTodayClosingSummary() {
       const todayStr = new Date().toISOString().slice(0, 10);
       const todayTrx = db.transactions.filter(t => t.date.slice(0, 10) === todayStr);
       const paidTrx = todayTrx.filter(t => t.status === 'PAID');
@@ -3013,12 +3686,27 @@ function getOrCreateSheet(ss, name, headers) {
       const expectedCash = (db.shift.openingCash || 0) + cashSales + todayCashIn - todayCashOut;
 
       const itemMap = {};
-      paidTrx.forEach(t => t.items.forEach(it => {
+      paidTrx.forEach(t => (t.items || []).forEach(it => {
         if (!itemMap[it.name]) itemMap[it.name] = { name: it.name, qty: 0, total: 0 };
-        itemMap[it.name].qty += it.qty;
-        itemMap[it.name].total += it.price * it.qty;
+        itemMap[it.name].qty += Number(it.qty) || 0;
+        itemMap[it.name].total += (Number(it.price) || 0) * (Number(it.qty) || 0);
       }));
-      const soldItems = Object.values(itemMap);
+      const soldItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
+      const totalItemsQty = soldItems.reduce((s, i) => s + i.qty, 0);
+
+      return {
+        todayStr, paidTrx, openTrx, cashSales, qrisSales, transferSales,
+        onlineFoodSales, totalSales, todayCashIn, todayCashOut, expectedCash,
+        soldItems, totalItemsQty
+      };
+    }
+
+    function renderCloseRegisterTab(container) {
+      const sum = getTodayClosingSummary();
+      const {
+        paidTrx, openTrx, cashSales, qrisSales, transferSales,
+        onlineFoodSales, totalSales, expectedCash, soldItems, totalItemsQty
+      } = sum;
 
       container.innerHTML = `
         <div class="bento-card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -3058,7 +3746,7 @@ function getOrCreateSheet(ss, name, headers) {
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:14px;">
             <div style="border:1px solid var(--border-glass);border-radius:16px;padding:12px;background:#FFF;">
-              <h4 style="margin:0 0 8px;font-size:13px;">Daftar Produk Terjual (${soldItems.length} Item)</h4>
+              <h4 style="margin:0 0 8px;font-size:13px;">Daftar Produk Terjual (${soldItems.length} Menu • Total ${totalItemsQty} Pcs/Cup)</h4>
               ${soldItems.length === 0 ? `<div style="font-size:12px;color:var(--text-muted);">Belum ada produk terjual hari ini.</div>` : `
                 <div style="max-height:180px;overflow-y:auto;">
                   ${soldItems.map(s => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border-glass);"><span>${esc(s.name)} <strong>(${s.qty}x)</strong></span><strong>${rp(s.total)}</strong></div>`).join('')}
@@ -3076,8 +3764,8 @@ function getOrCreateSheet(ss, name, headers) {
           </div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
-            <button class="btn btn-dark" onclick="window.print()">Cetak Laporan Harian</button>
-            <button class="btn btn-pink" onclick="sendClosingWhatsApp(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${onlineFoodSales}, ${expectedCash}, ${openTrx.length})">Kirim via WhatsApp</button>
+            <button class="btn btn-dark" onclick="printDailyClosingReport()">Cetak Laporan Harian</button>
+            <button class="btn btn-pink" onclick="sendClosingWhatsApp()">Kirim via WhatsApp</button>
             <button class="btn btn-yellow" onclick="finalizeShiftClosing(${totalSales}, ${cashSales}, ${qrisSales}, ${transferSales}, ${onlineFoodSales}, ${expectedCash})">Tutup Kasir</button>
           </div>
         </div>
@@ -3100,9 +3788,116 @@ function getOrCreateSheet(ss, name, headers) {
       if (el) { el.value = val > 0 ? formatDigits(val) : ''; updateClosingDiff(el, val); }
     }
 
-    function sendClosingWhatsApp(totalSales, cashSales, qrisSales, transferSales, onlineFoodSales, expectedCash, openCount) {
+    async function printDailyClosingReport() {
+      const sum = getTodayClosingSummary();
       const actual = parseDigits(document.getElementById('closingActualCash')?.value || 0);
-      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\nTanggal: ${new Date().toLocaleDateString('id-ID')}\nKasir: ${currentUser.name}\n• Total Omzet: ${rp(totalSales)}\n• Cash: ${rp(cashSales)}\n• QRIS: ${rp(qrisSales)}\n• Transfer: ${rp(transferSales)}\n• Online Food: ${rp(onlineFoodSales)}\n• Ekspektasi Laci: ${rp(expectedCash)}\n• Cash Fisik: ${rp(actual)}\n• Transaksi Tertunda: ${openCount} order`;
+      const diff = actual - sum.expectedCash;
+      const area = document.getElementById('printArea');
+      const receiptLogo = db.outlet.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
+
+      area.innerHTML = `
+        <div style="text-align:center;margin-bottom:4px;"><img src="${receiptLogo}" style="width:46px;height:46px;object-fit:contain;border-radius:10px;" /></div>
+        <div style="text-align:center;font-weight:bold;font-size:13px;">LAPORAN TUTUP KASIR</div>
+        <div style="text-align:center;font-size:11px;">${esc(db.outlet.name)}</div>
+        <hr style="border-top:1px dashed #000;" />
+        <div>Tgl  : ${new Date().toLocaleString('id-ID')}</div>
+        <div>Kasir: ${esc(currentUser.name)}</div>
+        <div>Nota : ${sum.paidTrx.length} Lunas | ${sum.openTrx.length} Open</div>
+        <hr style="border-top:1px dashed #000;" />
+        <div style="font-weight:bold;">RINGKASAN PEMBAYARAN:</div>
+        <div style="display:flex;justify-content:space-between;"><span>Modal Awal</span><span>${rp(db.shift.openingCash)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Sales Cash</span><span>${rp(sum.cashSales)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Sales QRIS</span><span>${rp(sum.qrisSales)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Sales Transfer</span><span>${rp(sum.transferSales)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Online Food</span><span>${rp(sum.onlineFoodSales)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL OMZET</span><span>${rp(sum.totalSales)}</span></div>
+        <hr style="border-top:1px dashed #000;" />
+        <div style="display:flex;justify-content:space-between;"><span>Ekspektasi Laci</span><span>${rp(sum.expectedCash)}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Cash Fisik</span><span>${rp(actual)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>Selisih</span><span>${rp(diff)}</span></div>
+        <hr style="border-top:1px dashed #000;" />
+        <div style="font-weight:bold;">JUMLAH PRODUK TERJUAL (${sum.totalItemsQty} Item):</div>
+        ${sum.soldItems.length === 0
+          ? '<div>- Belum ada produk terjual -</div>'
+          : sum.soldItems.map(it => `<div style="display:flex;justify-content:space-between;"><span>${esc(it.name)}</span><span>${it.qty}x</span></div>`).join('')
+        }
+        <hr style="border-top:1px dashed #000;" />
+        <div style="text-align:center;font-size:10px;">Dicetak oleh ${esc(currentUser.name)}</div>
+      `;
+
+      if (btPrinterCharacteristic) {
+        try {
+          const enc = new TextEncoder();
+          const sep = '--------------------------------\n';
+          let lines = '\x1B\x40\x1B\x61\x01';
+          lines += 'LAPORAN TUTUP KASIR\n';
+          lines += (db.outlet.name || 'KOPI JIWARA') + '\n';
+          lines += sep + '\x1B\x61\x00';
+          lines += `Tgl  : ${new Date().toLocaleString('id-ID')}\n`;
+          lines += `Kasir: ${currentUser.name}\n`;
+          lines += `Nota : ${sum.paidTrx.length} Lunas | ${sum.openTrx.length} Open\n`;
+          lines += sep;
+          lines += `Modal Awal     : ${rp(db.shift.openingCash)}\n`;
+          lines += `Sales Cash     : ${rp(sum.cashSales)}\n`;
+          lines += `Sales QRIS     : ${rp(sum.qrisSales)}\n`;
+          lines += `Sales Transfer : ${rp(sum.transferSales)}\n`;
+          lines += `Online Food    : ${rp(sum.onlineFoodSales)}\n`;
+          lines += `TOTAL OMZET    : ${rp(sum.totalSales)}\n`;
+          lines += sep;
+          lines += `Ekspektasi Laci: ${rp(sum.expectedCash)}\n`;
+          lines += `Cash Fisik     : ${rp(actual)}\n`;
+          lines += `Selisih Laci   : ${rp(diff)}\n`;
+          lines += sep;
+          lines += `PRODUK TERJUAL (${sum.totalItemsQty} Item):\n`;
+          if (sum.soldItems.length === 0) {
+            lines += '- Belum ada produk terjual -\n';
+          } else {
+            sum.soldItems.forEach(it => {
+              lines += `- ${it.name} : ${it.qty}x\n`;
+            });
+          }
+          lines += sep + '\x1B\x61\x01Selesai\n\n\n\x1D\x56\x41\x03';
+          const bytes = enc.encode(lines);
+          for (let i = 0; i < bytes.length; i += 100) {
+            const slice = bytes.slice(i, i + 100);
+            if (btPrinterCharacteristic.properties.writeWithoutResponse) {
+              await btPrinterCharacteristic.writeValueWithoutResponse(slice);
+            } else {
+              await btPrinterCharacteristic.writeValue(slice);
+            }
+          }
+          showToast(`Laporan harian berhasil dicetak ke ${db.outlet.printerName}`);
+          return;
+        } catch (e) {
+          btPrinterConnected = false;
+        }
+      }
+      window.print();
+    }
+
+    function sendClosingWhatsApp() {
+      const sum = getTodayClosingSummary();
+      const actual = parseDigits(document.getElementById('closingActualCash')?.value || 0);
+      const diff = actual - sum.expectedCash;
+      const productLines = sum.soldItems.length === 0
+        ? '• Belum ada produk terjual'
+        : sum.soldItems.map(it => `• ${it.name}: *${it.qty}x*`).join('\n');
+
+      const text = `*LAPORAN TUTUP KASIR — ${db.outlet.name}*\n` +
+        `Tanggal: ${new Date().toLocaleDateString('id-ID')}\n` +
+        `Kasir: ${currentUser.name}\n\n` +
+        `*RINGKASAN PENJUALAN:*\n` +
+        `• Total Omzet: *${rp(sum.totalSales)}* (${sum.paidTrx.length} Struk)\n` +
+        `• Cash: ${rp(sum.cashSales)}\n` +
+        `• QRIS: ${rp(sum.qrisSales)}\n` +
+        `• Transfer: ${rp(sum.transferSales)}\n` +
+        `• Online Food: ${rp(sum.onlineFoodSales)}\n` +
+        `• Ekspektasi Cash Laci: ${rp(sum.expectedCash)}\n` +
+        `• Cash Fisik Aktual: ${rp(actual)} (Selisih: ${rp(diff)})\n` +
+        `• Transaksi Tertunda: ${sum.openTrx.length} order\n\n` +
+        `*JUMLAH PRODUK TERJUAL (Total ${sum.totalItemsQty} Item):*\n` +
+        productLines;
+
       window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
     }
 
@@ -3136,7 +3931,7 @@ function getOrCreateSheet(ss, name, headers) {
           <div>
             <h2 style="margin:0;font-size:20px;">Penjualan & Riwayat Transaksi</h2>
             <div style="font-size:12px;color:var(--text-muted);">
-              ${ownerSalesPeriod === 'Custom Date' ? `Periode: ${esc(ownerSalesStartDate)} s/d ${esc(ownerSalesEndDate)}` : 'Rekap transaksi seluruh kanal & metode pembayaran'}
+              ${ownerSalesPeriod === 'Custom Date' ? `Periode: ${esc(ownerSalesStartDate)} s/d ${esc(ownerSalesEndDate)}` : 'Klik baris transaksi untuk melihat rincian menu atau membatalkan pesanan (PIN Owner/Manager)'}
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
@@ -3169,10 +3964,10 @@ function getOrCreateSheet(ss, name, headers) {
         <div class="bento-card">
           <div class="table-box">
             <table class="compact-table">
-              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode / Status</th><th>Total</th></tr></thead>
+              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode / Status</th><th>Total</th><th>Aksi</th></tr></thead>
               <tbody>
-                ${list.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada transaksi pada periode ini.</td></tr>` : list.map(t => `
-                  <tr>
+                ${list.length === 0 ? `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Belum ada transaksi pada periode ini.</td></tr>` : list.map(t => `
+                  <tr style="cursor:pointer;" onclick="openTransactionDetailModal('${esc(t.id)}')">
                     <td><strong>${esc(t.id)}</strong></td>
                     <td>${new Date(t.date).toLocaleString('id-ID')}</td>
                     <td><span class="badge-pill badge-yellow">${esc(t.orderType)}</span></td>
@@ -3182,6 +3977,9 @@ function getOrCreateSheet(ss, name, headers) {
                       ${t.status === 'CANCELLED' && t.cancelReason ? `<div style="font-size:10px;color:#BE185D;margin-top:2px;">Alasan: ${esc(t.cancelReason)} (${esc(t.cancelledBy || '-')})</div>` : ''}
                     </td>
                     <td><strong>${rp(t.total)}</strong></td>
+                    <td onclick="event.stopPropagation()">
+                      <button class="btn btn-soft btn-sm" onclick="openTransactionDetailModal('${esc(t.id)}')">Detail</button>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -3818,7 +4616,7 @@ function getOrCreateSheet(ss, name, headers) {
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
             <div>
               <h3 style="margin:0;font-size:16px;">Daftar Produk Jual</h3>
-              <div style="font-size:11px;color:var(--text-muted);">Klik Edit atau baris produk untuk ubah harga, kategori, atau hapus</div>
+              <div style="font-size:11px;color:var(--text-muted);">Klik Edit atau baris produk untuk ubah harga, kategori, atau hapus (Otomatis sinkron ke semua kasir)</div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openProductFormModal(null)">+ Tambah Produk</button>
           </div>
@@ -3965,7 +4763,7 @@ function getOrCreateSheet(ss, name, headers) {
       autoSyncMasterSlices(['products']);
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Data produk disimpan & disinkronkan ke MASTER_MENU.');
+      showToast('Data produk disimpan & disinkronkan ke semua perangkat.');
     }
 
     function deleteProductById(prodId) {
@@ -4042,6 +4840,7 @@ function getOrCreateSheet(ss, name, headers) {
               <option value="Kasir" ${st && st.role === 'Kasir' ? 'selected' : ''}>Kasir</option>
               <option value="Barista" ${st && st.role === 'Barista' ? 'selected' : ''}>Barista</option>
               <option value="Kitchen" ${st && st.role === 'Kitchen' ? 'selected' : ''}>Kitchen</option>
+              <option value="Manager" ${st && st.role === 'Manager' ? 'selected' : ''}>Manager</option>
               <option value="Owner" ${st && st.role === 'Owner' ? 'selected' : ''}>Owner</option>
             </select>
           </div>
@@ -4286,7 +5085,7 @@ function getOrCreateSheet(ss, name, headers) {
       showToast('Detail Info Outlet & Struk berhasil disimpan.');
     }
 
-    // ==================== SINKRONISASI SYSTEM (BLUETOOTH PRINTER + GOOGLE SHEETS) ====================
+    // ==================== SINKRONISASI SYSTEM (BLUETOOTH PRINTER + 2-WAY CLOUD SYNC) ====================
     function renderSettingsSystemSync(body) {
       const isConnected = Boolean((db.outlet.webhookUrl || '').trim());
       const pName = db.outlet.printerName || '';
@@ -4294,9 +5093,49 @@ function getOrCreateSheet(ss, name, headers) {
       const pLocked = Boolean(db.outlet.printerLocked && pName);
       const pPaper = db.outlet.printerPaperWidth || '58mm';
       const pAuto = db.outlet.printerAutoPrint !== false;
+      const pullInterval = Number(db.outlet.autoPullIntervalSec) || 15;
 
       body.innerHTML = `
         <div class="bento-card" style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+            <h3 style="margin:0;font-size:16px;">Sinkronisasi 2 Arah Real-Time (Multi-Device Cloud Sync)</h3>
+            <span class="badge-pill ${isConnected ? 'badge-green' : 'badge-pink'}">${isConnected ? '2-Way Live Sync Aktif (13 Sheet)' : 'Webhook Belum Diisi'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">
+            Terhubung 2 arah ke Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong>. Setiap perubahan menu, harga, stok, promo, pegawai, Open Order, dan transaksi di satu perangkat otomatis ditarik secara berkala ke seluruh perangkat HP, Tablet, dan Laptop lainnya.
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+            <div style="grid-column:1/-1;">
+              <label class="field-label">Google Apps Script Webhook URL</label>
+              <input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" />
+            </div>
+            <div>
+              <label class="field-label">Interval Tarik Data Otomatis (Auto-Pull)</label>
+              <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="updateAutoPullInterval(this.value)">
+                <option value="5" ${pullInterval === 5 ? 'selected' : ''}>Setiap 5 Detik (Sangat Cepat)</option>
+                <option value="10" ${pullInterval === 10 ? 'selected' : ''}>Setiap 10 Detik</option>
+                <option value="15" ${pullInterval === 15 ? 'selected' : ''}>Setiap 15 Detik (Rekomendasi)</option>
+                <option value="30" ${pullInterval === 30 ? 'selected' : ''}>Setiap 30 Detik</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;">
+              <div style="padding:9px 12px;border-radius:13px;background:var(--green-soft);border:1px solid var(--border-glass);font-size:11px;font-weight:800;width:100%;">
+                Sinkronisasi Terakhir: <span style="color:var(--green-deep);">${lastCloudPullTime || 'Menunggu koneksi...'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-dark" onclick="saveWebhookOnly()">Simpan URL Webhook</button>
+            <button class="btn btn-yellow" onclick="pullFromCloudMaster(true)">Tarik Data Terbaru dari Cloud (Sync Pull)</button>
+            <button class="btn btn-soft" onclick="syncFullMasterDatabase()">Kirim Semua Data Lokal ke Cloud (Sync Push)</button>
+            <button class="btn btn-soft" onclick="testWebhookConnection()">Test Ping</button>
+            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2.3</button>
+          </div>
+        </div>
+
+        <div class="bento-card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
             <h3 style="margin:0;font-size:16px;">Sinkronisasi Perangkat — Printer Thermal Bluetooth</h3>
             <span class="badge-pill ${pLocked ? 'badge-green' : (pName ? 'badge-yellow' : 'badge-pink')}">
@@ -4304,7 +5143,7 @@ function getOrCreateSheet(ss, name, headers) {
             </span>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">
-            Pindai dan sambungkan mesin printer thermal Bluetooth terdekat (58mm / 80mm), lalu kunci perangkat agar kasir tidak salah memilih printer saat mencetak struk.
+            Pindai dan sambungkan mesin printer thermal Bluetooth terdekat (58mm / 80mm), lalu kunci perangkat agar seluruh cetakan struk & laporan harian langsung dikirim ke printer tersebut.
           </div>
 
           <div style="background:var(--green-soft);border:1.5px solid ${pLocked ? 'var(--green-deep)' : 'var(--border-glass)'};border-radius:16px;padding:12px 14px;margin-bottom:12px;">
@@ -4353,25 +5192,14 @@ function getOrCreateSheet(ss, name, headers) {
             ${!pLocked ? `<button type="button" class="btn btn-soft" onclick="openManualPrinterPairModal()">Input Nama / Pasangkan Manual</button>` : ''}
           </div>
         </div>
-
-        <div class="bento-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
-            <h3 style="margin:0;font-size:16px;">Sinkronisasi System — Master POS & ERP v2.2</h3>
-            <span class="badge-pill ${isConnected ? 'badge-green' : 'badge-pink'}">${isConnected ? 'Auto-Sync Aktif (12 Sheet)' : 'Webhook Belum Diisi'}</span>
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Terhubung ke Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> (Otomatis sinkron setiap transaksi, mutasi kas, absensi, stok gudang, edit menu, pegawai & PIN, promo, serta pelanggan CRM).</div>
-          <div style="margin-bottom:12px;">
-            <label class="field-label">Google Apps Script Webhook URL</label>
-            <input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" />
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-dark" onclick="saveWebhookOnly()">Simpan URL Webhook</button>
-            <button class="btn btn-soft" onclick="testWebhookConnection()">Test Koneksi (Ping)</button>
-            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data (12 Sheet)</button>
-            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2.2</button>
-          </div>
-        </div>
       `;
+    }
+
+    function updateAutoPullInterval(secVal) {
+      db.outlet.autoPullIntervalSec = Math.max(5, Number(secVal) || 15);
+      saveDB();
+      startAutoCloudPolling();
+      showToast(`Interval tarik data otomatis diatur ke ${db.outlet.autoPullIntervalSec} detik.`);
     }
 
     async function scanAndConnectBluetoothPrinter() {
@@ -4575,8 +5403,11 @@ function getOrCreateSheet(ss, name, headers) {
     function saveWebhookOnly() {
       db.outlet.webhookUrl = document.getElementById('outWebhookInp').value.trim();
       saveDB();
+      updateHeaderCloudSyncBadge(false);
+      startAutoCloudPolling();
       renderSettingsSystemSync(document.getElementById('settingsSubBody'));
       showToast('URL Webhook Google Sheets berhasil disimpan.');
+      pullFromCloudMaster(true);
     }
 
     function openMasterScriptModal() {
@@ -4584,13 +5415,13 @@ function getOrCreateSheet(ss, name, headers) {
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.2</h3>
-            <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script, lalu jalankan <strong>inisialisasiSemuaSheetMaster()</strong> 1x</div>
+            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.3 (2-Way Sync)</h3>
+            <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script, jalankan <strong>inisialisasiSemuaSheetMaster()</strong> 1x, lalu Deploy New Version</div>
           </div>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.2</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.3</button>
       `);
     }
 
@@ -4599,7 +5430,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (!ta) return;
       ta.select();
       document.execCommand('copy');
-      showToast('Kode Google Apps Script v2.2 berhasil disalin.');
+      showToast('Kode Google Apps Script v2.3 berhasil disalin.');
     }
 
     if (!restoreSessionState()) {
