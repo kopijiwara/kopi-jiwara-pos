@@ -820,7 +820,7 @@
         const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v8';
+            const CACHE_NAME = 'kopi-jiwara-offline-v9';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -861,8 +861,8 @@
       } catch (e) {}
     })();
 
-    // ==================== CONSTANTS & SEED DATA ====================
-    const STORAGE_KEY = 'kopi_jiwara_erp_v8';
+    // ==================== CONSTANTS & CLEAN SEED DATA ====================
+    const STORAGE_KEY = 'kopi_jiwara_erp_v9_clean';
     const SESSION_KEY = 'kopi_jiwara_session_v1';
     const ORDER_TYPES = ['Meja', 'Bungkus', 'GoFood', 'GrabFood', 'ShopeeFood'];
     const PAYMENT_METHODS = ['Cash', 'QRIS', 'Transfer', 'Online Food'];
@@ -895,7 +895,6 @@
     }
 
     function getSeedData() {
-      const todayIso = new Date().toISOString();
       return {
         staff: [
           { id: 'stf-1', name: 'Gordon (Owner)', role: 'Owner', pin: '1234', active: true, dailyWage: 0 },
@@ -963,63 +962,15 @@
           printerAutoPrint: true
         },
         shift: {
-          isOpen: true,
-          cashierName: 'Aldi',
-          openedAt: todayIso,
-          openingCash: 300000
+          isOpen: false,
+          cashierName: '',
+          openedAt: '',
+          openingCash: 0
         },
-        transactions: [
-          {
-            id: 'TRX-8901',
-            date: todayIso,
-            orderType: 'Meja',
-            customer: 'Nadia Putri',
-            customerPhone: '081234567890',
-            cashier: 'Aldi',
-            status: 'PAID',
-            paymentMethod: 'QRIS',
-            subtotal: 54000,
-            discount: 0,
-            total: 54000,
-            costTotal: 22800,
-            cashPaid: 54000,
-            change: 0,
-            items: [
-              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 6800, qty: 2 },
-              { id: 'prd-20', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', brand: 'Jihyo', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 9200, qty: 1 }
-            ]
-          },
-          {
-            id: 'TRX-8902',
-            date: todayIso,
-            orderType: 'Bungkus',
-            customer: 'Dimas Saputra',
-            customerPhone: '085711223344',
-            cashier: 'Aldi',
-            status: 'PAID',
-            paymentMethod: 'Cash',
-            subtotal: 46000,
-            discount: 0,
-            total: 46000,
-            costTotal: 21300,
-            cashPaid: 50000,
-            change: 4000,
-            items: [
-              { id: 'prd-11', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Menu Paket', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, price: 28000, cost: 14500, qty: 1 },
-              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 6800, qty: 1 }
-            ]
-          }
-        ],
-        cashDrawerLogs: [
-          { id: 'CSH-1', date: todayIso, type: 'OUT', amount: 12000, note: 'Air Galon 2 pcs', cashier: 'Aldi' }
-        ],
-        attendanceLogs: [
-          { id: 'ATT-1', date: todayIso.slice(0, 10), staffName: 'Aldi', clockIn: '08:00', clockOut: '', wage: 100000, status: 'Hadir' }
-        ],
-        customers: [
-          { id: 'CRM-01', name: 'Nadia Putri', phone: '081234567890', tier: 'Gold Member', totalVisits: 4, totalSpent: 216000, lastVisit: todayIso, notes: 'Suka Kopi Susu Gula Aren less ice', specialVoucher: 'JIWARA10' },
-          { id: 'CRM-02', name: 'Dimas Saputra', phone: '085711223344', tier: 'Regular', totalVisits: 2, totalSpent: 92000, lastVisit: todayIso, notes: 'Sering pesan paket makan siang', specialVoucher: 'HEMAT5K' }
-        ],
+        transactions: [],
+        cashDrawerLogs: [],
+        attendanceLogs: [],
+        customers: [],
         orderAuditLogs: [],
         shiftClosings: []
       };
@@ -1027,7 +978,7 @@
 
     function loadDB() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('kopi_jiwara_erp_v7') || localStorage.getItem('kopi_jiwara_erp_v6');
+        const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return getSeedData();
         const parsed = JSON.parse(raw);
         const merged = { ...getSeedData(), ...parsed };
@@ -1053,6 +1004,57 @@
       } catch (e) {
         return getSeedData();
       }
+    }
+
+    function resetAllTransactionsStartFresh() {
+      db.transactions = [];
+      db.cashDrawerLogs = [];
+      db.attendanceLogs = [];
+      db.customers = [];
+      db.brandSettlements = [];
+      db.orderAuditLogs = [];
+      db.shiftClosings = [];
+      db.shift = {
+        isOpen: false,
+        cashierName: '',
+        openedAt: '',
+        openingCash: 0
+      };
+      cart = [];
+      editingOpenOrderId = null;
+      editingOpenOrderDate = null;
+      savedOpenOrderBaseline = {};
+      cartCustomer = '';
+      cartCustomerPhone = '';
+      cartPromoCode = '';
+      cartManualDiscount = 0;
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      saveDB();
+      closeModal();
+      renderWorkspace();
+      showToast('Semua data transaksi & riwayat telah dikosongkan. Sistem siap dimulai dari awal!');
+    }
+
+    function openConfirmResetTransactionsModal() {
+      openModal(`
+        <div class="modal-head">
+          <div>
+            <span class="badge-pill badge-pink" style="margin-bottom:4px;">RESET DATA TRANSAKSI</span>
+            <h3 style="margin:0;font-size:17px;">Kosongkan Semua Transaksi & Mulai dari Awal?</h3>
+          </div>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">
+          Tindakan ini akan menghapus seluruh riwayat transaksi penjualan, open order, mutasi kas laci, absensi harian, data pelanggan CRM, histori settlement brand, dan menutup shift kasir sehingga angka kembali ke <strong>Rp 0</strong>.
+        </p>
+        <div style="background:var(--green-soft);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--green-deep);font-weight:700;">
+          Catatan: Master Menu Produk, Harga, HPP, Stok Gudang, Pegawai & PIN, Promo, serta URL Webhook Google Sheets tetap aman dan tidak dihapus.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:8px;">
+          <button type="button" class="btn btn-soft" onclick="closeModal()">Batal</button>
+          <button type="button" class="btn btn-danger" style="padding:12px;" onclick="resetAllTransactionsStartFresh()">Ya, Kosongkan Sekarang</button>
+        </div>
+      `);
     }
 
     // ==================== STATE ====================
@@ -2591,7 +2593,7 @@ function getOrCreateSheet(ss, name, headers) {
             <p style="margin:0 0 16px;font-size:13px;color:var(--text-muted);">Masukkan modal awal uang tunai di laci kasir sebelum memulai transaksi penjualan.</p>
             <div style="text-align:left;margin-bottom:14px;">
               <label class="field-label">Modal Awal Uang Laci (Rp)</label>
-              <input id="openShiftCashInput" type="text" inputmode="numeric" class="styled-input" value="300.000" oninput="this.value=formatDigits(this.value)" />
+              <input id="openShiftCashInput" type="text" inputmode="numeric" class="styled-input" value="0" placeholder="0" oninput="this.value=formatDigits(this.value)" />
             </div>
             <button class="btn btn-dark" style="width:100%;padding:13px;" onclick="openCashierShift()">Buka Shift Kasir Sekarang</button>
           </div>
@@ -3930,7 +3932,7 @@ function getOrCreateSheet(ss, name, headers) {
             <table class="compact-table">
               <thead><tr><th>Waktu</th><th>Jenis</th><th>Nominal</th><th>Keterangan</th><th>PIC</th></tr></thead>
               <tbody>
-                ${db.cashDrawerLogs.map(c => `
+                ${db.cashDrawerLogs.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Belum ada catatan mutasi kas laci.</td></tr>` : db.cashDrawerLogs.map(c => `
                   <tr>
                     <td>${new Date(c.date).toLocaleString('id-ID')}</td>
                     <td><span class="badge-pill ${c.type === 'IN' ? 'badge-green' : 'badge-pink'}">${c.type === 'IN' ? 'Kas Masuk' : 'Kas Keluar'}</span></td>
@@ -3983,7 +3985,7 @@ function getOrCreateSheet(ss, name, headers) {
             <table class="compact-table">
               <thead><tr><th>Tanggal</th><th>Nama Pegawai</th><th>Masuk</th><th>Pulang</th><th>Status</th></tr></thead>
               <tbody>
-                ${db.attendanceLogs.map(a => `
+                ${db.attendanceLogs.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Belum ada riwayat absensi karyawan.</td></tr>` : db.attendanceLogs.map(a => `
                   <tr>
                     <td>${esc(a.date)}</td>
                     <td><strong>${esc(a.staffName)}</strong></td>
@@ -4875,7 +4877,7 @@ function getOrCreateSheet(ss, name, headers) {
                 </tr>
               </thead>
               <tbody>
-                ${filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada data pelanggan sesuai filter.</td></tr>` : filtered.map(c => `
+                ${filtered.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada data pelanggan terdaftar.</td></tr>` : filtered.map(c => `
                   <tr>
                     <td>
                       <div><strong>${esc(c.name)}</strong></div>
@@ -5788,7 +5790,7 @@ function getOrCreateSheet(ss, name, headers) {
       showToast('Detail Info Outlet & Struk berhasil disimpan.');
     }
 
-    // ==================== SINKRONISASI SYSTEM (BLUETOOTH PRINTER + 2-WAY CLOUD SYNC) ====================
+    // ==================== SINKRONISASI SYSTEM (BLUETOOTH PRINTER + 2-WAY CLOUD SYNC + RESET) ====================
     function renderSettingsSystemSync(body) {
       const isConnected = Boolean((db.outlet.webhookUrl || '').trim());
       const pName = db.outlet.printerName || '';
@@ -5838,7 +5840,7 @@ function getOrCreateSheet(ss, name, headers) {
           </div>
         </div>
 
-        <div class="bento-card">
+        <div class="bento-card" style="margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
             <h3 style="margin:0;font-size:16px;">Sinkronisasi Perangkat — Printer Thermal Bluetooth</h3>
             <span class="badge-pill ${pLocked ? 'badge-green' : (pName ? 'badge-yellow' : 'badge-pink')}">
@@ -5893,6 +5895,18 @@ function getOrCreateSheet(ss, name, headers) {
               ${pLocked ? 'Printer Terkunci (Buka Kunci untuk Ganti)' : 'Cari & Sambungkan Printer Bluetooth'}
             </button>
             ${!pLocked ? `<button type="button" class="btn btn-soft" onclick="openManualPrinterPairModal()">Input Nama / Pasangkan Manual</button>` : ''}
+          </div>
+        </div>
+
+        <div class="bento-card" style="border:1.5px solid rgba(185,28,28,0.25);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div>
+              <h3 style="margin:0 0 4px;font-size:15px;color:#B91C1C;">Reset Data Transaksi (Mulai Operasional dari Awal)</h3>
+              <div style="font-size:11px;color:var(--text-muted);">
+                Kosongkan semua transaksi, mutasi kas, absensi, dan settlement tanpa menghapus Master Menu, Pegawai, maupun Stok Gudang.
+              </div>
+            </div>
+            <button type="button" class="btn btn-danger" onclick="openConfirmResetTransactionsModal()">Kosongkan Semua Transaksi</button>
           </div>
         </div>
       `;
