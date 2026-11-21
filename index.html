@@ -4,8 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0B2E23" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Kopi Jiwara" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <title>KOPI JIWARA — POS & ERP Management System</title>
   <style>
     :root {
@@ -647,7 +652,7 @@
   <!-- ==================== LOGIN SCREEN ==================== -->
   <div id="loginScreen" class="login-bg">
     <div class="login-glass-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
         <div>
           <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
             <span class="badge-chip-yellow">POS & ERP</span>
@@ -655,6 +660,13 @@
           </div>
           <div style="font-size:22px;font-weight:900;letter-spacing:-0.02em;color:#FFFFFF;">KOPI JIWARA</div>
           <div style="font-size:12px;color:#A7F3D0;margin-top:2px;">Sistem Kasir & Manajemen Outlet</div>
+        </div>
+        <div style="width:54px;height:54px;border-radius:16px;background:#093814;border:2px solid var(--yellow);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,0.28);">
+          <svg viewBox="0 0 100 100" width="52" height="52">
+            <rect width="100" height="100" fill="#093814"/>
+            <circle cx="50" cy="50" r="35" fill="#FFFFFF"/>
+            <path d="M 33 53 C 32 69, 37 78, 52 78 C 66 78, 70 69, 72 44 C 73 29, 68 25, 48 25 C 33 25, 29 30, 30 35 C 31 41, 41 44, 52 43 C 60 42, 62 37, 58 34 C 54 31, 45 32, 44 36" fill="none" stroke="#093814" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       </div>
 
@@ -696,7 +708,7 @@
         <div class="topbar-row">
           <div class="outlet-info">
             <div class="outlet-title-row">
-              <img id="headerOutletLogo" class="hidden" alt="Logo" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1.5px solid var(--yellow);background:#FFF;" />
+              <img id="headerOutletLogo" alt="Logo" style="width:32px;height:32px;border-radius:10px;object-fit:cover;border:1.5px solid var(--yellow);background:#093814;" />
               <span class="outlet-title" id="headerOutletName">KOPI JIWARA</span>
               <span id="headerShiftBadge" class="shift-pill closed">Shift Tutup</span>
             </div>
@@ -722,64 +734,59 @@
   </div>
 
   <script>
-    // ==================== PWA MANIFEST (DATA URI + PNG ICONS + SW) ====================
-    (function setupPWA() {
+    // ==================== OFFICIAL KOPI JIWARA LOGO (WHITE CIRCLE + DARK GREEN CUP) ====================
+    const DEFAULT_JIWARA_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#093814"/><circle cx="256" cy="256" r="180" fill="#FFFFFF"/><path d="M 169 271 C 164 353, 190 400, 266 400 C 338 400, 358 353, 369 225 C 374 148, 348 128, 246 128 C 169 128, 148 154, 154 179 C 159 210, 210 225, 266 220 C 307 215, 317 190, 297 174 C 276 159, 230 164, 225 184" fill="none" stroke="#093814" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const DEFAULT_JIWARA_LOGO_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(DEFAULT_JIWARA_LOGO_SVG);
+
+    function renderJiwaraPngIcon(size) {
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#093814';
+      ctx.fillRect(0, 0, size, size);
+      const s = size / 100;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(50 * s, 50 * s, 35 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#093814';
+      ctx.lineWidth = 5.8 * s;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(33 * s, 53 * s);
+      ctx.bezierCurveTo(32 * s, 69 * s, 37 * s, 78 * s, 52 * s, 78 * s);
+      ctx.bezierCurveTo(66 * s, 78 * s, 70 * s, 69 * s, 72 * s, 44 * s);
+      ctx.bezierCurveTo(73 * s, 29 * s, 68 * s, 25 * s, 48 * s, 25 * s);
+      ctx.bezierCurveTo(33 * s, 25 * s, 29 * s, 30 * s, 30 * s, 35 * s);
+      ctx.bezierCurveTo(31 * s, 41 * s, 41 * s, 44 * s, 52 * s, 43 * s);
+      ctx.bezierCurveTo(60 * s, 42 * s, 62 * s, 37 * s, 58 * s, 34 * s);
+      ctx.bezierCurveTo(54 * s, 31 * s, 45 * s, 32 * s, 44 * s, 36 * s);
+      ctx.stroke();
+      return c.toDataURL('image/png');
+    }
+
+    function downloadJiwaraBrandIcons() {
+      [192, 512].forEach((sz, idx) => {
+        setTimeout(() => {
+          const a = document.createElement('a');
+          a.href = renderJiwaraPngIcon(sz);
+          a.download = `icon-${sz}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, idx * 250);
+      });
+      showToast('File icon-192.png & icon-512.png sedang diunduh. Unggah bersama manifest.json ke GitHub!');
+    }
+
+    (function setupOfflineServiceWorker() {
       try {
-        function makePngIcon(size) {
-          const c = document.createElement('canvas');
-          c.width = size;
-          c.height = size;
-          const ctx = c.getContext('2d');
-          ctx.fillStyle = '#0B2E23';
-          ctx.fillRect(0, 0, size, size);
-          ctx.strokeStyle = '#FACC15';
-          ctx.lineWidth = Math.max(4, size * 0.05);
-          ctx.beginPath();
-          ctx.arc(size / 2, size / 2, size * 0.38, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.fillStyle = '#FACC15';
-          ctx.font = `900 ${Math.round(size * 0.28)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('KJ', size / 2, size / 2 + 2);
-          return c.toDataURL('image/png');
-        }
-
-        const icon192 = makePngIcon(192);
-        const icon512 = makePngIcon(512);
         const startUrl = window.location.href.split('#')[0];
-
-        const manifest = {
-          id: startUrl,
-          name: 'KOPI JIWARA POS & ERP',
-          short_name: 'Kopi Jiwara',
-          description: 'Sistem Kasir & Manajemen Outlet Kopi Jiwara',
-          start_url: startUrl,
-          scope: './',
-          display: 'standalone',
-          orientation: 'any',
-          background_color: '#0B2E23',
-          theme_color: '#0B2E23',
-          icons: [
-            { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-            { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-          ]
-        };
-
-        const manifestDataUri = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
-        const link = document.createElement('link');
-        link.rel = 'manifest';
-        link.href = manifestDataUri;
-        document.head.appendChild(link);
-
-        const appleIcon = document.createElement('link');
-        appleIcon.rel = 'apple-touch-icon';
-        appleIcon.href = icon192;
-        document.head.appendChild(appleIcon);
-
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v1';
+            const CACHE_NAME = 'kopi-jiwara-offline-v2';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -897,7 +904,7 @@
           address: 'Jl. A.H Nasution No.325, Bandung',
           phone: '0812-2000-8899',
           socialMedia: '@kopijiwara.id',
-          logoDataUrl: '',
+          logoDataUrl: DEFAULT_JIWARA_LOGO_URL,
           receiptFooter: 'Terima kasih telah menikmati Kopi Jiwara!',
           webhookUrl: ''
         },
@@ -1023,7 +1030,12 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
           return seed;
         }
-        return { ...getSeedData(), ...JSON.parse(raw) };
+        const parsed = JSON.parse(raw);
+        const merged = { ...getSeedData(), ...parsed };
+        if (merged.outlet && (!merged.outlet.logoDataUrl || merged.outlet.logoDataUrl.includes('#0F5127'))) {
+          merged.outlet.logoDataUrl = DEFAULT_JIWARA_LOGO_URL;
+        }
+        return merged;
       } catch (e) {
         return getSeedData();
       }
@@ -1555,12 +1567,8 @@ function getOrCreateSheet(ss, name, headers) {
 
       const logoImg = document.getElementById('headerOutletLogo');
       if (logoImg) {
-        if (db.outlet.logoDataUrl) {
-          logoImg.src = db.outlet.logoDataUrl;
-          logoImg.classList.remove('hidden');
-        } else {
-          logoImg.classList.add('hidden');
-        }
+        logoImg.src = db.outlet.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
+        logoImg.classList.remove('hidden');
       }
 
       const badge = document.getElementById('headerShiftBadge');
@@ -2456,8 +2464,9 @@ function getOrCreateSheet(ss, name, headers) {
 
     function printThermalReceipt(trx) {
       const area = document.getElementById('printArea');
+      const receiptLogo = db.outlet.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
       area.innerHTML = `
-        ${db.outlet.logoDataUrl ? `<div style="text-align:center;margin-bottom:4px;"><img src="${db.outlet.logoDataUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:50%;" /></div>` : ''}
+        <div style="text-align:center;margin-bottom:4px;"><img src="${receiptLogo}" style="width:52px;height:52px;object-fit:contain;border-radius:12px;" /></div>
         <div style="text-align:center;font-weight:bold;font-size:14px;">${esc(db.outlet.name)}</div>
         <div style="text-align:center;font-size:10px;">${esc(db.outlet.address)}</div>
         ${db.outlet.phone ? `<div style="text-align:center;font-size:10px;">Telp: ${esc(db.outlet.phone)}</div>` : ''}
@@ -4066,19 +4075,23 @@ function getOrCreateSheet(ss, name, headers) {
     }
 
     function renderSettingsOutletInfo(body) {
+      const currentLogo = db.outlet.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
       body.innerHTML = `
         <div class="bento-card">
           <h3 style="margin:0 0 4px;font-size:16px;">Profil & Identitas Outlet</h3>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">Informasi ini tampil pada aplikasi kasir dan cetakan struk pelanggan</div>
 
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--green-soft);padding:12px;border-radius:16px;margin-bottom:14px;">
-            <div style="width:64px;height:64px;border-radius:50%;background:#FFFFFF;border:2px solid var(--green-deep);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
-              ${db.outlet.logoDataUrl ? `<img src="${db.outlet.logoDataUrl}" style="width:100%;height:100%;object-fit:cover;" />` : `<strong style="font-size:18px;color:var(--green-deep);">KJ</strong>`}
+            <div style="width:64px;height:64px;border-radius:16px;background:#093814;border:2px solid var(--green-deep);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+              <img src="${currentLogo}" style="width:100%;height:100%;object-fit:cover;" />
             </div>
             <div style="flex:1;min-width:200px;">
-              <label class="field-label">Upload Logo Outlet (Aplikasi & Struk)</label>
+              <label class="field-label">Logo Outlet (Default Kopi Jiwara / Custom)</label>
               <input type="file" accept="image/*" class="styled-input" style="padding:7px 10px;font-size:12px;" onchange="handleOutletLogoUpload(this)" />
-              ${db.outlet.logoDataUrl ? `<button type="button" class="btn btn-danger btn-sm" style="margin-top:6px;" onclick="removeOutletLogo()">Hapus Logo</button>` : ''}
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <button type="button" class="btn btn-dark btn-sm" onclick="downloadJiwaraBrandIcons()">Unduh Ikon PWA (192px & 512px)</button>
+                ${db.outlet.logoDataUrl && db.outlet.logoDataUrl !== DEFAULT_JIWARA_LOGO_URL ? `<button type="button" class="btn btn-danger btn-sm" onclick="resetOutletLogoDefault()">Reset Logo Default</button>` : ''}
+              </div>
             </div>
           </div>
 
@@ -4120,11 +4133,11 @@ function getOrCreateSheet(ss, name, headers) {
       reader.readAsDataURL(file);
     }
 
-    function removeOutletLogo() {
-      db.outlet.logoDataUrl = '';
+    function resetOutletLogoDefault() {
+      db.outlet.logoDataUrl = DEFAULT_JIWARA_LOGO_URL;
       saveDB();
       renderWorkspace();
-      showToast('Logo outlet dihapus.');
+      showToast('Logo dikembalikan ke logo resmi Kopi Jiwara.');
     }
 
     function saveOutletDetailsOnly() {
