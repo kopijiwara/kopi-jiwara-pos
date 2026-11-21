@@ -1232,7 +1232,7 @@
       }
     });
 
-    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
+    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC (v2.0) ====================
     const OFFLINE_QUEUE_KEY = 'kopi_jiwara_sync_queue_v1';
 
     function enqueueOfflineSync(item) {
@@ -1271,7 +1271,7 @@
       const url = (db.outlet && db.outlet.webhookUrl || '').trim();
       if (!url) return;
       const bodyObj = {
-        source: 'KOPI_JIWARA_POS_ERP',
+        source: 'KOPI_JIWARA_POS_ERP_V2',
         eventType,
         timestamp: new Date().toISOString(),
         outlet: db.outlet.name,
@@ -1299,45 +1299,225 @@
         showToast('Isi & simpan Google Apps Script Webhook URL terlebih dahulu.', true);
         return;
       }
+      const enrichedProducts = (db.products || []).map(p => ({
+        ...p,
+        brand: getBrandFromCategory(p.category)
+      }));
       syncMasterEvent('FULL_MASTER_SYNC', {
-        products: db.products,
+        products: enrichedProducts,
         inventory: db.inventory,
         transactions: db.transactions,
         cashDrawerLogs: db.cashDrawerLogs,
         attendanceLogs: db.attendanceLogs,
-        customers: db.customers
+        customers: db.customers,
+        orderAuditLogs: db.orderAuditLogs || [],
+        shiftClosings: db.shiftClosings || []
       });
-      showToast('Seluruh database POS & ERP sedang disinkronkan ke Google Sheets!');
+      showToast('Seluruh database POS & ERP v2 sedang disinkronkan ke Google Sheets!');
     }
 
     function getMasterAppsScriptCode() {
-      return `function doPost(e) {
+      return `/**
+ * MASTER POS & ERP - KOPI JIWARA v2.0 (Google Apps Script)
+ * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 10 tab database otomatis.
+ * 2. Klik Deploy -> New deployment -> Web app (Execute as: Me, Who has access: Anyone).
+ */
+function inisialisasiSemuaSheetMaster() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  getOrCreateSheet(ss, 'POS_TRANSAKSI', [
+    'Timestamp', 'No_Nota', 'Tanggal', 'Jam', 'Outlet', 'Jenis_Order',
+    'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar',
+    'Subtotal', 'Diskon_Promo', 'Total_Net', 'Total_HPP', 'Laba_Kotor',
+    'Uang_Diterima', 'Kembalian', 'Ringkasan_Item'
+  ]);
+  
+  getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
+    'Timestamp', 'Tanggal', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu',
+    'Kategori', 'Brand', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
+    'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'
+  ]);
+  
+  getOrCreateSheet(ss, 'CRM_PELANGGAN', [
+    'ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member',
+    'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir',
+    'Voucher_Khusus', 'Catatan_Preferensi'
+  ]);
+  
+  getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
+    'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
+    'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
+  ]);
+  
+  getOrCreateSheet(ss, 'CLOSING_SHIFT', [
+    'Timestamp', 'ID_Closing', 'Tanggal', 'Kasir', 'Modal_Awal',
+    'Sales_Cash', 'Sales_QRIS', 'Sales_Transfer', 'Sales_Online_Food',
+    'Total_Omzet', 'Ekspektasi_Cash_Laci', 'Cash_Fisik_Aktual', 'Selisih_Laci'
+  ]);
+  
+  getOrCreateSheet(ss, 'AUDIT_OTORISASI', [
+    'Timestamp', 'ID_Audit', 'Jenis_Aksi', 'No_Order',
+    'Detail_Perubahan', 'Alasan', 'Kasir_Pelaksana', 'Disetujui_Oleh_PIN'
+  ]);
+  
+  getOrCreateSheet(ss, 'MASTER_MENU', [
+    'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
+    'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
+  ]);
+  
+  getOrCreateSheet(ss, 'GUDANG_STOK', [
+    'Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang',
+    'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok'
+  ]);
+  
+  getOrCreateSheet(ss, 'ABSENSI_KARYAWAN', [
+    'Timestamp', 'ID_Absen', 'Tanggal', 'Nama_Karyawan',
+    'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status'
+  ]);
+
+  var dash = getOrCreateSheet(ss, 'DASHBOARD_LR', ['Metrik_Keuangan_&_Operasional', 'Nilai', 'Keterangan']);
+  if (dash.getLastRow() <= 1) {
+    dash.getRange(2, 1, 12, 3).setValues([
+      ['Total Penjualan Kotor (Gross)', '=SUM(POS_TRANSAKSI!K2:K)', 'Sebelum diskon/promo'],
+      ['Total Potongan Diskon & Promo', '=SUM(POS_TRANSAKSI!L2:L)', 'Voucher CRM & Promo Manual'],
+      ['Total Pendapatan Bersih (Net Sales)', '=SUM(POS_TRANSAKSI!M2:M)', 'Omzet real masuk'],
+      ['Total HPP / Modal Bahan (COGS)', '=SUM(POS_TRANSAKSI!N2:N)', 'Akumulasi HPP produk terjual'],
+      ['Laba Kotor (Gross Profit)', '=SUM(POS_TRANSAKSI!O2:O)', 'Pendapatan Bersih - HPP'],
+      ['Biaya Operasional Kas Laci', '=SUMIFS(ARUS_KAS_CASHFLOW!H2:H, ARUS_KAS_CASHFLOW!D2:D, "Biaya Operasional")', 'Pengeluaran harian kasir'],
+      ['Total Beban Upah Karyawan', '=SUM(ABSENSI_KARYAWAN!G2:G)', 'Berdasarkan absensi harian'],
+      ['Laba Bersih Operasional', '=B6-B7-B8', 'Estimasi Net Profit Outlet'],
+      ['Omzet Brand: Kopi Jiwara', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Kopi Jiwara")', 'Minuman & Kopi'],
+      ['Omzet Brand: Ayam Baba Jay', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Ayam Baba Jay")', 'Ayam TL & Paket'],
+      ['Omzet Brand: Jovangels', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Jovangels")', 'Bento & Side Dish'],
+      ['Omzet Brand: Jihyo', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Jihyo")', 'Dimsum & Mentai']
+    ]);
+  }
+}
+
+function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var data = JSON.parse(e.postData.contents);
     var eventType = data.eventType || 'UNKNOWN';
     var ts = data.timestamp || new Date().toISOString();
+    var tgl = ts.slice(0, 10);
+    var jam = ts.slice(11, 19);
     var p = data.payload || {};
 
     if (eventType === 'SALE_COMPLETED') {
-      var shSales = getOrCreateSheet(ss, 'POS_TRANSAKSI', ['Timestamp', 'No_Nota', 'Outlet', 'Jenis_Order', 'Pelanggan', 'No_HP', 'Kasir', 'Metode_Bayar', 'Subtotal', 'Diskon', 'Total', 'HPP', 'Laba_Kotor', 'Detail_Item']);
+      var shSales = getOrCreateSheet(ss, 'POS_TRANSAKSI', [
+        'Timestamp', 'No_Nota', 'Tanggal', 'Jam', 'Outlet', 'Jenis_Order',
+        'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar',
+        'Subtotal', 'Diskon_Promo', 'Total_Net', 'Total_HPP', 'Laba_Kotor',
+        'Uang_Diterima', 'Kembalian', 'Ringkasan_Item'
+      ]);
       var itemsText = (p.items || []).map(function(i) { return i.name + ' x' + i.qty; }).join(', ');
-      shSales.appendRow([ts, p.id, data.outlet, p.orderType, p.customer, p.customerPhone || '', p.cashier, p.paymentMethod, p.subtotal, p.discount, p.total, p.costTotal || 0, (p.total - (p.costTotal || 0)), itemsText]);
+      var hppTotal = Number(p.costTotal) || 0;
+      shSales.appendRow([
+        ts, p.id, tgl, jam, data.outlet, p.orderType,
+        p.customer || 'Walk-in', p.customerPhone || '', p.cashier, p.paymentMethod,
+        p.subtotal, p.discount || 0, p.total, hppTotal, (p.total - hppTotal),
+        p.cashPaid || p.total, p.change || 0, itemsText
+      ]);
+
+      var shItems = getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
+        'Timestamp', 'Tanggal', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu',
+        'Kategori', 'Brand', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
+        'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'
+      ]);
+      var brandMap = p.brandMap || {};
+      (p.items || []).forEach(function(it) {
+        var subJual = (Number(it.price) || 0) * (Number(it.qty) || 0);
+        var subHpp = (Number(it.cost) || 0) * (Number(it.qty) || 0);
+        var br = brandMap[it.id] || 'Kopi Jiwara';
+        shItems.appendRow([
+          ts, tgl, p.id, p.orderType, it.sku || '-', it.name,
+          it.category || '-', br, it.qty, it.price, it.cost || 0,
+          subJual, subHpp, (subJual - subHpp)
+        ]);
+      });
+
+      var shCf = getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
+        'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
+        'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
+      ]);
+      shCf.appendRow([
+        ts, tgl, p.id, 'Penjualan POS', p.paymentMethod,
+        'Sales ' + p.paymentMethod + ' (' + p.orderType + ') - ' + (p.customer || 'Walk-in'),
+        p.total, 0, p.cashier
+      ]);
+
     } else if (eventType === 'CASH_DRAWER') {
-      var shCash = getOrCreateSheet(ss, 'ARUS_KAS_LACI', ['Timestamp', 'ID', 'Tipe', 'Nominal', 'Keterangan', 'PIC']);
-      shCash.appendRow([ts, p.id, p.type, p.amount, p.note, p.cashier]);
+      var shCf2 = getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
+        'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
+        'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
+      ]);
+      var isIn = p.type === 'IN';
+      shCf2.appendRow([
+        ts, tgl, p.id, isIn ? 'Kas Masuk Laci' : 'Biaya Operasional', 'Cash Laci',
+        p.note, isIn ? p.amount : 0, isIn ? 0 : p.amount, p.cashier
+      ]);
+
     } else if (eventType === 'ATTENDANCE') {
-      var shAtt = getOrCreateSheet(ss, 'ABSENSI_STAF', ['Timestamp', 'Tanggal', 'Nama_Staf', 'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status']);
-      shAtt.appendRow([ts, p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]);
+      var shAtt = getOrCreateSheet(ss, 'ABSENSI_KARYAWAN', [
+        'Timestamp', 'ID_Absen', 'Tanggal', 'Nama_Karyawan',
+        'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status'
+      ]);
+      shAtt.appendRow([ts, p.id || '-', p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]);
+
     } else if (eventType === 'CLOSE_SHIFT') {
-      var shCls = getOrCreateSheet(ss, 'CLOSING_SHIFT', ['Timestamp', 'ID', 'Kasir', 'Modal_Awal', 'Cash', 'QRIS', 'Transfer', 'Online_Food', 'Total_Omzet', 'Ekspektasi_Cash', 'Cash_Fisik', 'Selisih']);
-      shCls.appendRow([ts, p.id, p.cashier, p.openingCash, p.cashSales, p.qrisSales, p.transferSales, p.onlineFoodSales, p.totalSales, p.expectedCash, p.actualCash, p.diff]);
+      var shCls = getOrCreateSheet(ss, 'CLOSING_SHIFT', [
+        'Timestamp', 'ID_Closing', 'Tanggal', 'Kasir', 'Modal_Awal',
+        'Sales_Cash', 'Sales_QRIS', 'Sales_Transfer', 'Sales_Online_Food',
+        'Total_Omzet', 'Ekspektasi_Cash_Laci', 'Cash_Fisik_Aktual', 'Selisih_Laci'
+      ]);
+      shCls.appendRow([
+        ts, p.id, tgl, p.cashier, p.openingCash,
+        p.cashSales, p.qrisSales, p.transferSales, p.onlineFoodSales || 0,
+        p.totalSales, p.expectedCash, p.actualCash, p.diff
+      ]);
+
+    } else if (eventType === 'ORDER_AUDIT' || eventType === 'ORDER_CANCELLED') {
+      var shAud = getOrCreateSheet(ss, 'AUDIT_OTORISASI', [
+        'Timestamp', 'ID_Audit', 'Jenis_Aksi', 'No_Order',
+        'Detail_Perubahan', 'Alasan', 'Kasir_Pelaksana', 'Disetujui_Oleh_PIN'
+      ]);
+      var detail = p.itemName ? (p.itemName + ' (' + p.fromQty + ' -> ' + p.toQty + ')') : ('Batal Order (' + (p.customer || '-') + ')');
+      shAud.appendRow([ts, p.id, p.action || eventType, p.orderId, detail, p.reason, p.cashier, p.approvedBy]);
+
     } else if (eventType === 'FULL_MASTER_SYNC') {
-      var shInv = getOrCreateSheet(ss, 'GUDANG_STOK', ['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Min', 'Satuan']);
+      var shMenu = getOrCreateSheet(ss, 'MASTER_MENU', [
+        'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
+        'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
+      ]);
+      shMenu.clearContents();
+      shMenu.appendRow(['Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand', 'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit']);
+      (p.products || []).forEach(function(pr) {
+        var mRp = (Number(pr.price) || 0) - (Number(pr.cost) || 0);
+        var mPct = pr.price > 0 ? Math.round((mRp / pr.price) * 100) + '%' : '0%';
+        shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
+      });
+
+      var shInv = getOrCreateSheet(ss, 'GUDANG_STOK', [
+        'Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang',
+        'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok'
+      ]);
       shInv.clearContents();
-      shInv.appendRow(['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Min', 'Satuan']);
+      shInv.appendRow(['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok']);
       (p.inventory || []).forEach(function(item) {
-        shInv.appendRow([ts, item.sku, item.name, item.category, item.stock, item.minStock, item.unit]);
+        var st = Number(item.stock) <= Number(item.minStock) ? 'RESTOCK' : 'AMAN';
+        shInv.appendRow([ts, item.sku, item.name, item.category, item.stock, item.minStock, item.unit, st]);
+      });
+
+      var shCrm = getOrCreateSheet(ss, 'CRM_PELANGGAN', [
+        'ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member',
+        'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir',
+        'Voucher_Khusus', 'Catatan_Preferensi'
+      ]);
+      shCrm.clearContents();
+      shCrm.appendRow(['ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member', 'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir', 'Voucher_Khusus', 'Catatan_Preferensi']);
+      (p.customers || []).forEach(function(c) {
+        shCrm.appendRow([c.id, c.name, c.phone || '-', c.tier || 'Regular', c.totalVisits || 0, c.totalSpent || 0, (c.lastVisit || '').slice(0, 10), c.specialVoucher || '-', c.notes || '-']);
       });
     }
 
@@ -1352,6 +1532,8 @@ function getOrCreateSheet(ss, name, headers) {
   if (!sh) {
     sh = ss.insertSheet(name);
     sh.appendRow(headers);
+    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#0B2E23').setFontColor('#FACC15');
+    sh.setFrozenRows(1);
   }
   return sh;
 }`;
@@ -3959,16 +4141,16 @@ function getOrCreateSheet(ss, name, headers) {
     function renderSettingsSystemSync(body) {
       body.innerHTML = `
         <div class="bento-card">
-          <h3 style="margin:0 0 4px;font-size:16px;">Sinkronisasi System — Master POS & ERP</h3>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Hubungkan database aplikasi ke file Google Spreadsheets Master POS & ERP - KOPI JIWARA secara real-time</div>
+          <h3 style="margin:0 0 4px;font-size:16px;">Sinkronisasi System — Master POS & ERP v2.0</h3>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Hubungkan aplikasi ke file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> (10 Sheet Otomatis: Transaksi, Item Terjual, CRM, Arus Kas, Closing, Audit Otorisasi, Menu, Gudang, Absensi, & Dashboard L/R)</div>
           <div style="margin-bottom:12px;">
             <label class="field-label">Google Apps Script Webhook URL</label>
             <input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" />
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-dark" onclick="saveWebhookOnly()">Simpan URL Webhook</button>
-            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data ke Master</button>
-            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets (Master POS & ERP)</button>
+            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data ke Master v2</button>
+            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2 (10 Sheet)</button>
           </div>
         </div>
       `;
@@ -3985,13 +4167,13 @@ function getOrCreateSheet(ss, name, headers) {
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP</h3>
-            <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script pada file Master POS & ERP - KOPI JIWARA</div>
+            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.0</h3>
+            <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script, lalu jalankan <strong>inisialisasiSemuaSheetMaster()</strong> 1x</div>
           </div>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.0</button>
       `);
     }
 
@@ -4000,7 +4182,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (!ta) return;
       ta.select();
       document.execCommand('copy');
-      showToast('Kode Google Apps Script berhasil disalin.');
+      showToast('Kode Google Apps Script v2.0 berhasil disalin.');
     }
 
     if (!restoreSessionState()) {
