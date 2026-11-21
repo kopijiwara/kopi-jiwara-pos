@@ -873,6 +873,23 @@
     ];
     const DEFAULT_INV_CATEGORIES = ['Kopi & Susu', 'Ayam & Lauk', 'Dimsum & Bento', 'Packaging', 'Gas & Air'];
 
+    function normalizeUniqueCategories(catList) {
+      const seenLower = new Set();
+      const result = [];
+      const addUnique = (raw) => {
+        const clean = String(raw || '').trim();
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (!seenLower.has(key)) {
+          seenLower.add(key);
+          result.push(clean);
+        }
+      };
+      addUnique('Favorit');
+      (catList || []).forEach(addUnique);
+      return result;
+    }
+
     function todayISO() {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1008,6 +1025,7 @@
           settings: { ...seed.settings, ...(parsed.settings || {}) },
           shift: { ...seed.shift, ...(parsed.shift || {}) }
         };
+        merged.categories = normalizeUniqueCategories(merged.categories);
         if (!Array.isArray(merged.brandConfigs) || merged.brandConfigs.length === 0) {
           merged.brandConfigs = getDefaultBrandConfigs();
         }
@@ -1026,6 +1044,7 @@
     let db = loadDB();
     function saveDB() {
       try {
+        db.categories = normalizeUniqueCategories(db.categories);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
       } catch (e) {}
     }
@@ -1559,7 +1578,8 @@
         data.openOrders = (db.transactions || []).filter(t => t.status === 'OPEN');
       }
       if (slices.includes('meta') || slices.includes('products')) {
-        data.categories = db.categories || [];
+        db.categories = normalizeUniqueCategories(db.categories);
+        data.categories = db.categories;
         data.brandConfigs = db.brandConfigs || [];
         data.deletedBrands = db.deletedBrands || [];
       }
@@ -1643,7 +1663,7 @@
             id: old ? old.id : ('PRD-' + (idx + 1) + '-' + cp.sku),
             sku: cp.sku,
             name: cp.name,
-            category: cp.category || 'Kopi Jiwara',
+            category: String(cp.category || 'Kopi Jiwara').trim(),
             brand: cp.brand || 'Kopi Jiwara',
             includeCommissionShare: cp.includeCommissionShare !== false,
             includeSalaryShare: cp.includeSalaryShare !== false,
@@ -1655,19 +1675,12 @@
           };
         });
 
-        if (Array.isArray(data.categories) && data.categories.length > 0) {
-          const prevCats = JSON.stringify(db.categories);
-          const orderedCats = ['Favorit', ...data.categories.filter(c => c && c !== 'Favorit')];
-          db.products.forEach(p => {
-            if (p.category && !orderedCats.includes(p.category)) orderedCats.push(p.category);
-          });
-          db.categories = orderedCats;
-          if (JSON.stringify(db.categories) !== prevCats) changed = true;
-        } else {
-          const catSet = new Set(['Favorit', ...(db.categories || [])]);
-          db.products.forEach(p => { if (p.category) catSet.add(p.category); });
-          db.categories = Array.from(catSet);
-        }
+        const prevCats = JSON.stringify(db.categories);
+        const rawMergedCats = Array.isArray(data.categories) && data.categories.length > 0
+          ? [...data.categories, ...db.products.map(p => p.category)]
+          : [...(db.categories || []), ...db.products.map(p => p.category)];
+        db.categories = normalizeUniqueCategories(rawMergedCats);
+        if (JSON.stringify(db.categories) !== prevCats) changed = true;
 
         if (Array.isArray(data.brandConfigs) && data.brandConfigs.length > 0) {
           const prevBr = JSON.stringify(db.brandConfigs);
@@ -1679,7 +1692,7 @@
         if (JSON.stringify(db.products) !== prevStr) changed = true;
       } else if (Array.isArray(data.categories) && data.categories.length > 0) {
         const prevCats = JSON.stringify(db.categories);
-        db.categories = ['Favorit', ...data.categories.filter(c => c && c !== 'Favorit')];
+        db.categories = normalizeUniqueCategories(data.categories);
         if (JSON.stringify(db.categories) !== prevCats) changed = true;
       }
 
@@ -1868,6 +1881,8 @@
         showToast('Isi & simpan URL Webhook Google Apps Script terlebih dahulu.', true);
         return;
       }
+      db.categories = normalizeUniqueCategories(db.categories);
+      saveDB();
       const enrichedProducts = db.products.map(p => ({
         ...p,
         brand: getProductBrand(p),
@@ -1876,7 +1891,7 @@
       }));
       syncMasterEvent('FULL_MASTER_SYNC', {
         products: enrichedProducts,
-        categories: db.categories || [],
+        categories: db.categories,
         brandConfigs: db.brandConfigs || [],
         deletedBrands: db.deletedBrands || [],
         inventory: db.inventory,
@@ -2290,7 +2305,7 @@
             <div class="bento-card" style="margin-bottom:12px;padding:13px;">
               <input type="text" class="styled-input" placeholder="Cari nama menu atau kode SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderPosTab(document.getElementById('mainContentArea'))" style="margin-bottom:10px;" />
               <div class="cat-strip no-scroll">
-                ${db.categories.map(cat => `
+                ${normalizeUniqueCategories(db.categories).map(cat => `
                   <button type="button" class="cat-chip ${selectedCategory === cat ? 'active' : ''}" onclick="selectedCategory='${esc(cat)}';renderPosTab(document.getElementById('mainContentArea'))">${esc(cat)}</button>
                 `).join('')}
               </div>
@@ -3986,6 +4001,7 @@
     }
 
     function renderSettingsProdukKategori(body) {
+      db.categories = normalizeUniqueCategories(db.categories);
       const cq = catSearch.trim().toLowerCase();
       const filteredCats = db.categories.filter(c => !cq || c.toLowerCase().includes(cq));
       const totalCatPages = Math.max(1, Math.ceil(filteredCats.length / catPageSize));
@@ -4149,7 +4165,10 @@
     function saveNewMenuCategory() {
       const val = document.getElementById('newCatInput').value.trim();
       if (!val) return;
-      if (db.categories.includes(val)) { showToast('Kategori sudah ada.', true); return; }
+      if (db.categories.some(c => c.toLowerCase() === val.toLowerCase())) {
+        showToast('Kategori dengan nama tersebut sudah ada.', true);
+        return;
+      }
       db.categories.push(val);
       saveDB();
       autoSyncMasterSlices(['meta']);
@@ -4210,7 +4229,7 @@
     }
 
     function deleteMenuCategory(catName) {
-      db.categories = db.categories.filter(c => c !== catName);
+      db.categories = db.categories.filter(c => c.toLowerCase() !== String(catName).toLowerCase());
       saveDB();
       autoSyncMasterSlices(['meta']);
       closeModal();
