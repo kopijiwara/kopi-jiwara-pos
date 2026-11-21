@@ -779,10 +779,38 @@
 
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            self.addEventListener('install', function(e) { self.skipWaiting(); });
-            self.addEventListener('activate', function(e) { e.waitUntil(self.clients.claim()); });
+            const CACHE_NAME = 'kopi-jiwara-offline-v1';
+            const APP_URL = ${JSON.stringify(startUrl)};
+            self.addEventListener('install', function(e) {
+              e.waitUntil(
+                caches.open(CACHE_NAME).then(function(cache) {
+                  return cache.addAll([APP_URL, './']).catch(function() {});
+                })
+              );
+              self.skipWaiting();
+            });
+            self.addEventListener('activate', function(e) {
+              e.waitUntil(
+                caches.keys().then(function(keys) {
+                  return Promise.all(keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) { return caches.delete(k); }));
+                }).then(function() { return self.clients.claim(); })
+              );
+            });
             self.addEventListener('fetch', function(e) {
-              e.respondWith(fetch(e.request).catch(function() { return new Response('Offline'); }));
+              if (e.request.method !== 'GET') return;
+              e.respondWith(
+                fetch(e.request).then(function(res) {
+                  if (res && res.status === 200) {
+                    const copy = res.clone();
+                    caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, copy); });
+                  }
+                  return res;
+                }).catch(function() {
+                  return caches.match(e.request).then(function(cached) {
+                    return cached || caches.match(APP_URL) || caches.match('./');
+                  });
+                })
+              );
             });
           `;
           const swBlob = new Blob([swCode], { type: 'application/javascript' });
@@ -796,6 +824,7 @@
     const SESSION_KEY = 'kopi_jiwara_session_v1';
     const ORDER_TYPES = ['Meja', 'Bungkus', 'GoFood', 'GrabFood', 'ShopeeFood'];
     const PAYMENT_METHODS = ['Cash', 'QRIS', 'Transfer', 'Online Food'];
+    const CANCEL_REASONS = ['Pesanan Salah', 'Pesanan Batal', 'Pesanan Habis'];
     const DEFAULT_MENU_CATEGORIES = [
       'Favorit',
       'Kopi Jiwara',
@@ -928,6 +957,7 @@
           { id: 'CRM-01', name: 'Nadia Putri', phone: '081234567890', tier: 'Gold Member', totalVisits: 4, totalSpent: 216000, lastVisit: todayIso, notes: 'Suka Kopi Susu Gula Aren less ice', specialVoucher: 'JIWARA10' },
           { id: 'CRM-02', name: 'Dimas Saputra', phone: '085711223344', tier: 'Regular', totalVisits: 2, totalSpent: 92000, lastVisit: todayIso, notes: 'Sering pesan paket makan siang', specialVoucher: 'HEMAT5K' }
         ],
+        orderAuditLogs: [],
         shiftClosings: []
       };
     }
@@ -949,6 +979,8 @@
     let cartPromoCode = '';
     let cartManualDiscount = 0;
     let editingOpenOrderId = null;
+    let editingOpenOrderDate = null;
+    let savedOpenOrderBaseline = {};
     let crmSearch = '';
     let crmTierFilter = 'ALL';
 
@@ -1061,6 +1093,14 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function formatOrderDateTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return String(isoStr);
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) +
+        ' • ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    }
+
     function showToast(msg, isError = false) {
       const wrap = document.getElementById('toastWrap');
       const box = document.getElementById('toastBox');
@@ -1089,148 +1129,64 @@
       return 'Kopi Jiwara';
     }
 
-    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
-    function syncMasterEvent(eventType, payload) {
-      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
-      if (!url) return;
-      try {
-        fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            source: 'KOPI_JIWARA_POS_ERP',
-            eventType,
-            timestamp: new Date().toISOString(),
-            outlet: db.outlet.name,
-            payload
-          })
-        }).catch(() => {});
-      } catch (e) {}
-    }
-
-    function syncFullMasterDatabase() {
-      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
-      if (!url) {
-        showToast('Isi Webhook URL Google Apps Script dulu di Pengaturan', true);
-        return;
-      }
-      syncMasterEvent('FULL_MASTER_SYNC', {
-        products: db.products,
-        inventory: db.inventory,
-        staff: db.staff.map(s => ({ id: s.id, name: s.name, role: s.role, active: s.active, dailyWage: s.dailyWage })),
-        transactions: db.transactions,
-        cashDrawerLogs: db.cashDrawerLogs,
-        attendanceLogs: db.attendanceLogs,
-        shiftClosings: db.shiftClosings
-      });
-      showToast('Sinkronisasi penuh ke Master POS & ERP dikirim');
-    }
-
-    function getMasterAppsScriptCode() {
-      return `function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var body = JSON.parse(e.postData.contents);
-  var type = body.eventType;
-  var p = body.payload;
-
-  function getOrMakeSheet(name, headers) {
-    var sh = ss.getSheetByName(name);
-    if (!sh) {
-      sh = ss.insertSheet(name);
-      sh.appendRow(headers);
-    }
-    return sh;
-  }
-
-  var shTrx = getOrMakeSheet('TRANSAKSI_KASIR', ['ID_Nota','Tanggal','Jenis_Order','Pelanggan','Kasir','Status','Metode','Subtotal','Diskon','Total','HPP','Laba_Kotor','Item_Detail']);
-  var shPosTrx = getOrMakeSheet('POS_Transactions', ['ID_Nota','Tanggal','Order_Type','Customer','Cashier','Payment','Total','Cost','Profit']);
-  var shSell = getOrMakeSheet('POS_Selling_Product', ['Tanggal','ID_Nota','Brand','SKU','Nama_Produk','Qty','Harga','Total_Penjualan']);
-  var shFin = getOrMakeSheet('FINANCE_CASH', ['Tanggal','Tipe','Debit','Kredit','Nomor_Nota','Keterangan','PIC']);
-  var shCash = getOrMakeSheet('POS_Cashflow', ['Tanggal','Debit','Kredit','Nomor_Nota','Keterangan','Metode']);
-  var shClose = getOrMakeSheet('POS_Tutup_Kasir', ['Tanggal','Kasir','Modal_Awal','Sales_Cash','Sales_QRIS','Sales_Transfer','Sales_OnlineFood','Total_Sales','Kas_Fisik','Selisih']);
-  var shMenu = getOrMakeSheet('MASTER_MENU', ['ID','SKU','Nama_Menu','Kategori','Harga_Jual','HPP','Satuan','Stok']);
-  var shGudang = getOrMakeSheet('GUDANG_STOK', ['ID','SKU','Nama_Bahan','Kategori','Stok_Sistem','Min_Stok','Satuan']);
-  var shAbsen = getOrMakeSheet('KARYAWAN_ABSENSI', ['ID','Tanggal','Nama_Pegawai','Clock_In','Clock_Out','Upah_Harian','Status']);
-
-  if (type === 'SALE_COMPLETED') {
-    var profit = (p.total || 0) - (p.costTotal || 0);
-    var itemSummary = (p.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-    shTrx.appendRow([p.id, p.date, p.orderType, p.customer || '-', p.cashier, p.status, p.paymentMethod, p.subtotal, p.discount, p.total, p.costTotal, profit, itemSummary]);
-    shPosTrx.appendRow([p.id, p.date, p.orderType, p.customer || '-', p.cashier, p.paymentMethod, p.total, p.costTotal, profit]);
-    shFin.appendRow([p.date.slice(0,10), 'IN', p.total, 0, p.id, 'Sales ' + p.paymentMethod + ' (' + p.orderType + ')', p.cashier]);
-    shCash.appendRow([p.date.slice(0,10), p.total, 0, p.id, 'Sales ' + p.paymentMethod, p.paymentMethod]);
-    (p.items || []).forEach(function(it) {
-      shSell.appendRow([p.date.slice(0,10), p.id, (p.brandMap && p.brandMap[it.id]) || 'Kopi Jiwara', it.sku, it.name, it.qty, it.price, it.price * it.qty]);
-    });
-  } else if (type === 'CASH_DRAWER') {
-    var debit = p.type === 'IN' ? p.amount : 0;
-    var kredit = p.type === 'OUT' ? p.amount : 0;
-    shFin.appendRow([p.date.slice(0,10), p.type, debit, kredit, p.id, p.note, p.cashier]);
-    shCash.appendRow([p.date.slice(0,10), debit, kredit, p.id, p.note, 'Cash Laci']);
-  } else if (type === 'CLOSE_SHIFT') {
-    shClose.appendRow([p.closedAt, p.cashier, p.openingCash, p.cashSales, p.qrisSales, p.transferSales, p.onlineFoodSales || 0, p.totalSales, p.actualCash, p.diff]);
-  } else if (type === 'ATTENDANCE') {
-    shAbsen.appendRow([p.id, p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage, p.status]);
-  } else if (type === 'FULL_MASTER_SYNC') {
-    shMenu.clearContents();
-    shMenu.appendRow(['ID','SKU','Nama_Menu','Kategori','Harga_Jual','HPP','Satuan','Stok']);
-    (p.products || []).forEach(function(m) {
-      shMenu.appendRow([m.id, m.sku, m.name, m.category, m.price, m.cost, m.unit, m.stock]);
-    });
-    shGudang.clearContents();
-    shGudang.appendRow(['ID','SKU','Nama_Bahan','Kategori','Stok_Sistem','Min_Stok','Satuan']);
-    (p.inventory || []).forEach(function(g) {
-      shGudang.appendRow([g.id, g.sku, g.name, g.category, g.stock, g.minStock, g.unit]);
-    });
-  }
-
-  return ContentService.createTextOutput(JSON.stringify({ status: 'OK', eventType: type })).setMimeType(ContentService.MimeType.JSON);
-}`;
-    }
-
-    // ==================== AUTH ====================
+    // ==================== LOGIN, PIN PAD & SESSION CONTROLS ====================
     function initLoginScreen() {
       const sel = document.getElementById('loginStaffSelect');
-      sel.innerHTML = db.staff.filter(s => s.active).map(s => `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.role)}</option>`).join('');
+      if (!sel) return;
+      const activeStaff = (db.staff || []).filter(s => s.active);
+      sel.innerHTML = activeStaff.map(s =>
+        `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.role)}</option>`
+      ).join('');
       clearPinPad();
     }
 
-    function pressPin(d) {
-      if (pinBuffer.length >= 4) return;
-      pinBuffer += d;
-      renderPinDots();
-      if (pinBuffer.length === 4) setTimeout(submitPinLogin, 110);
+    function updatePinDots() {
+      const dots = document.querySelectorAll('#pinDots .pin-dot');
+      dots.forEach((dot, idx) => {
+        if (idx < pinBuffer.length) dot.classList.add('filled');
+        else dot.classList.remove('filled');
+      });
     }
 
     function clearPinPad() {
       pinBuffer = '';
-      renderPinDots();
+      updatePinDots();
     }
 
-    function renderPinDots() {
-      document.querySelectorAll('#pinDots .pin-dot').forEach((dot, i) => {
-        dot.classList.toggle('filled', i < pinBuffer.length);
-      });
+    function pressPin(digit) {
+      if (pinBuffer.length >= 4) return;
+      pinBuffer += String(digit);
+      updatePinDots();
+      if (pinBuffer.length === 4) {
+        setTimeout(() => submitPinLogin(), 120);
+      }
     }
 
     function submitPinLogin() {
-      const staff = db.staff.find(s => s.id === document.getElementById('loginStaffSelect').value);
-      if (!staff) return;
-      if (pinBuffer !== staff.pin) {
-        showToast('PIN salah. Silakan coba kembali.', true);
+      const sel = document.getElementById('loginStaffSelect');
+      const staffId = sel ? sel.value : '';
+      const staff = (db.staff || []).find(s => s.id === staffId && s.active);
+      if (!staff) {
+        showToast('Pilih pegawai yang bertugas terlebih dahulu.', true);
         clearPinPad();
         return;
       }
+      if (pinBuffer !== String(staff.pin)) {
+        showToast('PIN 4-Digit salah! Silakan coba lagi.', true);
+        clearPinPad();
+        return;
+      }
+
       currentUser = staff;
-      clearPinPad();
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('appWorkspace').classList.remove('hidden');
       workspaceMode = staff.role === 'Owner' ? 'owner' : 'cashier';
       currentTab = staff.role === 'Owner' ? 'penjualan' : 'kasir';
+      clearPinPad();
       saveSessionState();
+
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('appWorkspace').classList.remove('hidden');
       renderWorkspace();
-      showToast(`Selamat bertugas, ${staff.name}`);
+      showToast(`Selamat bertugas, ${staff.name}!`);
     }
 
     function toggleWorkspaceMode() {
@@ -1242,13 +1198,163 @@
     }
 
     function handleLogoutAction() {
-      if (workspaceMode === 'cashier') {
-        currentTab = 'keluar_kasir';
-        saveSessionState();
-        renderWorkspace();
-      } else {
-        doDirectLogout();
+      if (workspaceMode === 'cashier' && db.shift && db.shift.isOpen) {
+        openModal(`
+          <div class="modal-head">
+            <h3 style="margin:0;font-size:17px;">Keluar Sesi Kasir</h3>
+            <button class="close-circle" onclick="closeModal()">x</button>
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">
+            Shift kasir saat ini masih berstatus <strong>BUKA</strong>. Pilih tindakan keluar yang diinginkan:
+          </p>
+          <div style="display:grid;gap:8px;">
+            <button class="btn btn-soft" style="padding:12px;" onclick="closeModal();doDirectLogout()">Ganti Shift / Logout Sementara (Laci Tetap Buka)</button>
+            <button class="btn btn-yellow" style="padding:12px;" onclick="closeModal();switchTab('keluar_kasir')">Buka Halaman Tutup Kasir & Hitung Laci</button>
+          </div>
+        `);
+        return;
       }
+      doDirectLogout();
+    }
+
+    document.addEventListener('keydown', function(e) {
+      const loginEl = document.getElementById('loginScreen');
+      if (!loginEl || loginEl.classList.contains('hidden')) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        pressPin(e.key);
+      } else if (e.key === 'Backspace' || e.key === 'Escape') {
+        e.preventDefault();
+        clearPinPad();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        submitPinLogin();
+      }
+    });
+
+    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
+    const OFFLINE_QUEUE_KEY = 'kopi_jiwara_sync_queue_v1';
+
+    function enqueueOfflineSync(item) {
+      try {
+        const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+        q.push(item);
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q.slice(-200)));
+      } catch (e) {}
+    }
+
+    function flushOfflineSyncQueue() {
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url || !navigator.onLine) return;
+      try {
+        const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+        if (q.length === 0) return;
+        localStorage.removeItem(OFFLINE_QUEUE_KEY);
+        q.forEach(item => {
+          fetch(url, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item)
+          }).catch(() => enqueueOfflineSync(item));
+        });
+        showToast(`${q.length} data transaksi offline berhasil disinkronkan ke Google Sheets.`);
+      } catch (e) {}
+    }
+
+    window.addEventListener('online', () => {
+      showToast('Koneksi internet kembali aktif.');
+      flushOfflineSyncQueue();
+    });
+
+    function syncMasterEvent(eventType, payload) {
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url) return;
+      const bodyObj = {
+        source: 'KOPI_JIWARA_POS_ERP',
+        eventType,
+        timestamp: new Date().toISOString(),
+        outlet: db.outlet.name,
+        payload
+      };
+      if (!navigator.onLine) {
+        enqueueOfflineSync(bodyObj);
+        return;
+      }
+      try {
+        fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj)
+        }).catch(() => enqueueOfflineSync(bodyObj));
+      } catch (e) {
+        enqueueOfflineSync(bodyObj);
+      }
+    }
+
+    function syncFullMasterDatabase() {
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url) {
+        showToast('Isi & simpan Google Apps Script Webhook URL terlebih dahulu.', true);
+        return;
+      }
+      syncMasterEvent('FULL_MASTER_SYNC', {
+        products: db.products,
+        inventory: db.inventory,
+        transactions: db.transactions,
+        cashDrawerLogs: db.cashDrawerLogs,
+        attendanceLogs: db.attendanceLogs,
+        customers: db.customers
+      });
+      showToast('Seluruh database POS & ERP sedang disinkronkan ke Google Sheets!');
+    }
+
+    function getMasterAppsScriptCode() {
+      return `function doPost(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var data = JSON.parse(e.postData.contents);
+    var eventType = data.eventType || 'UNKNOWN';
+    var ts = data.timestamp || new Date().toISOString();
+    var p = data.payload || {};
+
+    if (eventType === 'SALE_COMPLETED') {
+      var shSales = getOrCreateSheet(ss, 'POS_TRANSAKSI', ['Timestamp', 'No_Nota', 'Outlet', 'Jenis_Order', 'Pelanggan', 'No_HP', 'Kasir', 'Metode_Bayar', 'Subtotal', 'Diskon', 'Total', 'HPP', 'Laba_Kotor', 'Detail_Item']);
+      var itemsText = (p.items || []).map(function(i) { return i.name + ' x' + i.qty; }).join(', ');
+      shSales.appendRow([ts, p.id, data.outlet, p.orderType, p.customer, p.customerPhone || '', p.cashier, p.paymentMethod, p.subtotal, p.discount, p.total, p.costTotal || 0, (p.total - (p.costTotal || 0)), itemsText]);
+    } else if (eventType === 'CASH_DRAWER') {
+      var shCash = getOrCreateSheet(ss, 'ARUS_KAS_LACI', ['Timestamp', 'ID', 'Tipe', 'Nominal', 'Keterangan', 'PIC']);
+      shCash.appendRow([ts, p.id, p.type, p.amount, p.note, p.cashier]);
+    } else if (eventType === 'ATTENDANCE') {
+      var shAtt = getOrCreateSheet(ss, 'ABSENSI_STAF', ['Timestamp', 'Tanggal', 'Nama_Staf', 'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status']);
+      shAtt.appendRow([ts, p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]);
+    } else if (eventType === 'CLOSE_SHIFT') {
+      var shCls = getOrCreateSheet(ss, 'CLOSING_SHIFT', ['Timestamp', 'ID', 'Kasir', 'Modal_Awal', 'Cash', 'QRIS', 'Transfer', 'Online_Food', 'Total_Omzet', 'Ekspektasi_Cash', 'Cash_Fisik', 'Selisih']);
+      shCls.appendRow([ts, p.id, p.cashier, p.openingCash, p.cashSales, p.qrisSales, p.transferSales, p.onlineFoodSales, p.totalSales, p.expectedCash, p.actualCash, p.diff]);
+    } else if (eventType === 'FULL_MASTER_SYNC') {
+      var shInv = getOrCreateSheet(ss, 'GUDANG_STOK', ['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Min', 'Satuan']);
+      shInv.clearContents();
+      shInv.appendRow(['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Min', 'Satuan']);
+      (p.inventory || []).forEach(function(item) {
+        shInv.appendRow([ts, item.sku, item.name, item.category, item.stock, item.minStock, item.unit]);
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: 'OK', eventType: eventType })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'ERROR', message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getOrCreateSheet(ss, name, headers) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+  }
+  return sh;
+}`;
     }
 
     function doDirectLogout() {
@@ -1391,7 +1497,7 @@
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>Simpan Open Order</button>
+          <button class="btn btn-soft" onclick="saveAsOpenOrder()" ${cart.length === 0 ? 'disabled' : ''}>${editingOpenOrderId ? 'Update Open Order' : 'Simpan Open Order'}</button>
           <button class="btn btn-pink" onclick="openSplitBillModal()" ${cart.length === 0 ? 'disabled' : ''}>Split Bill / Pisah</button>
         </div>
         <button class="btn btn-yellow" style="width:100%;padding:13px;font-size:14px;" onclick="openCheckoutModal(${grandTotal}, ${subtotal}, ${discount})" ${cart.length === 0 ? 'disabled' : ''}>
@@ -1443,15 +1549,21 @@
                   <div style="display:grid;gap:10px;">
                     ${openOrders.map(o => `
                       <div style="border:1.5px solid var(--border-glass);border-radius:16px;padding:12px;background:#FFFFFF;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                          <div>
-                            <span class="badge-pill badge-yellow">${esc(o.orderType)}</span>
-                            <strong style="font-size:14px;margin-left:6px;">${esc(o.customer || o.id)}</strong>
-                            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(o.id)} • ${o.items.map(i => `${i.name} x${i.qty}`).join(', ')}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                          <div style="min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                              <span class="badge-pill badge-yellow">${esc(o.orderType)}</span>
+                              <strong style="font-size:14px;">${esc(o.customer || o.id)}</strong>
+                            </div>
+                            <div style="font-size:11px;font-weight:800;color:#065F46;margin-top:4px;">Tersimpan: ${formatOrderDateTime(o.date)} • Kasir: ${esc(o.cashier || '-')}</div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${esc(o.id)} • ${o.items.map(i => `${i.name} x${i.qty}`).join(', ')}</div>
                           </div>
-                          <div style="text-align:right;">
+                          <div style="text-align:right;flex-shrink:0;">
                             <div style="font-weight:900;font-size:14px;">${rp(o.total)}</div>
-                            <button class="btn btn-dark btn-sm" style="margin-top:6px;" onclick="loadOpenOrderToCart('${esc(o.id)}')">Muat & Bayar</button>
+                            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap;">
+                              <button class="btn btn-danger btn-sm" onclick="openManagerPinAuthModal('CANCEL_ORDER', '${esc(o.id)}')">Batalkan</button>
+                              <button class="btn btn-dark btn-sm" onclick="loadOpenOrderToCart('${esc(o.id)}')">Muat & Bayar</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1492,10 +1604,24 @@
           </div>
 
           <div class="bento-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-              <h3 style="margin:0;font-size:16px;">Keranjang Pesanan</h3>
-              ${cart.length > 0 ? `<button type="button" class="btn btn-danger btn-sm" onclick="clearCart()">Kosongkan</button>` : ''}
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+              <div>
+                <h3 style="margin:0;font-size:16px;">Keranjang Pesanan</h3>
+                ${editingOpenOrderId ? `<div style="font-size:11px;font-weight:800;color:#BE185D;margin-top:2px;">Order Tersimpan (${esc(editingOpenOrderId)}) • ${formatOrderDateTime(editingOpenOrderDate)}</div>` : ''}
+              </div>
+              ${editingOpenOrderId ? `
+                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-danger btn-sm" onclick="openManagerPinAuthModal('CANCEL_ORDER', '${esc(editingOpenOrderId)}')">Batalkan Order</button>
+                  <button type="button" class="btn btn-soft btn-sm" onclick="clearCart()">Tutup</button>
+                </div>
+              ` : (cart.length > 0 ? `<button type="button" class="btn btn-danger btn-sm" onclick="clearCart()">Kosongkan</button>` : '')}
             </div>
+
+            ${editingOpenOrderId ? `
+              <div style="background:#FEFCE8;border:1px solid rgba(250,204,21,0.8);border-radius:12px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:var(--green-deep);font-weight:700;">
+                Item tersimpan terkunci. Penambahan item diperbolehkan; pengurangan item atau pembatalan order memerlukan <strong>PIN Owner/Manager</strong> beserta alasan.
+              </div>
+            ` : ''}
 
             <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-bottom:8px;">
               <div>
@@ -1521,19 +1647,26 @@
             </div>
 
             <div style="border-top:1px solid var(--border-glass);border-bottom:1px solid var(--border-glass);padding:8px 0;margin-bottom:10px;max-height:260px;overflow-y:auto;">
-              ${cart.length === 0 ? `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:24px 0;">Pilih menu di sebelah kiri untuk mulai transaksi.</div>` : cart.map(item => `
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border-glass);">
-                  <div style="min-width:0;flex:1;">
-                    <div style="font-size:12px;font-weight:900;color:var(--green-deep);">${esc(item.name)}</div>
-                    <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} x ${item.qty} = <strong>${rp(item.price * item.qty)}</strong></div>
+              ${cart.length === 0 ? `<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:24px 0;">Pilih menu di sebelah kiri untuk mulai transaksi.</div>` : cart.map(item => {
+                const lockedMin = editingOpenOrderId ? (savedOpenOrderBaseline[item.id] || 0) : 0;
+                const isProtectedReduce = editingOpenOrderId && lockedMin > 0 && item.qty <= lockedMin;
+                return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border-glass);">
+                    <div style="min-width:0;flex:1;">
+                      <div style="font-size:12px;font-weight:900;color:var(--green-deep);">
+                        ${esc(item.name)}
+                        ${lockedMin > 0 ? `<span class="badge-pill badge-yellow" style="margin-left:4px;font-size:9px;">Tersimpan: ${lockedMin}</span>` : ''}
+                      </div>
+                      <div style="font-size:11px;color:var(--text-muted);">${rp(item.price)} x ${item.qty} = <strong>${rp(item.price * item.qty)}</strong></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                      <button type="button" class="btn ${isProtectedReduce ? 'btn-pink' : 'btn-soft'} btn-sm" style="padding:4px 9px;" title="${isProtectedReduce ? 'Butuh PIN Manager/Owner untuk mengurangi' : 'Kurangi'}" onclick="updateCartQty('${esc(item.id)}', -1)">-</button>
+                      <span style="font-size:12px;font-weight:900;min-width:18px;text-align:center;">${item.qty}</span>
+                      <button type="button" class="btn btn-dark btn-sm" style="padding:4px 9px;" onclick="updateCartQty('${esc(item.id)}', 1)">+</button>
+                    </div>
                   </div>
-                  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                    <button type="button" class="btn btn-soft btn-sm" style="padding:4px 9px;" onclick="updateCartQty('${esc(item.id)}', -1)">-</button>
-                    <span style="font-size:12px;font-weight:900;min-width:18px;text-align:center;">${item.qty}</span>
-                    <button type="button" class="btn btn-dark btn-sm" style="padding:4px 9px;" onclick="updateCartQty('${esc(item.id)}', 1)">+</button>
-                  </div>
-                </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
 
             <div style="margin-bottom:10px;">
@@ -1605,6 +1738,13 @@
     function updateCartQty(prodId, delta) {
       const idx = cart.findIndex(c => c.id === prodId);
       if (idx === -1) return;
+      if (delta < 0 && editingOpenOrderId) {
+        const lockedMin = savedOpenOrderBaseline[prodId] || 0;
+        if (lockedMin > 0 && cart[idx].qty <= lockedMin) {
+          openManagerPinAuthModal('REDUCE_ITEM', editingOpenOrderId, prodId);
+          return;
+        }
+      }
       cart[idx].qty += delta;
       if (cart[idx].qty <= 0) cart.splice(idx, 1);
       renderCashierPOS(document.getElementById('mainContentArea'));
@@ -1613,11 +1753,163 @@
     function clearCart() {
       cart = [];
       editingOpenOrderId = null;
+      editingOpenOrderDate = null;
+      savedOpenOrderBaseline = {};
       cartCustomer = '';
       cartCustomerPhone = '';
       cartPromoCode = '';
       cartManualDiscount = 0;
       renderCashierPOS(document.getElementById('mainContentArea'));
+    }
+
+    function openManagerPinAuthModal(actionType, orderId, prodId = '') {
+      const ord = db.transactions.find(t => t.id === orderId);
+      const item = prodId ? cart.find(c => c.id === prodId) : null;
+      const title = actionType === 'CANCEL_ORDER'
+        ? `Batalkan Pesanan Tersimpan (${esc(orderId)})`
+        : `Kurangi Item Tersimpan (${esc(item ? item.name : '')})`;
+      const desc = actionType === 'CANCEL_ORDER'
+        ? `Pesanan milik "${esc(ord ? ord.customer : orderId)}" akan dibatalkan permanen. Wajib verifikasi PIN Owner / Manager & alasan.`
+        : `Item "${esc(item ? item.name : '')}" sudah tersimpan pada pesanan ${esc(orderId)}. Pengurangan item wajib verifikasi PIN Owner / Manager & alasan.`;
+
+      openModal(`
+        <div class="modal-head">
+          <div>
+            <span class="badge-pill badge-pink" style="margin-bottom:4px;">OTORISASI OWNER / MANAGER</span>
+            <h3 style="margin:0;font-size:16px;">${title}</h3>
+          </div>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">${desc}</p>
+
+        <div style="display:grid;gap:10px;margin-bottom:14px;">
+          <div>
+            <label class="field-label">Pilih Alasan</label>
+            <select id="mgrAuthReason" class="styled-select">
+              ${CANCEL_REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="field-label">PIN Owner / Manager (4-Digit)</label>
+            <input id="mgrAuthPin" type="password" inputmode="numeric" maxlength="4" class="styled-input" style="font-size:18px;letter-spacing:0.25em;text-align:center;" placeholder="••••" />
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;">
+          <button type="button" class="btn btn-soft" onclick="closeModal()">Batal</button>
+          <button type="button" class="btn btn-pink" style="padding:12px;" onclick="confirmManagerPinAuth('${esc(actionType)}', '${esc(orderId)}', '${esc(prodId)}')">
+            ${actionType === 'CANCEL_ORDER' ? 'Verifikasi & Batalkan Order' : 'Verifikasi & Kurangi Item'}
+          </button>
+        </div>
+      `);
+      setTimeout(() => {
+        const pinInp = document.getElementById('mgrAuthPin');
+        if (pinInp) pinInp.focus();
+      }, 60);
+    }
+
+    function confirmManagerPinAuth(actionType, orderId, prodId) {
+      const reason = document.getElementById('mgrAuthReason')?.value || CANCEL_REASONS[0];
+      const pin = (document.getElementById('mgrAuthPin')?.value || '').trim();
+      const approver = db.staff.find(s => s.active && (s.role === 'Owner' || s.role === 'Manager') && s.pin === pin);
+      if (!approver) {
+        showToast('PIN Owner/Manager tidak valid!', true);
+        return;
+      }
+
+      if (!db.orderAuditLogs) db.orderAuditLogs = [];
+
+      if (actionType === 'REDUCE_ITEM') {
+        const idx = cart.findIndex(c => c.id === prodId);
+        if (idx === -1) { closeModal(); return; }
+        const item = cart[idx];
+        const prevQty = item.qty;
+        item.qty -= 1;
+
+        if (savedOpenOrderBaseline[prodId] > item.qty) {
+          savedOpenOrderBaseline[prodId] = Math.max(0, item.qty);
+        }
+        if (item.qty <= 0) {
+          cart.splice(idx, 1);
+          delete savedOpenOrderBaseline[prodId];
+        }
+
+        const ordIdx = db.transactions.findIndex(t => t.id === orderId);
+        if (ordIdx >= 0) {
+          if (cart.length === 0) {
+            db.transactions[ordIdx].status = 'CANCELLED';
+            db.transactions[ordIdx].cancelReason = reason;
+            db.transactions[ordIdx].cancelledBy = approver.name;
+            db.transactions[ordIdx].cancelledAt = new Date().toISOString();
+          } else {
+            const newSub = cart.reduce((s, i) => s + i.price * i.qty, 0);
+            const newCost = cart.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
+            db.transactions[ordIdx].items = JSON.parse(JSON.stringify(cart));
+            db.transactions[ordIdx].subtotal = newSub;
+            db.transactions[ordIdx].total = newSub;
+            db.transactions[ordIdx].costTotal = newCost;
+          }
+        }
+
+        const logEntry = {
+          id: 'AUD-' + Date.now(),
+          date: new Date().toISOString(),
+          action: 'REDUCE_OPEN_ITEM',
+          orderId,
+          itemName: item.name,
+          fromQty: prevQty,
+          toQty: Math.max(0, prevQty - 1),
+          reason,
+          cashier: currentUser.name,
+          approvedBy: approver.name
+        };
+        db.orderAuditLogs.unshift(logEntry);
+        syncMasterEvent('ORDER_AUDIT', logEntry);
+        saveDB();
+        closeModal();
+
+        if (cart.length === 0) {
+          clearCart();
+          showToast(`Item dikurangi hingga kosong, order ${orderId} dibatalkan (${reason})`);
+        } else {
+          renderCashierPOS(document.getElementById('mainContentArea'));
+          showToast(`Item dikurangi (${reason}) — Disetujui ${approver.name}`);
+        }
+      } else if (actionType === 'CANCEL_ORDER') {
+        const ordIdx = db.transactions.findIndex(t => t.id === orderId);
+        const ordObj = ordIdx >= 0 ? db.transactions[ordIdx] : null;
+        if (ordObj) {
+          ordObj.status = 'CANCELLED';
+          ordObj.paymentMethod = 'BATAL';
+          ordObj.cancelReason = reason;
+          ordObj.cancelledBy = approver.name;
+          ordObj.cancelledAt = new Date().toISOString();
+        }
+
+        const logEntry = {
+          id: 'AUD-' + Date.now(),
+          date: new Date().toISOString(),
+          action: 'CANCEL_OPEN_ORDER',
+          orderId,
+          customer: ordObj ? ordObj.customer : '-',
+          total: ordObj ? ordObj.total : 0,
+          reason,
+          cashier: currentUser.name,
+          approvedBy: approver.name
+        };
+        db.orderAuditLogs.unshift(logEntry);
+        syncMasterEvent('ORDER_CANCELLED', logEntry);
+        saveDB();
+        closeModal();
+
+        if (editingOpenOrderId === orderId) {
+          clearCart();
+        } else {
+          renderCashierPOS(document.getElementById('mainContentArea'));
+        }
+        showToast(`Order ${orderId} dibatalkan (${reason}) — Disetujui ${approver.name}`);
+      }
     }
 
     function handleCartCustomerInput(val) {
@@ -1691,8 +1983,9 @@
       const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       const costTotal = cart.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
       const trxId = editingOpenOrderId || ('ORD-' + Math.floor(1000 + Math.random() * 9000));
+      const savedDate = editingOpenOrderDate || new Date().toISOString();
       const orderObj = {
-        id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
+        id: trxId, date: savedDate, updatedAt: new Date().toISOString(), orderType: cartOrderType,
         customer: cartCustomer.trim() || 'Pelanggan ' + trxId,
         customerPhone: cartCustomerPhone.trim(),
         cashier: currentUser.name,
@@ -1715,9 +2008,14 @@
       cartCustomer = ord.customer;
       cartCustomerPhone = ord.customerPhone || '';
       editingOpenOrderId = ord.id;
+      editingOpenOrderDate = ord.date;
+      savedOpenOrderBaseline = {};
+      ord.items.forEach(it => {
+        savedOpenOrderBaseline[it.id] = (savedOpenOrderBaseline[it.id] || 0) + (Number(it.qty) || 0);
+      });
       posSubTab = 'menu';
       renderCashierPOS(document.getElementById('mainContentArea'));
-      showToast(`Order ${ord.id} dimuat ke keranjang.`);
+      showToast(`Order ${ord.id} (${formatOrderDateTime(ord.date)}) dimuat ke keranjang.`);
     }
 
     // ==================== SPLIT BILL ====================
@@ -1945,8 +2243,9 @@
         const remTotal = leftoverItems.reduce((s, i) => s + i.price * i.qty, 0);
         const remCost = leftoverItems.reduce((s, i) => s + (i.cost || 0) * i.qty, 0);
         const openId = editingOpenOrderId || ('ORD-' + Math.floor(1000 + Math.random() * 9000));
+        const preservedDate = editingOpenOrderDate || new Date().toISOString();
         const openOrd = {
-          id: openId, date: new Date().toISOString(), orderType: cartOrderType,
+          id: openId, date: preservedDate, orderType: cartOrderType,
           customer: (cartCustomer.trim() || 'Sisa Split Bill'), cashier: currentUser.name,
           status: 'OPEN', paymentMethod: 'OPEN', subtotal: remTotal, discount: 0,
           total: remTotal, costTotal: remCost, cashPaid: 0, change: 0, items: leftoverItems
@@ -2073,9 +2372,12 @@
                       <td>${new Date(t.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td>
                       <td>${esc(t.customer || '-')} <span class="badge-pill badge-yellow">${esc(t.orderType)}</span></td>
                       <td>${t.items.map(i => `${esc(i.name)} (${i.qty}x)`).join(', ')}</td>
-                      <td><span class="badge-pill ${t.status === 'PAID' ? 'badge-green' : 'badge-pink'}">${esc(t.paymentMethod)}</span></td>
+                      <td>
+                        <span class="badge-pill ${t.status === 'PAID' ? 'badge-green' : 'badge-pink'}">${esc(t.status === 'CANCELLED' ? 'Dibatalkan' : t.paymentMethod)}</span>
+                        ${t.status === 'CANCELLED' && t.cancelReason ? `<div style="font-size:10px;color:#BE185D;margin-top:2px;">${esc(t.cancelReason)} (${esc(t.cancelledBy || '-')})</div>` : ''}
+                      </td>
                       <td><strong>${rp(t.total)}</strong></td>
-                      <td><button class="btn btn-soft btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak Struk</button></td>
+                      <td>${t.status === 'PAID' ? `<button class="btn btn-soft btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak Struk</button>` : `<span style="font-size:11px;color:var(--text-muted);">-</span>`}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -2556,7 +2858,7 @@
         <div class="bento-card">
           <div class="table-box">
             <table class="compact-table">
-              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode</th><th>Total</th></tr></thead>
+              <thead><tr><th>No. Nota</th><th>Tanggal</th><th>Jenis Order</th><th>Pelanggan</th><th>Metode / Status</th><th>Total</th></tr></thead>
               <tbody>
                 ${list.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Belum ada transaksi pada periode ini.</td></tr>` : list.map(t => `
                   <tr>
@@ -2564,7 +2866,10 @@
                     <td>${new Date(t.date).toLocaleString('id-ID')}</td>
                     <td><span class="badge-pill badge-yellow">${esc(t.orderType)}</span></td>
                     <td>${esc(t.customer || '-')}</td>
-                    <td><span class="badge-pill badge-green">${esc(t.paymentMethod)}</span></td>
+                    <td>
+                      <span class="badge-pill ${t.status === 'PAID' ? 'badge-green' : 'badge-pink'}">${esc(t.status === 'CANCELLED' ? 'Dibatalkan' : t.paymentMethod)}</span>
+                      ${t.status === 'CANCELLED' && t.cancelReason ? `<div style="font-size:10px;color:#BE185D;margin-top:2px;">Alasan: ${esc(t.cancelReason)} (${esc(t.cancelledBy || '-')})</div>` : ''}
+                    </td>
                     <td><strong>${rp(t.total)}</strong></td>
                   </tr>
                 `).join('')}
@@ -3701,6 +4006,7 @@
     if (!restoreSessionState()) {
       initLoginScreen();
     }
+    flushOfflineSyncQueue();
   </script>
 </body>
 </html>
