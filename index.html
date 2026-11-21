@@ -820,7 +820,7 @@
         const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v5';
+            const CACHE_NAME = 'kopi-jiwara-offline-v8';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -862,11 +862,12 @@
     })();
 
     // ==================== CONSTANTS & SEED DATA ====================
-    const STORAGE_KEY = 'kopi_jiwara_erp_v6';
+    const STORAGE_KEY = 'kopi_jiwara_erp_v8';
     const SESSION_KEY = 'kopi_jiwara_session_v1';
     const ORDER_TYPES = ['Meja', 'Bungkus', 'GoFood', 'GrabFood', 'ShopeeFood'];
     const PAYMENT_METHODS = ['Cash', 'QRIS', 'Transfer', 'Online Food'];
     const CANCEL_REASONS = ['Salah proses', 'Batal Pesan', 'Rubah pesanan'];
+    const BRAND_LIST = ['Kopi Jiwara', 'Ayam Baba Jay', 'Jovangels', 'Jihyo'];
     const DEFAULT_MENU_CATEGORIES = [
       'Favorit',
       'Kopi Jiwara',
@@ -884,6 +885,15 @@
       'Operasional Dapur'
     ];
 
+    function getDefaultBrandConfigs() {
+      return [
+        { brand: 'Kopi Jiwara', commissionPct: 10, salaryShareActive: true, ownerPhone: '' },
+        { brand: 'Ayam Baba Jay', commissionPct: 10, salaryShareActive: true, ownerPhone: '' },
+        { brand: 'Jovangels', commissionPct: 10, salaryShareActive: true, ownerPhone: '' },
+        { brand: 'Jihyo', commissionPct: 10, salaryShareActive: true, ownerPhone: '' }
+      ];
+    }
+
     function getSeedData() {
       const todayIso = new Date().toISOString();
       return {
@@ -894,30 +904,32 @@
           { id: 'stf-4', name: 'Tazki', role: 'Kitchen', pin: '3333', active: true, dailyWage: 60000 },
           { id: 'stf-5', name: 'Pandu', role: 'Kitchen', pin: '4444', active: true, dailyWage: 60000 }
         ],
+        brandConfigs: getDefaultBrandConfigs(),
+        brandSettlements: [],
         categories: [...DEFAULT_MENU_CATEGORIES],
         products: [
-          { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', fav: true, price: 18000, cost: 6800, unit: 'Cup', stock: 100 },
-          { id: 'prd-2', sku: 'JW-02', name: 'Kopi Susu Cream', category: 'Kopi Jiwara', fav: true, price: 18000, cost: 7200, unit: 'Cup', stock: 100 },
-          { id: 'prd-3', sku: 'JW-03', name: 'Black Coffee', category: 'Kopi Jiwara', fav: false, price: 15000, cost: 4500, unit: 'Cup', stock: 100 },
-          { id: 'prd-4', sku: 'JW-04', name: 'Ice Black Coffee', category: 'Kopi Jiwara', fav: false, price: 17000, cost: 5000, unit: 'Cup', stock: 100 },
-          { id: 'prd-5', sku: 'JW-05', name: 'V60 Manual Brew', category: 'Kopi Jiwara', fav: false, price: 21000, cost: 7500, unit: 'Cup', stock: 60 },
-          { id: 'prd-6', sku: 'JW-06', name: 'Tropical Coffee Lemon', category: 'Kopi Jiwara', fav: false, price: 23000, cost: 8000, unit: 'Cup', stock: 60 },
-          { id: 'prd-7', sku: 'JW-07', name: 'Tropical Coffee Leci', category: 'Kopi Jiwara', fav: false, price: 23000, cost: 8000, unit: 'Cup', stock: 60 },
-          { id: 'prd-8', sku: 'JW-08', name: 'Korean Strawberry Milk', category: 'Kopi Jiwara', fav: true, price: 18000, cost: 7500, unit: 'Cup', stock: 80 },
-          { id: 'prd-9', sku: 'JW-09', name: 'Juice Mangga', category: 'Kopi Jiwara', fav: false, price: 15000, cost: 6000, unit: 'Cup', stock: 50 },
-          { id: 'prd-10', sku: 'JW-10', name: 'Juice Alpukat', category: 'Kopi Jiwara', fav: false, price: 15000, cost: 6500, unit: 'Cup', stock: 50 },
-          { id: 'prd-11', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Menu Paket', fav: true, price: 28000, cost: 14500, unit: 'Porsi', stock: 50 },
-          { id: 'prd-12', sku: 'BJ-02', name: 'Paket A Goreng TL', category: 'Menu Paket', fav: true, price: 25000, cost: 13000, unit: 'Porsi', stock: 50 },
-          { id: 'prd-13', sku: 'BJ-03', name: 'Ayam Bakar TL (Ala Carte)', category: 'Ayam Baba Jay', fav: false, price: 20000, cost: 10500, unit: 'Porsi', stock: 50 },
-          { id: 'prd-14', sku: 'BJ-04', name: 'Ayam Goreng TL (Ala Carte)', category: 'Ayam Baba Jay', fav: false, price: 18000, cost: 9500, unit: 'Porsi', stock: 50 },
-          { id: 'prd-15', sku: 'BJ-05', name: 'Kulit Goreng Crispy', category: 'Ayam Baba Jay', fav: false, price: 8000, cost: 3500, unit: 'Porsi', stock: 50 },
-          { id: 'prd-16', sku: 'JV-01', name: 'Bento 1 Jovangels', category: 'Jovangels', fav: true, price: 21000, cost: 11000, unit: 'Porsi', stock: 45 },
-          { id: 'prd-17', sku: 'JV-02', name: 'Bento 2 Jovangels', category: 'Jovangels', fav: false, price: 23000, cost: 12000, unit: 'Porsi', stock: 45 },
-          { id: 'prd-18', sku: 'JV-03', name: 'Udang Keju', category: 'Jovangels', fav: false, price: 17000, cost: 8500, unit: 'Porsi', stock: 45 },
-          { id: 'prd-19', sku: 'JH-01', name: 'Dimsum Original', category: 'Jihyo Dimsum', fav: false, price: 14000, cost: 7000, unit: 'Porsi', stock: 60 },
-          { id: 'prd-20', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', fav: true, price: 18000, cost: 9200, unit: 'Porsi', stock: 55 },
-          { id: 'prd-21', sku: 'JH-03', name: 'Dimsum Keju Lumer', category: 'Jihyo Dimsum', fav: false, price: 18000, cost: 9200, unit: 'Porsi', stock: 50 },
-          { id: 'prd-22', sku: 'PK-01', name: 'Bundling Kopi Aren + Dimsum Mentai', category: 'Paket Online', fav: true, price: 33000, cost: 16000, unit: 'Paket', stock: 40 }
+          { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 18000, cost: 6800, unit: 'Cup', stock: 100 },
+          { id: 'prd-2', sku: 'JW-02', name: 'Kopi Susu Cream', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 18000, cost: 7200, unit: 'Cup', stock: 100 },
+          { id: 'prd-3', sku: 'JW-03', name: 'Black Coffee', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 15000, cost: 4500, unit: 'Cup', stock: 100 },
+          { id: 'prd-4', sku: 'JW-04', name: 'Ice Black Coffee', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 17000, cost: 5000, unit: 'Cup', stock: 100 },
+          { id: 'prd-5', sku: 'JW-05', name: 'V60 Manual Brew', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 21000, cost: 7500, unit: 'Cup', stock: 60 },
+          { id: 'prd-6', sku: 'JW-06', name: 'Tropical Coffee Lemon', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 23000, cost: 8000, unit: 'Cup', stock: 60 },
+          { id: 'prd-7', sku: 'JW-07', name: 'Tropical Coffee Leci', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 23000, cost: 8000, unit: 'Cup', stock: 60 },
+          { id: 'prd-8', sku: 'JW-08', name: 'Korean Strawberry Milk', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 18000, cost: 7500, unit: 'Cup', stock: 80 },
+          { id: 'prd-9', sku: 'JW-09', name: 'Juice Mangga', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: false, fav: false, price: 15000, cost: 6000, unit: 'Cup', stock: 50 },
+          { id: 'prd-10', sku: 'JW-10', name: 'Juice Alpukat', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: false, fav: false, price: 15000, cost: 6500, unit: 'Cup', stock: 50 },
+          { id: 'prd-11', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Menu Paket', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 28000, cost: 14500, unit: 'Porsi', stock: 50 },
+          { id: 'prd-12', sku: 'BJ-02', name: 'Paket A Goreng TL', category: 'Menu Paket', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 25000, cost: 13000, unit: 'Porsi', stock: 50 },
+          { id: 'prd-13', sku: 'BJ-03', name: 'Ayam Bakar TL (Ala Carte)', category: 'Ayam Baba Jay', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 20000, cost: 10500, unit: 'Porsi', stock: 50 },
+          { id: 'prd-14', sku: 'BJ-04', name: 'Ayam Goreng TL (Ala Carte)', category: 'Ayam Baba Jay', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 18000, cost: 9500, unit: 'Porsi', stock: 50 },
+          { id: 'prd-15', sku: 'BJ-05', name: 'Kulit Goreng Crispy', category: 'Ayam Baba Jay', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: false, fav: false, price: 8000, cost: 3500, unit: 'Porsi', stock: 50 },
+          { id: 'prd-16', sku: 'JV-01', name: 'Bento 1 Jovangels', category: 'Jovangels', brand: 'Jovangels', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 21000, cost: 11000, unit: 'Porsi', stock: 45 },
+          { id: 'prd-17', sku: 'JV-02', name: 'Bento 2 Jovangels', category: 'Jovangels', brand: 'Jovangels', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 23000, cost: 12000, unit: 'Porsi', stock: 45 },
+          { id: 'prd-18', sku: 'JV-03', name: 'Udang Keju', category: 'Jovangels', brand: 'Jovangels', includeCommissionShare: true, includeSalaryShare: false, fav: false, price: 17000, cost: 8500, unit: 'Porsi', stock: 45 },
+          { id: 'prd-19', sku: 'JH-01', name: 'Dimsum Original', category: 'Jihyo Dimsum', brand: 'Jihyo', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 14000, cost: 7000, unit: 'Porsi', stock: 60 },
+          { id: 'prd-20', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', brand: 'Jihyo', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 18000, cost: 9200, unit: 'Porsi', stock: 55 },
+          { id: 'prd-21', sku: 'JH-03', name: 'Dimsum Keju Lumer', category: 'Jihyo Dimsum', brand: 'Jihyo', includeCommissionShare: true, includeSalaryShare: true, fav: false, price: 18000, cost: 9200, unit: 'Porsi', stock: 50 },
+          { id: 'prd-22', sku: 'PK-01', name: 'Bundling Kopi Aren + Dimsum Mentai', category: 'Paket Online', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, fav: true, price: 33000, cost: 16000, unit: 'Paket', stock: 40 }
         ],
         inventoryCategories: [...DEFAULT_INV_CATEGORIES],
         inventory: [
@@ -962,6 +974,7 @@
             date: todayIso,
             orderType: 'Meja',
             customer: 'Nadia Putri',
+            customerPhone: '081234567890',
             cashier: 'Aldi',
             status: 'PAID',
             paymentMethod: 'QRIS',
@@ -972,8 +985,8 @@
             cashPaid: 54000,
             change: 0,
             items: [
-              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', price: 18000, cost: 6800, qty: 2 },
-              { id: 'prd-20', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', price: 18000, cost: 9200, qty: 1 }
+              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 6800, qty: 2 },
+              { id: 'prd-20', sku: 'JH-02', name: 'Dimsum Mentai', category: 'Jihyo Dimsum', brand: 'Jihyo', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 9200, qty: 1 }
             ]
           },
           {
@@ -981,6 +994,7 @@
             date: todayIso,
             orderType: 'Bungkus',
             customer: 'Dimas Saputra',
+            customerPhone: '085711223344',
             cashier: 'Aldi',
             status: 'PAID',
             paymentMethod: 'Cash',
@@ -991,8 +1005,8 @@
             cashPaid: 50000,
             change: 4000,
             items: [
-              { id: 'prd-11', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Menu Paket', price: 28000, cost: 14500, qty: 1 },
-              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', price: 18000, cost: 6800, qty: 1 }
+              { id: 'prd-11', sku: 'BJ-01', name: 'Paket A Bakar TL', category: 'Menu Paket', brand: 'Ayam Baba Jay', includeCommissionShare: true, includeSalaryShare: true, price: 28000, cost: 14500, qty: 1 },
+              { id: 'prd-1', sku: 'JW-01', name: 'Kopi Susu Gula Aren', category: 'Kopi Jiwara', brand: 'Kopi Jiwara', includeCommissionShare: true, includeSalaryShare: true, price: 18000, cost: 6800, qty: 1 }
             ]
           }
         ],
@@ -1013,7 +1027,7 @@
 
     function loadDB() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('kopi_jiwara_erp_v7') || localStorage.getItem('kopi_jiwara_erp_v6');
         if (!raw) return getSeedData();
         const parsed = JSON.parse(raw);
         const merged = { ...getSeedData(), ...parsed };
@@ -1023,6 +1037,18 @@
         if (merged.outlet && merged.outlet.autoPullIntervalSec === undefined) {
           merged.outlet.autoPullIntervalSec = 15;
         }
+        if (!Array.isArray(merged.brandConfigs) || merged.brandConfigs.length === 0) {
+          merged.brandConfigs = getDefaultBrandConfigs();
+        }
+        if (!Array.isArray(merged.brandSettlements)) {
+          merged.brandSettlements = [];
+        }
+        merged.products = (merged.products || []).map(p => ({
+          ...p,
+          brand: p.brand || inferBrandFromCategory(p.category),
+          includeCommissionShare: p.includeCommissionShare !== undefined ? Boolean(p.includeCommissionShare) : true,
+          includeSalaryShare: p.includeSalaryShare !== undefined ? Boolean(p.includeSalaryShare) : true
+        }));
         return merged;
       } catch (e) {
         return getSeedData();
@@ -1059,12 +1085,18 @@
     let ownerSalesStartDate = new Date().toISOString().slice(0, 10);
     let ownerSalesEndDate = new Date().toISOString().slice(0, 10);
 
-    let ownerReportPeriod = 'Hari Ini';
-    let ownerReportStartDate = new Date().toISOString().slice(0, 10);
+    let ownerReportPeriod = 'Minggu Ini';
+    let ownerReportStartDate = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      return d.toISOString().slice(0, 10);
+    })();
     let ownerReportEndDate = new Date().toISOString().slice(0, 10);
     let ownerReportSubTab = 'ringkasan';
     let cashflowTypeFilter = 'ALL';
     let cashflowSearch = '';
+    let settlementCustomSalaryPool = null;
+    let settlementBasisMode = 'qty';
 
     let cashierReportPeriod = 'Hari Ini';
     let cashierReportStartDate = new Date().toISOString().slice(0, 10);
@@ -1079,6 +1111,7 @@
     let catPageSize = 10;
     let prodSearch = '';
     let prodCatFilter = 'ALL';
+    let prodBrandFilter = 'ALL';
     let prodPage = 1;
     let prodPageSize = 10;
 
@@ -1086,7 +1119,6 @@
     let btPrinterCharacteristic = null;
     let btPrinterConnected = false;
 
-    // 2-Way Real-Time Sync State
     let cloudSyncInProgress = false;
     let lastCloudPullTime = '';
     let autoPullTimer = null;
@@ -1185,12 +1217,161 @@
       document.getElementById('modalCardBody').innerHTML = '';
     }
 
-    function getBrandFromCategory(cat) {
+    function inferBrandFromCategory(cat) {
       const c = String(cat || '').toLowerCase();
       if (c.includes('ayam') || c.includes('baba')) return 'Ayam Baba Jay';
       if (c.includes('jovangel')) return 'Jovangels';
       if (c.includes('jihyo') || c.includes('dimsum')) return 'Jihyo';
       return 'Kopi Jiwara';
+    }
+
+    function getProductBrand(itemOrProd) {
+      if (!itemOrProd) return 'Kopi Jiwara';
+      if (itemOrProd.brand && String(itemOrProd.brand).trim()) return String(itemOrProd.brand).trim();
+      const matched = (db.products || []).find(p => p.id === itemOrProd.id || (p.sku && p.sku === itemOrProd.sku));
+      if (matched && matched.brand) return matched.brand;
+      return inferBrandFromCategory(itemOrProd.category);
+    }
+
+    function isProductIncludedInCommission(itemOrProd) {
+      if (!itemOrProd) return true;
+      if (itemOrProd.includeCommissionShare !== undefined) return Boolean(itemOrProd.includeCommissionShare);
+      const matched = (db.products || []).find(p => p.id === itemOrProd.id || (p.sku && p.sku === itemOrProd.sku));
+      if (matched && matched.includeCommissionShare !== undefined) return Boolean(matched.includeCommissionShare);
+      return true;
+    }
+
+    function isProductIncludedInSalaryShare(itemOrProd) {
+      if (!itemOrProd) return true;
+      if (itemOrProd.includeSalaryShare !== undefined) return Boolean(itemOrProd.includeSalaryShare);
+      const matched = (db.products || []).find(p => p.id === itemOrProd.id || (p.sku && p.sku === itemOrProd.sku));
+      if (matched && matched.includeSalaryShare !== undefined) return Boolean(matched.includeSalaryShare);
+      return true;
+    }
+
+    function getAllAvailableBrands() {
+      const set = new Set(BRAND_LIST);
+      (db.brandConfigs || []).forEach(b => { if (b.brand) set.add(b.brand); });
+      (db.products || []).forEach(p => { if (p.brand) set.add(p.brand); });
+      return Array.from(set);
+    }
+
+    function getBrandConfig(brandName) {
+      if (!db.brandConfigs) db.brandConfigs = getDefaultBrandConfigs();
+      let cfg = db.brandConfigs.find(b => b.brand.toLowerCase() === String(brandName || '').toLowerCase());
+      if (!cfg) {
+        cfg = { brand: brandName, commissionPct: 10, salaryShareActive: true, ownerPhone: '' };
+        db.brandConfigs.push(cfg);
+      }
+      return cfg;
+    }
+
+    // ==================== WHATSAPP RECEIPT SENDER ====================
+    function formatWhatsAppReceiptText(trx) {
+      const dateStr = new Date(trx.date).toLocaleString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      const itemLines = (trx.items || []).map(it =>
+        `• ${it.name} (${it.qty}x @${rp(it.price)}) = *${rp((Number(it.price) || 0) * (Number(it.qty) || 0))}*`
+      ).join('\n');
+
+      let msg = `*BUKTI PEMBAYARAN — ${db.outlet.name}*\n`;
+      if (db.outlet.address) msg += `${db.outlet.address}\n`;
+      msg += `--------------------------------\n`;
+      msg += `No. Nota : *${trx.id}*\n`;
+      msg += `Waktu    : ${dateStr}\n`;
+      msg += `Jenis    : ${trx.orderType}\n`;
+      msg += `Pelanggan: ${trx.customer || 'Walk-in'}\n`;
+      msg += `Kasir    : ${trx.cashier || '-'}\n`;
+      msg += `--------------------------------\n`;
+      msg += `*DETAIL PESANAN:*\n${itemLines}\n`;
+      msg += `--------------------------------\n`;
+      if ((trx.discount || 0) > 0) {
+        msg += `Subtotal : ${rp(trx.subtotal || trx.total)}\n`;
+        msg += `Diskon   : -${rp(trx.discount)}\n`;
+      }
+      msg += `*TOTAL (${trx.paymentMethod}): ${rp(trx.total)}*\n`;
+      if (trx.paymentMethod === 'Cash') {
+        msg += `Tunai    : ${rp(trx.cashPaid)}\n`;
+        msg += `Kembalian: ${rp(trx.change)}\n`;
+      }
+      msg += `--------------------------------\n`;
+      msg += `${db.outlet.receiptFooter || 'Terima kasih telah menikmati Kopi Jiwara!'}`;
+      return msg;
+    }
+
+    function openSendWhatsAppReceiptModal(trxId) {
+      const trx = db.transactions.find(t => t.id === trxId);
+      if (!trx) return;
+      const existingPhone = (trx.customerPhone || '').trim();
+
+      openModal(`
+        <div class="modal-head">
+          <div>
+            <span class="badge-pill badge-green" style="margin-bottom:4px;">BUKTI PEMBAYARAN WHATSAPP</span>
+            <h3 style="margin:0;font-size:17px;">Kirim Struk Nota ${esc(trx.id)}</h3>
+          </div>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+
+        <div style="background:var(--green-soft);border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:12px;">
+          <div>Pelanggan: <strong>${esc(trx.customer || 'Walk-in')}</strong> • Total: <strong>${rp(trx.total)}</strong> (${esc(trx.paymentMethod)})</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">
+            ${existingPhone ? `Nomor kontak terdeteksi dari transaksi: <strong>${esc(existingPhone)}</strong>` : 'Data nomor kontak belum ada di keranjang pesanan. Silakan ketik nomor WhatsApp tujuan di bawah:'}
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="field-label" for="waReceiptPhoneInput">Nomor WhatsApp Pelanggan</label>
+          <input id="waReceiptPhoneInput" type="tel" inputmode="tel" list="crmPhoneListWa" class="styled-input" style="font-size:15px;" placeholder="Contoh: 081234567890" value="${esc(existingPhone)}" />
+          <datalist id="crmPhoneListWa">
+            ${(db.customers || []).filter(c => c.phone).map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('')}
+          </datalist>
+          <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;margin-top:8px;cursor:pointer;">
+            <input id="waSaveToCrmCheck" type="checkbox" checked />
+            Simpan nomor kontak ini ke riwayat nota & database CRM Pelanggan
+          </label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:8px;">
+          <button type="button" class="btn btn-soft" onclick="closeModal()">Batal</button>
+          <button type="button" class="btn btn-dark" style="padding:12px;" onclick="executeSendWhatsAppReceipt('${esc(trx.id)}')">
+            Kirim Bukti Pembayaran WA
+          </button>
+        </div>
+      `);
+
+      setTimeout(() => {
+        const inp = document.getElementById('waReceiptPhoneInput');
+        if (inp) inp.focus();
+      }, 60);
+    }
+
+    function executeSendWhatsAppReceipt(trxId) {
+      const trx = db.transactions.find(t => t.id === trxId);
+      if (!trx) return;
+      const rawPhone = (document.getElementById('waReceiptPhoneInput')?.value || '').trim();
+      let cleanDigits = rawPhone.replace(/\D/g, '');
+      if (!cleanDigits || cleanDigits.length < 8) {
+        showToast('Masukkan nomor WhatsApp pelanggan yang valid (minimal 8 digit).', true);
+        return;
+      }
+
+      if (document.getElementById('waSaveToCrmCheck')?.checked) {
+        trx.customerPhone = rawPhone;
+        const crmSaved = upsertCRMCustomerFromOrder(trx.customer, rawPhone, 0, '');
+        saveDB();
+        if (crmSaved) autoSyncMasterSlices(['customers']);
+      }
+
+      let intlPhone = cleanDigits;
+      if (intlPhone.startsWith('0')) intlPhone = '62' + intlPhone.slice(1);
+      else if (intlPhone.startsWith('8')) intlPhone = '62' + intlPhone;
+
+      const text = formatWhatsAppReceiptText(trx);
+      closeModal();
+      window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(text)}`, '_blank');
+      showToast(`Membuka WhatsApp untuk mengirim struk ${trx.id}...`);
     }
 
     // ==================== LOGIN, PIN PAD & SESSION CONTROLS ====================
@@ -1338,7 +1519,7 @@
       const url = (db.outlet && db.outlet.webhookUrl || '').trim();
       if (!url) return;
       const bodyObj = {
-        source: 'KOPI_JIWARA_POS_ERP_V2',
+        source: 'KOPI_JIWARA_POS_ERP_V2_5',
         eventType,
         timestamp: new Date().toISOString(),
         outlet: db.outlet.name,
@@ -1365,7 +1546,12 @@
       if (!url) return;
       const data = {};
       if (slices.includes('products')) {
-        data.products = (db.products || []).map(p => ({ ...p, brand: getBrandFromCategory(p.category) }));
+        data.products = (db.products || []).map(p => ({
+          ...p,
+          brand: getProductBrand(p),
+          includeCommissionShare: isProductIncludedInCommission(p),
+          includeSalaryShare: isProductIncludedInSalaryShare(p)
+        }));
       }
       if (slices.includes('inventory')) {
         data.inventory = db.inventory || [];
@@ -1450,6 +1636,13 @@
               sku: String(rpItem.sku || ('SKU-' + (idx + 1))),
               name: String(rpItem.name || 'Menu'),
               category: String(rpItem.category || 'Kopi Jiwara'),
+              brand: String(rpItem.brand || (old && old.brand) || inferBrandFromCategory(rpItem.category)),
+              includeCommissionShare: rpItem.includeCommissionShare !== undefined
+                ? Boolean(rpItem.includeCommissionShare)
+                : (old ? Boolean(old.includeCommissionShare) : true),
+              includeSalaryShare: rpItem.includeSalaryShare !== undefined
+                ? Boolean(rpItem.includeSalaryShare)
+                : (old ? Boolean(old.includeSalaryShare) : true),
               fav: Boolean(rpItem.fav),
               price: Number(rpItem.price) || 0,
               cost: Number(rpItem.cost) || 0,
@@ -1528,6 +1721,9 @@
           if (JSON.stringify(db.customers) !== prevCrm) changed = true;
         }
 
+        const voidedIds = new Set(Array.isArray(data.voidedOrderIds) ? data.voidedOrderIds.map(String) : []);
+        (db.transactions || []).forEach(t => { if (t.status === 'CANCELLED') voidedIds.add(String(t.id)); });
+
         if (Array.isArray(data.transactions) || Array.isArray(data.openOrders)) {
           const prevTrx = JSON.stringify(db.transactions);
           const trxMap = {};
@@ -1537,10 +1733,12 @@
             data.transactions.forEach(ct => {
               if (!ct || !ct.id) return;
               const existingLocal = trxMap[ct.id];
+              const isVoid = voidedIds.has(String(ct.id)) || (existingLocal && existingLocal.status === 'CANCELLED');
               trxMap[ct.id] = {
                 ...existingLocal,
                 ...ct,
-                status: (existingLocal && existingLocal.status === 'CANCELLED') ? 'CANCELLED' : 'PAID'
+                status: isVoid ? 'CANCELLED' : 'PAID',
+                paymentMethod: isVoid ? 'BATAL' : (ct.paymentMethod || 'Cash')
               };
             });
           }
@@ -1548,7 +1746,7 @@
           if (Array.isArray(data.openOrders)) {
             const cloudOpenIds = new Set();
             data.openOrders.forEach(oo => {
-              if (!oo || !oo.id) return;
+              if (!oo || !oo.id || voidedIds.has(String(oo.id))) return;
               cloudOpenIds.add(oo.id);
               if (!trxMap[oo.id] || trxMap[oo.id].status === 'OPEN') {
                 trxMap[oo.id] = {
@@ -1593,7 +1791,7 @@
         }
       } catch (err) {
         if (manualTrigger) {
-          showToast('Gagal menarik data. Pastikan Skrip Google Sheets sudah diperbarui ke v2.3 (doGet).', true);
+          showToast('Gagal menarik data. Pastikan Skrip Google Sheets sudah diperbarui ke v2.5.', true);
         }
       } finally {
         cloudSyncInProgress = false;
@@ -1642,7 +1840,9 @@
       }
       const enrichedProducts = (db.products || []).map(p => ({
         ...p,
-        brand: getBrandFromCategory(p.category)
+        brand: getProductBrand(p),
+        includeCommissionShare: isProductIncludedInCommission(p),
+        includeSalaryShare: isProductIncludedInSalaryShare(p)
       }));
       syncMasterEvent('FULL_MASTER_SYNC', {
         products: enrichedProducts,
@@ -1655,15 +1855,16 @@
         attendanceLogs: db.attendanceLogs,
         customers: db.customers,
         orderAuditLogs: db.orderAuditLogs || [],
-        shiftClosings: db.shiftClosings || []
+        shiftClosings: db.shiftClosings || [],
+        brandSettlements: db.brandSettlements || []
       });
-      showToast('Seluruh database (13 Sheet Master) sedang disinkronkan ke Google Sheets!');
+      showToast('Seluruh database (14 Sheet Master) sedang disinkronkan ke Google Sheets!');
     }
 
     function getMasterAppsScriptCode() {
       return `/**
- * MASTER POS & ERP - KOPI JIWARA v2.3 (2-Way Real-Time Sync: doPost + doGet)
- * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 13 tab database otomatis.
+ * MASTER POS & ERP - KOPI JIWARA v2.5 (Split Komisi & Beban Gaji + 2-Way Sync)
+ * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 14 tab database otomatis.
  * 2. Klik Deploy -> New deployment (atau Manage deployments -> Edit -> New version) -> Web app.
  *    Execute as: Me | Who has access: Anyone.
  */
@@ -1679,7 +1880,7 @@ function inisialisasiSemuaSheetMaster() {
   
   getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
     'Timestamp', 'Tanggal', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu',
-    'Kategori', 'Brand', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
+    'Kategori', 'Brand', 'Kena_Komisi', 'Hitung_Porsi_Gaji', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
     'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'
   ]);
 
@@ -1698,6 +1899,13 @@ function inisialisasiSemuaSheetMaster() {
     'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
     'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
   ]);
+
+  getOrCreateSheet(ss, 'SETTLEMENT_BRAND', [
+    'Timestamp', 'ID_Settlement', 'Periode', 'Brand',
+    'Qty_Terjual', 'Qty_Hitung_Gaji', 'Omzet_Brand', 'Omzet_Kena_Komisi',
+    'Persen_Komisi', 'Potongan_Komisi', 'Porsi_Beban_Gaji',
+    'Net_Transfer_Brand', 'PIC'
+  ]);
   
   getOrCreateSheet(ss, 'CLOSING_SHIFT', [
     'Timestamp', 'ID_Closing', 'Tanggal', 'Kasir', 'Modal_Awal',
@@ -1712,7 +1920,8 @@ function inisialisasiSemuaSheetMaster() {
   
   getOrCreateSheet(ss, 'MASTER_MENU', [
     'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
-    'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
+    'Kena_Komisi_Brand', 'Hitung_Porsi_Gaji', 'Satuan', 'Harga_Jual', 'HPP_Modal',
+    'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
   ]);
   
   getOrCreateSheet(ss, 'GUDANG_STOK', [
@@ -1737,19 +1946,20 @@ function inisialisasiSemuaSheetMaster() {
 
   var dash = getOrCreateSheet(ss, 'DASHBOARD_LR', ['Metrik_Keuangan_&_Operasional', 'Nilai', 'Keterangan']);
   if (dash.getLastRow() <= 1) {
-    dash.getRange(2, 1, 12, 3).setValues([
+    dash.getRange(2, 1, 13, 3).setValues([
       ['Total Penjualan Kotor (Gross)', '=SUM(POS_TRANSAKSI!K2:K)', 'Sebelum diskon/promo'],
       ['Total Potongan Diskon & Promo', '=SUM(POS_TRANSAKSI!L2:L)', 'Voucher CRM & Promo Manual'],
       ['Total Pendapatan Bersih (Net Sales)', '=SUM(POS_TRANSAKSI!M2:M)', 'Omzet real masuk'],
       ['Total HPP / Modal Bahan (COGS)', '=SUM(POS_TRANSAKSI!N2:N)', 'Akumulasi HPP produk terjual'],
       ['Laba Kotor (Gross Profit)', '=SUM(POS_TRANSAKSI!O2:O)', 'Pendapatan Bersih - HPP'],
       ['Biaya Operasional Kas Laci', '=SUMIFS(ARUS_KAS_CASHFLOW!H2:H, ARUS_KAS_CASHFLOW!D2:D, "Biaya Operasional")', 'Pengeluaran harian kasir'],
+      ['Total Setoran Transfer Brand Owner', '=SUM(SETTLEMENT_BRAND!L2:L)', 'Transfer bersih ke Brand Owner'],
       ['Total Beban Upah Karyawan', '=SUM(ABSENSI_KARYAWAN!G2:G)', 'Berdasarkan absensi harian'],
-      ['Laba Bersih Operasional', '=B6-B7-B8', 'Estimasi Net Profit Outlet'],
-      ['Omzet Brand: Kopi Jiwara', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Kopi Jiwara")', 'Minuman & Kopi'],
-      ['Omzet Brand: Ayam Baba Jay', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Ayam Baba Jay")', 'Ayam TL & Paket'],
-      ['Omzet Brand: Jovangels', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Jovangels")', 'Bento & Side Dish'],
-      ['Omzet Brand: Jihyo', '=SUMIFS(POS_ITEM_TERJUAL!L2:L, POS_ITEM_TERJUAL!H2:H, "Jihyo")', 'Dimsum & Mentai']
+      ['Laba Bersih Operasional', '=B6-B7-B9', 'Estimasi Net Profit Outlet'],
+      ['Omzet Brand: Kopi Jiwara', '=SUMIFS(POS_ITEM_TERJUAL!N2:N, POS_ITEM_TERJUAL!H2:H, "Kopi Jiwara")', 'Minuman & Kopi'],
+      ['Omzet Brand: Ayam Baba Jay', '=SUMIFS(POS_ITEM_TERJUAL!N2:N, POS_ITEM_TERJUAL!H2:H, "Ayam Baba Jay")', 'Ayam TL & Paket'],
+      ['Omzet Brand: Jovangels', '=SUMIFS(POS_ITEM_TERJUAL!N2:N, POS_ITEM_TERJUAL!H2:H, "Jovangels")', 'Bento & Side Dish'],
+      ['Omzet Brand: Jihyo', '=SUMIFS(POS_ITEM_TERJUAL!N2:N, POS_ITEM_TERJUAL!H2:H, "Jihyo")', 'Dimsum & Mentai']
     ]);
   }
 }
@@ -1767,12 +1977,27 @@ function doGet(e) {
       customers: readCustomersSheet(ss),
       openOrders: readOpenOrdersSheet(ss),
       transactions: readRecentTransactionsSheet(ss),
+      voidedOrderIds: readVoidedOrderIds(ss),
       cashDrawerLogs: readCashDrawerSheet(ss)
     };
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: 'ERROR', message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function readVoidedOrderIds(ss) {
+  var sh = ss.getSheetByName('AUDIT_OTORISASI');
+  if (!sh || sh.getLastRow() <= 1) return [];
+  var rows = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < rows.length; r++) {
+    var act = String(rows[r][2] || '');
+    if (act === 'CANCEL_PAID_TRANSACTION' || act === 'PAID_TRX_CANCELLED' || act === 'CANCEL_OPEN_ORDER' || act === 'ORDER_CANCELLED') {
+      if (rows[r][3]) out.push(String(rows[r][3]));
+    }
+  }
+  return out;
 }
 
 function readMenuSheet(ss) {
@@ -1787,10 +2012,12 @@ function readMenuSheet(ss) {
       name: String(rows[r][2] || ''),
       category: String(rows[r][3] || 'Kopi Jiwara'),
       brand: String(rows[r][4] || 'Kopi Jiwara'),
-      unit: String(rows[r][5] || 'Cup'),
-      price: Number(rows[r][6]) || 0,
-      cost: Number(rows[r][7]) || 0,
-      fav: String(rows[r][10] || '').toLowerCase() === 'ya'
+      includeCommissionShare: String(rows[r][5] || 'Ya').toLowerCase() === 'ya',
+      includeSalaryShare: String(rows[r][6] || 'Ya').toLowerCase() === 'ya',
+      unit: String(rows[r][7] || 'Cup'),
+      price: Number(rows[r][8]) || 0,
+      cost: Number(rows[r][9]) || 0,
+      fav: String(rows[r][12] || '').toLowerCase() === 'ya'
     });
   }
   return out;
@@ -1962,14 +2189,15 @@ function writeMasterTables(ss, ts, p) {
   if (p.products) {
     var shMenu = getOrCreateSheet(ss, 'MASTER_MENU', [
       'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
-      'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
+      'Kena_Komisi_Brand', 'Hitung_Porsi_Gaji', 'Satuan', 'Harga_Jual', 'HPP_Modal',
+      'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
     ]);
     shMenu.clearContents();
-    shMenu.appendRow(['Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand', 'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit']);
+    shMenu.appendRow(['Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand', 'Kena_Komisi_Brand', 'Hitung_Porsi_Gaji', 'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit']);
     p.products.forEach(function(pr) {
       var mRp = (Number(pr.price) || 0) - (Number(pr.cost) || 0);
       var mPct = pr.price > 0 ? Math.round((mRp / pr.price) * 100) + '%' : '0%';
-      shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
+      shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.includeCommissionShare === false ? 'Tidak' : 'Ya', pr.includeSalaryShare === false ? 'Tidak' : 'Ya', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
     });
   }
   if (p.inventory) {
@@ -2067,17 +2295,19 @@ function doPost(e) {
 
       var shItems = getOrCreateSheet(ss, 'POS_ITEM_TERJUAL', [
         'Timestamp', 'Tanggal', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu',
-        'Kategori', 'Brand', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
+        'Kategori', 'Brand', 'Kena_Komisi', 'Hitung_Porsi_Gaji', 'Qty', 'Harga_Satuan', 'HPP_Satuan',
         'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'
       ]);
       var brandMap = p.brandMap || {};
       (p.items || []).forEach(function(it) {
         var subJual = (Number(it.price) || 0) * (Number(it.qty) || 0);
         var subHpp = (Number(it.cost) || 0) * (Number(it.qty) || 0);
-        var br = brandMap[it.id] || 'Kopi Jiwara';
+        var br = it.brand || brandMap[it.id] || 'Kopi Jiwara';
+        var incCom = it.includeCommissionShare === false ? 'Tidak' : 'Ya';
+        var incSal = it.includeSalaryShare === false ? 'Tidak' : 'Ya';
         shItems.appendRow([
           ts, tgl, p.id, p.orderType, it.sku || '-', it.name,
-          it.category || '-', br, it.qty, it.price, it.cost || 0,
+          it.category || '-', br, incCom, incSal, it.qty, it.price, it.cost || 0,
           subJual, subHpp, (subJual - subHpp)
         ]);
       });
@@ -2092,14 +2322,39 @@ function doPost(e) {
         p.total, 0, p.cashier
       ]);
 
+    } else if (eventType === 'BRAND_SETTLEMENT') {
+      var shSet = getOrCreateSheet(ss, 'SETTLEMENT_BRAND', [
+        'Timestamp', 'ID_Settlement', 'Periode', 'Brand',
+        'Qty_Terjual', 'Qty_Hitung_Gaji', 'Omzet_Brand', 'Omzet_Kena_Komisi',
+        'Persen_Komisi', 'Potongan_Komisi', 'Porsi_Beban_Gaji',
+        'Net_Transfer_Brand', 'PIC'
+      ]);
+      shSet.appendRow([
+        ts, p.id, p.periodLabel, p.brand,
+        p.totalQty, p.qualifyingQty, p.grossSales, p.commissionableSales || p.grossSales,
+        p.commissionPct + '%', p.commissionAmount, p.salaryDeduction,
+        p.netTransfer, p.pic
+      ]);
+
+      var shCfSet = getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
+        'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
+        'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
+      ]);
+      shCfSet.appendRow([
+        ts, tgl, p.id, 'Setoran Brand Owner', 'Transfer Bank',
+        'Transfer Sales ' + p.brand + ' (' + p.periodLabel + ')',
+        0, p.netTransfer, p.pic
+      ]);
+
     } else if (eventType === 'CASH_DRAWER') {
       var shCf2 = getOrCreateSheet(ss, 'ARUS_KAS_CASHFLOW', [
         'Timestamp', 'Tanggal', 'No_Ref', 'Kategori_Kas', 'Metode',
         'Keterangan', 'Debit_Masuk', 'Kredit_Keluar', 'PIC'
       ]);
       var isIn = p.type === 'IN';
+      var isSetoran = String(p.note || '').toLowerCase().indexOf('setoran') === 0;
       shCf2.appendRow([
-        ts, tgl, p.id, isIn ? 'Kas Masuk Laci' : 'Biaya Operasional', 'Cash Laci',
+        ts, tgl, p.id, isIn ? 'Kas Masuk Laci' : (isSetoran ? 'Setoran Kasir ke Finance' : 'Biaya Operasional'), 'Cash Laci',
         p.note, isIn ? p.amount : 0, isIn ? 0 : p.amount, p.cashier
       ]);
 
@@ -2348,7 +2603,7 @@ function getOrCreateSheet(ss, name, headers) {
       const filteredProds = db.products.filter(p => {
         const matchCat = selectedCategory === 'Favorit' ? p.fav : p.category === selectedCategory;
         const q = productSearch.trim().toLowerCase();
-        const matchQ = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+        const matchQ = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || getProductBrand(p).toLowerCase().includes(q);
         return q ? matchQ : matchCat;
       });
 
@@ -2397,7 +2652,7 @@ function getOrCreateSheet(ss, name, headers) {
               </div>
             ` : `
               <div style="margin-bottom:10px;">
-                <input type="text" class="styled-input" placeholder="Cari nama menu atau SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
+                <input type="text" class="styled-input" placeholder="Cari nama menu, brand, atau SKU..." value="${esc(productSearch)}" oninput="productSearch=this.value;renderCashierPOS(document.getElementById('mainContentArea'))" />
               </div>
 
               <div class="cat-strip no-scroll" style="margin-bottom:12px;">
@@ -2413,7 +2668,7 @@ function getOrCreateSheet(ss, name, headers) {
                     <button type="button" class="prod-card ${inCart ? 'in-cart' : ''}" onclick="addToCart('${esc(p.id)}')">
                       ${inCart ? `<span class="qty-badge">${inCart.qty}x</span>` : ''}
                       <div>
-                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);margin-bottom:3px;">${esc(p.category)}</div>
+                        <div style="font-size:10px;font-weight:800;color:var(--text-muted);margin-bottom:3px;">${esc(getProductBrand(p))} • ${esc(p.category)}</div>
                         <div style="font-size:13px;font-weight:900;color:var(--green-deep);line-height:1.25;">${esc(p.name)}</div>
                       </div>
                       <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
@@ -2463,7 +2718,7 @@ function getOrCreateSheet(ss, name, headers) {
               </div>
             </div>
             <div style="margin-bottom:10px;">
-              <label class="field-label">No. Telepon / WhatsApp (Data CRM)</label>
+              <label class="field-label">No. Telepon / WhatsApp (Data CRM & Struk WA)</label>
               <input id="cartPhoneInput" type="tel" inputmode="tel" list="crmPhoneList" class="styled-input" style="padding:8px 10px;font-size:12px;" placeholder="0812xxxxxxxx (Opsional - Simpan ke Database CRM)" value="${esc(cartCustomerPhone)}" oninput="handleCartPhoneInput(this.value)" />
               <datalist id="crmPhoneList">
                 ${(db.customers || []).filter(c => c.phone).map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('')}
@@ -2529,7 +2784,20 @@ function getOrCreateSheet(ss, name, headers) {
       if (!prod) return;
       const existing = cart.find(c => c.id === prodId);
       if (existing) existing.qty += 1;
-      else cart.push({ id: prod.id, sku: prod.sku, name: prod.name, category: prod.category, price: prod.price, cost: prod.cost || 0, qty: 1 });
+      else {
+        cart.push({
+          id: prod.id,
+          sku: prod.sku,
+          name: prod.name,
+          category: prod.category,
+          brand: getProductBrand(prod),
+          includeCommissionShare: isProductIncludedInCommission(prod),
+          includeSalaryShare: isProductIncludedInSalaryShare(prod),
+          price: prod.price,
+          cost: prod.cost || 0,
+          qty: 1
+        });
+      }
       renderCashierPOS(document.getElementById('mainContentArea'));
     }
 
@@ -2754,7 +3022,6 @@ function getOrCreateSheet(ss, name, headers) {
           ordObj.cancelledBy = approver.name;
           ordObj.cancelledAt = new Date().toISOString();
 
-          // Restore product stock
           (ordObj.items || []).forEach(it => {
             const prod = db.products.find(p => p.id === it.id);
             if (prod) prod.stock = (Number(prod.stock) || 0) + (Number(it.qty) || 0);
@@ -2833,7 +3100,7 @@ function getOrCreateSheet(ss, name, headers) {
             ${(trx.items || []).map(it => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border-glass);font-size:12px;">
                 <div>
-                  <div style="font-weight:800;color:var(--green-deep);">${esc(it.name)}</div>
+                  <div style="font-weight:800;color:var(--green-deep);">${esc(it.name)} <span class="badge-pill badge-green" style="font-size:9px;margin-left:4px;">${esc(getProductBrand(it))}</span></div>
                   <div style="font-size:11px;color:var(--text-muted);">${rp(it.price)} x ${it.qty}</div>
                 </div>
                 <strong>${rp((Number(it.price) || 0) * (Number(it.qty) || 0))}</strong>
@@ -2857,17 +3124,20 @@ function getOrCreateSheet(ss, name, headers) {
           ` : ''}
         </div>
 
-        <div style="display:grid;grid-template-columns:${isCancelled ? '1fr' : '1fr 1fr'};gap:8px;">
-          ${isPaid ? `
+        ${isPaid ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
             <button type="button" class="btn btn-dark" onclick="reprintReceiptById('${esc(trx.id)}')">Cetak Ulang Struk</button>
-            <button type="button" class="btn btn-danger" onclick="openManagerPinAuthModal('CANCEL_PAID_TRX', '${esc(trx.id)}')">Batalkan Pesanan (PIN)</button>
-          ` : (!isCancelled ? `
+            <button type="button" class="btn btn-yellow" onclick="openSendWhatsAppReceiptModal('${esc(trx.id)}')">Kirim Bukti WA</button>
+          </div>
+          <button type="button" class="btn btn-danger" style="width:100%;" onclick="openManagerPinAuthModal('CANCEL_PAID_TRX', '${esc(trx.id)}')">Batalkan Pesanan (PIN)</button>
+        ` : (!isCancelled ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <button type="button" class="btn btn-dark" onclick="closeModal();loadOpenOrderToCart('${esc(trx.id)}')">Muat ke Kasir</button>
             <button type="button" class="btn btn-danger" onclick="openManagerPinAuthModal('CANCEL_ORDER', '${esc(trx.id)}')">Batalkan Order (PIN)</button>
-          ` : `
-            <button type="button" class="btn btn-soft" onclick="closeModal()">Tutup Detail</button>
-          `)}
-        </div>
+          </div>
+        ` : `
+          <button type="button" class="btn btn-soft" style="width:100%;" onclick="closeModal()">Tutup Detail</button>
+        `)}
       `);
     }
 
@@ -2917,18 +3187,20 @@ function getOrCreateSheet(ss, name, headers) {
       if (existing) {
         if (cleanName && cleanName !== 'Walk-in') existing.name = cleanName;
         if (cleanPhone) existing.phone = cleanPhone;
-        existing.totalVisits = (Number(existing.totalVisits) || 0) + 1;
-        existing.totalSpent = (Number(existing.totalSpent) || 0) + (Number(orderTotal) || 0);
-        existing.lastVisit = new Date().toISOString();
-        if (existing.totalSpent >= 500000) existing.tier = 'VIP Member';
-        else if (existing.totalSpent >= 150000) existing.tier = 'Gold Member';
+        if (orderTotal > 0) {
+          existing.totalVisits = (Number(existing.totalVisits) || 0) + 1;
+          existing.totalSpent = (Number(existing.totalSpent) || 0) + (Number(orderTotal) || 0);
+          existing.lastVisit = new Date().toISOString();
+          if (existing.totalSpent >= 500000) existing.tier = 'VIP Member';
+          else if (existing.totalSpent >= 150000) existing.tier = 'Gold Member';
+        }
       } else {
         db.customers.unshift({
           id: 'CRM-' + Math.floor(100 + Math.random() * 900),
           name: cleanName || ('Pelanggan ' + cleanPhone),
           phone: cleanPhone,
           tier: orderTotal >= 150000 ? 'Gold Member' : 'Regular',
-          totalVisits: 1,
+          totalVisits: orderTotal > 0 ? 1 : 0,
           totalSpent: Number(orderTotal) || 0,
           lastVisit: new Date().toISOString(),
           notes: promoUsed ? `Menggunakan promo ${promoUsed}` : 'Pelanggan POS',
@@ -3068,7 +3340,7 @@ function getOrCreateSheet(ss, name, headers) {
       openCheckoutModal(paidTotal, paidTotal, 0, true);
     }
 
-    // ==================== CHECKOUT MODAL ====================
+    // ==================== CHECKOUT MODAL & POST-PAYMENT RECEIPT DIALOG ====================
     let checkoutMethod = 'Cash';
 
     function openCheckoutModal(total, subtotal, discount, isSplit = false) {
@@ -3114,7 +3386,7 @@ function getOrCreateSheet(ss, name, headers) {
         </div>
 
         <button class="btn btn-yellow" style="width:100%;padding:14px;font-size:14px;" onclick="completeCheckout(${total}, ${subtotal}, ${discount})">
-          Selesaikan Pembayaran & Cetak Struk
+          Selesaikan Pembayaran
         </button>
       `);
     }
@@ -3164,6 +3436,77 @@ function getOrCreateSheet(ss, name, headers) {
       }
     }
 
+    function openPaymentSuccessModal(trx, isSplitFlow) {
+      const phoneSaved = (trx.customerPhone || '').trim();
+      openModal(`
+        <div class="modal-head">
+          <div>
+            <span class="badge-pill badge-green" style="margin-bottom:4px;">PEMBAYARAN BERHASIL</span>
+            <h3 style="margin:0;font-size:18px;">${isSplitFlow ? 'Split Bill' : 'Transaksi'} ${esc(trx.id)} Lunas</h3>
+          </div>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+
+        <div class="kpi-tile dark" style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="kpi-label">Total Dibayar (${esc(trx.paymentMethod)})</div>
+              <div class="kpi-value">${rp(trx.total)}</div>
+            </div>
+            ${trx.paymentMethod === 'Cash' ? `
+              <div style="text-align:right;">
+                <div class="kpi-label">Kembalian</div>
+                <div style="font-size:16px;font-weight:900;color:#FBCFE8;">${rp(trx.change)}</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div style="background:var(--green-soft);border-radius:14px;padding:11px 13px;margin-bottom:14px;font-size:12px;">
+          <div style="font-weight:800;color:var(--green-deep);margin-bottom:4px;">Kirim Bukti Pembayaran via WhatsApp</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            ${phoneSaved ? `Kontak pelanggan terdeteksi: <strong>${esc(phoneSaved)}</strong> (bisa diubah jika perlu)` : 'Nomor kontak pelanggan belum diisi di keranjang. Masukkan nomor WA pelanggan di bawah ini:'}
+          </div>
+          <input id="postPayWaPhone" type="tel" inputmode="tel" list="crmPhoneListPost" class="styled-input" style="padding:8px 11px;font-size:13px;" placeholder="0812xxxxxxxx" value="${esc(phoneSaved)}" />
+          <datalist id="crmPhoneListPost">
+            ${(db.customers || []).filter(c => c.phone).map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('')}
+          </datalist>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-bottom:8px;">
+          <button type="button" class="btn btn-dark" onclick="reprintReceiptById('${esc(trx.id)}')">Cetak Struk</button>
+          <button type="button" class="btn btn-yellow" style="padding:12px;" onclick="sendPostPaymentWhatsApp('${esc(trx.id)}')">Kirim Bukti ke WA</button>
+        </div>
+        <button type="button" class="btn btn-soft" style="width:100%;" onclick="closeModal()">Selesai & Tutup</button>
+      `);
+    }
+
+    function sendPostPaymentWhatsApp(trxId) {
+      const trx = db.transactions.find(t => t.id === trxId);
+      if (!trx) return;
+      const rawPhone = (document.getElementById('postPayWaPhone')?.value || '').trim();
+      let cleanDigits = rawPhone.replace(/\D/g, '');
+      if (!cleanDigits || cleanDigits.length < 8) {
+        showToast('Masukkan nomor WhatsApp pelanggan yang valid terlebih dahulu.', true);
+        const inp = document.getElementById('postPayWaPhone');
+        if (inp) inp.focus();
+        return;
+      }
+
+      trx.customerPhone = rawPhone;
+      const crmSaved = upsertCRMCustomerFromOrder(trx.customer, rawPhone, 0, '');
+      saveDB();
+      if (crmSaved) autoSyncMasterSlices(['customers']);
+
+      let intlPhone = cleanDigits;
+      if (intlPhone.startsWith('0')) intlPhone = '62' + intlPhone.slice(1);
+      else if (intlPhone.startsWith('8')) intlPhone = '62' + intlPhone;
+
+      const text = formatWhatsAppReceiptText(trx);
+      window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(text)}`, '_blank');
+      showToast(`Mengirim bukti pembayaran ${trx.id} ke WhatsApp...`);
+    }
+
     function completeCheckout(total, subtotal, discount) {
       let cashPaid = total;
       let change = 0;
@@ -3178,7 +3521,13 @@ function getOrCreateSheet(ss, name, headers) {
       }
 
       const isSplitFlow = Boolean(pendingSplitContext);
-      const itemsToPay = isSplitFlow ? pendingSplitContext.paidItems : JSON.parse(JSON.stringify(cart));
+      const rawItems = isSplitFlow ? pendingSplitContext.paidItems : JSON.parse(JSON.stringify(cart));
+      const itemsToPay = rawItems.map(it => ({
+        ...it,
+        brand: getProductBrand(it),
+        includeCommissionShare: isProductIncludedInCommission(it),
+        includeSalaryShare: isProductIncludedInSalaryShare(it)
+      }));
       const leftoverItems = isSplitFlow ? pendingSplitContext.leftoverItems : [];
 
       const trxId = 'TRX-' + Math.floor(1000 + Math.random() * 9000);
@@ -3203,7 +3552,7 @@ function getOrCreateSheet(ss, name, headers) {
       const crmUpdated = upsertCRMCustomerFromOrder(cartCustomer.trim(), cartCustomerPhone.trim(), total, promoLabel);
 
       const brandMap = {};
-      trx.items.forEach(it => { brandMap[it.id] = getBrandFromCategory(it.category); });
+      trx.items.forEach(it => { brandMap[it.id] = getProductBrand(it); });
       syncMasterEvent('SALE_COMPLETED', { ...trx, brandMap });
 
       if (isSplitFlow && leftoverItems.length > 0) {
@@ -3231,12 +3580,11 @@ function getOrCreateSheet(ss, name, headers) {
       pendingSplitContext = null;
       saveDB();
       clearCart();
-      closeModal();
       printThermalReceipt(trx);
       if (db.outlet && db.outlet.printerAutoPrint && db.outlet.printerLocked) {
         sendReceiptToBluetoothPrinter(trx, true);
       }
-      showToast(`${isSplitFlow ? 'Split Bill' : 'Transaksi'} ${trxId} berhasil (${checkoutMethod})`);
+      openPaymentSuccessModal(trx, isSplitFlow);
     }
 
     function deductProductStock(items) {
@@ -3289,7 +3637,7 @@ function getOrCreateSheet(ss, name, headers) {
       container.innerHTML = `
         <div style="margin-bottom:12px;">
           <h2 style="margin:0;font-size:19px;">Rekaman Penjualan Kasir</h2>
-          <div style="font-size:12px;color:var(--text-muted);">Klik baris transaksi untuk melihat rincian menu atau membatalkan pesanan (PIN Owner/Manager)</div>
+          <div style="font-size:12px;color:var(--text-muted);">Klik baris transaksi untuk melihat rincian menu, kirim bukti WA, atau membatalkan pesanan</div>
         </div>
 
         <div class="bento-grid-4" style="margin-bottom:14px;">
@@ -3355,7 +3703,10 @@ function getOrCreateSheet(ss, name, headers) {
                       <td onclick="event.stopPropagation()">
                         <div style="display:flex;gap:5px;flex-wrap:wrap;">
                           <button class="btn btn-soft btn-sm" onclick="openTransactionDetailModal('${esc(t.id)}')">Detail</button>
-                          ${t.status === 'PAID' ? `<button class="btn btn-dark btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak</button>` : ''}
+                          ${t.status === 'PAID' ? `
+                            <button class="btn btn-yellow btn-sm" onclick="openSendWhatsAppReceiptModal('${esc(t.id)}')">Kirim WA</button>
+                            <button class="btn btn-dark btn-sm" onclick="reprintReceiptById('${esc(t.id)}')">Cetak</button>
+                          ` : ''}
                         </div>
                       </td>
                     </tr>
@@ -3400,10 +3751,12 @@ function getOrCreateSheet(ss, name, headers) {
         if (preset === '7 Hari Terakhir') return (now - d) / (1000 * 60 * 60 * 24) <= 7;
         if (preset === 'Minggu Ini') {
           const s = new Date(now); s.setDate(now.getDate() - now.getDay());
+          s.setHours(0, 0, 0, 0);
           return d >= s;
         }
         if (preset === 'Minggu Lalu') {
           const st = new Date(now); st.setDate(now.getDate() - now.getDay());
+          st.setHours(0, 0, 0, 0);
           const sl = new Date(st); sl.setDate(st.getDate() - 7);
           return d >= sl && d < st;
         }
@@ -3546,17 +3899,17 @@ function getOrCreateSheet(ss, name, headers) {
         <div class="bento-grid-4" style="margin-bottom:14px;">
           <div class="kpi-tile dark"><div class="kpi-label">Modal Awal Laci</div><div class="kpi-value">${rp(db.shift.openingCash)}</div></div>
           <div class="kpi-tile"><div class="kpi-label">Kas Masuk Tambahan</div><div class="kpi-value">${rp(cashIn)}</div></div>
-          <div class="kpi-tile pink"><div class="kpi-label">Kas Keluar (Operasional)</div><div class="kpi-value">${rp(cashOut)}</div></div>
+          <div class="kpi-tile pink"><div class="kpi-label">Kas Keluar (Operasional / Setoran)</div><div class="kpi-value">${rp(cashOut)}</div></div>
           <div class="kpi-tile yellow"><div class="kpi-label">Mutasi Tercatat</div><div class="kpi-value">${db.cashDrawerLogs.length} Catatan</div></div>
         </div>
 
         <div class="bento-card" style="margin-bottom:14px;">
-          <h3 style="margin:0 0 10px;font-size:16px;">Catat Mutasi Kas Laci (Masuk / Keluar)</h3>
+          <h3 style="margin:0 0 10px;font-size:16px;">Catat Mutasi Kas Laci (Masuk / Keluar / Setoran)</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
             <div>
               <label class="field-label">Jenis Mutasi</label>
               <select id="cashMutType" class="styled-select">
-                <option value="OUT">Kas Keluar (Beli Galon, Gas, Es, dll)</option>
+                <option value="OUT">Kas Keluar (Operasional / Setoran ke Owner)</option>
                 <option value="IN">Kas Masuk (Tambah Uang Kembalian)</option>
               </select>
             </div>
@@ -3566,7 +3919,7 @@ function getOrCreateSheet(ss, name, headers) {
             </div>
             <div>
               <label class="field-label">Keterangan / Keperluan</label>
-              <input id="cashMutNote" type="text" class="styled-input" placeholder="Contoh: Beli Gas 3kg 1 tabung" />
+              <input id="cashMutNote" type="text" class="styled-input" placeholder="Contoh: Setoran Cash ke Owner / Beli Gas 3kg" />
             </div>
           </div>
           <button class="btn btn-dark" onclick="addCashDrawerMutation()">Simpan Mutasi Kas</button>
@@ -3918,7 +4271,7 @@ function getOrCreateSheet(ss, name, headers) {
       doDirectLogout();
     }
 
-    // ==================== 7. OWNER: PENJUALAN & LAPORAN ====================
+    // ==================== 7. OWNER: PENJUALAN & LAPORAN + SETTLEMENT BRAND ====================
     function renderOwnerSalesTab(container) {
       const presets = ['Hari Ini', 'Kemarin', '7 Hari Terakhir', 'Minggu Ini', 'Minggu Lalu', 'Bulan Ini', 'Bulan Lalu', 'Custom Date'];
       const list = filterTransactionsByPreset(ownerSalesPeriod, ownerSalesStartDate, ownerSalesEndDate);
@@ -3931,7 +4284,7 @@ function getOrCreateSheet(ss, name, headers) {
           <div>
             <h2 style="margin:0;font-size:20px;">Penjualan & Riwayat Transaksi</h2>
             <div style="font-size:12px;color:var(--text-muted);">
-              ${ownerSalesPeriod === 'Custom Date' ? `Periode: ${esc(ownerSalesStartDate)} s/d ${esc(ownerSalesEndDate)}` : 'Klik baris transaksi untuk melihat rincian menu atau membatalkan pesanan (PIN Owner/Manager)'}
+              ${ownerSalesPeriod === 'Custom Date' ? `Periode: ${esc(ownerSalesStartDate)} s/d ${esc(ownerSalesEndDate)}` : 'Klik baris transaksi untuk melihat rincian menu, kirim bukti WA, atau membatalkan pesanan'}
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
@@ -3978,7 +4331,10 @@ function getOrCreateSheet(ss, name, headers) {
                     </td>
                     <td><strong>${rp(t.total)}</strong></td>
                     <td onclick="event.stopPropagation()">
-                      <button class="btn btn-soft btn-sm" onclick="openTransactionDetailModal('${esc(t.id)}')">Detail</button>
+                      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                        <button class="btn btn-soft btn-sm" onclick="openTransactionDetailModal('${esc(t.id)}')">Detail</button>
+                        ${t.status === 'PAID' ? `<button class="btn btn-yellow btn-sm" onclick="openSendWhatsAppReceiptModal('${esc(t.id)}')">Kirim WA</button>` : ''}
+                      </div>
                     </td>
                   </tr>
                 `).join('')}
@@ -4007,12 +4363,13 @@ function getOrCreateSheet(ss, name, headers) {
 
       (db.cashDrawerLogs || []).forEach(c => {
         if (filterDateStringByPreset(c.date.slice(0, 10), period, customStart, customEnd)) {
+          const isSetoran = String(c.note || '').toLowerCase().startsWith('setoran');
           entries.push({
             id: c.id,
             date: c.date,
             debit: c.type === 'IN' ? c.amount : 0,
             kredit: c.type === 'OUT' ? c.amount : 0,
-            category: c.type === 'IN' ? 'Kas Masuk Laci' : 'Biaya Operasional',
+            category: c.type === 'IN' ? 'Kas Masuk Laci' : (isSetoran ? 'Setoran ke Owner/Finance' : 'Biaya Operasional'),
             method: 'Cash Laci',
             note: c.note,
             pic: c.cashier
@@ -4020,7 +4377,198 @@ function getOrCreateSheet(ss, name, headers) {
         }
       });
 
+      (db.brandSettlements || []).forEach(st => {
+        if (filterDateStringByPreset(st.date.slice(0, 10), period, customStart, customEnd)) {
+          entries.push({
+            id: st.id,
+            date: st.date,
+            debit: 0,
+            kredit: st.netTransfer,
+            category: 'Setoran Brand Owner',
+            method: 'Transfer Bank',
+            note: `Transfer Sales ${st.brand} (${st.periodLabel}) — Komisi ${st.commissionPct}% & Gaji`,
+            pic: st.pic
+          });
+        }
+      });
+
       return entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
+    function computeBrandSettlementData(period, customStart, customEnd) {
+      const paidList = filterTransactionsByPreset(period, customStart, customEnd).filter(t => t.status === 'PAID');
+      const attWages = (db.attendanceLogs || [])
+        .filter(a => filterDateStringByPreset(a.date, period, customStart, customEnd))
+        .reduce((s, a) => s + (Number(a.wage) || 0), 0);
+
+      const salaryPool = settlementCustomSalaryPool !== null ? settlementCustomSalaryPool : attWages;
+      const brands = getAllAvailableBrands();
+      const map = {};
+      brands.forEach(b => {
+        const cfg = getBrandConfig(b);
+        map[b] = {
+          brand: b,
+          commissionPct: Number(cfg.commissionPct) || 0,
+          salaryShareActive: cfg.salaryShareActive !== false,
+          ownerPhone: cfg.ownerPhone || '',
+          totalQty: 0,
+          commissionQty: 0,
+          qualifyingQty: 0,
+          grossSales: 0,
+          commissionableSales: 0,
+          qualifyingSales: 0
+        };
+      });
+
+      paidList.forEach(t => {
+        const trxSub = t.subtotal > 0 ? t.subtotal : (t.items || []).reduce((s, x) => s + x.price * x.qty, 0);
+        const trxDiscount = Number(t.discount) || 0;
+
+        (t.items || []).forEach(it => {
+          const b = getProductBrand(it);
+          if (!map[b]) {
+            const cfg = getBrandConfig(b);
+            map[b] = {
+              brand: b,
+              commissionPct: Number(cfg.commissionPct) || 10,
+              salaryShareActive: cfg.salaryShareActive !== false,
+              ownerPhone: cfg.ownerPhone || '',
+              totalQty: 0,
+              commissionQty: 0,
+              qualifyingQty: 0,
+              grossSales: 0,
+              commissionableSales: 0,
+              qualifyingSales: 0
+            };
+          }
+          const lineGross = (Number(it.price) || 0) * (Number(it.qty) || 0);
+          const linePropDiscount = trxSub > 0 ? Math.round(trxDiscount * (lineGross / trxSub)) : 0;
+          const lineNet = Math.max(0, lineGross - linePropDiscount);
+          const qty = Number(it.qty) || 0;
+
+          const incComm = isProductIncludedInCommission(it);
+          const incSalary = isProductIncludedInSalaryShare(it) && map[b].salaryShareActive;
+
+          map[b].totalQty += qty;
+          map[b].grossSales += lineNet;
+
+          if (incComm) {
+            map[b].commissionQty += qty;
+            map[b].commissionableSales += lineNet;
+          }
+          if (incSalary) {
+            map[b].qualifyingQty += qty;
+            map[b].qualifyingSales += lineNet;
+          }
+        });
+      });
+
+      const rows = Object.values(map);
+      const totalQualifyingQty = rows.reduce((s, r) => s + r.qualifyingQty, 0);
+      const totalQualifyingSales = rows.reduce((s, r) => s + r.qualifyingSales, 0);
+
+      rows.forEach(r => {
+        r.commissionAmount = Math.round(r.commissionableSales * (r.commissionPct / 100));
+        if (salaryPool > 0) {
+          if (settlementBasisMode === 'sales' && totalQualifyingSales > 0) {
+            r.salaryShareRatio = r.qualifyingSales / totalQualifyingSales;
+          } else if (totalQualifyingQty > 0) {
+            r.salaryShareRatio = r.qualifyingQty / totalQualifyingQty;
+          } else {
+            r.salaryShareRatio = 0;
+          }
+        } else {
+          r.salaryShareRatio = 0;
+        }
+        r.salaryDeduction = Math.round(salaryPool * r.salaryShareRatio);
+        r.netTransfer = Math.max(0, r.grossSales - r.commissionAmount - r.salaryDeduction);
+      });
+
+      return { rows, salaryPool, attWages, totalQualifyingQty, totalQualifyingSales };
+    }
+
+    function updateBrandCommissionSetting(brandName, newPct) {
+      const cfg = getBrandConfig(brandName);
+      cfg.commissionPct = Math.max(0, Math.min(100, Number(newPct) || 0));
+      saveDB();
+      renderOwnerReportsTab(document.getElementById('mainContentArea'));
+      showToast(`Komisi brand ${brandName} diubah menjadi ${cfg.commissionPct}%.`);
+    }
+
+    function updateBrandOwnerPhone(brandName, phoneVal) {
+      const cfg = getBrandConfig(brandName);
+      cfg.ownerPhone = phoneVal.trim();
+      saveDB();
+    }
+
+    function recordBrandSettlementTransfer(brandName) {
+      const periodLabel = ownerReportPeriod === 'Custom Date'
+        ? `${ownerReportStartDate} s/d ${ownerReportEndDate}`
+        : ownerReportPeriod;
+      const calc = computeBrandSettlementData(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
+      const row = calc.rows.find(r => r.brand === brandName);
+      if (!row || row.grossSales <= 0) {
+        showToast(`Belum ada omzet terjual untuk brand ${brandName} pada periode ini.`, true);
+        return;
+      }
+
+      const id = 'STL-' + Math.floor(1000 + Math.random() * 9000);
+      const rec = {
+        id,
+        date: new Date().toISOString(),
+        periodLabel,
+        brand: row.brand,
+        totalQty: row.totalQty,
+        qualifyingQty: row.qualifyingQty,
+        grossSales: row.grossSales,
+        commissionableSales: row.commissionableSales,
+        commissionPct: row.commissionPct,
+        commissionAmount: row.commissionAmount,
+        salaryDeduction: row.salaryDeduction,
+        netTransfer: row.netTransfer,
+        pic: currentUser ? currentUser.name : 'Owner'
+      };
+
+      if (!db.brandSettlements) db.brandSettlements = [];
+      db.brandSettlements.unshift(rec);
+      syncMasterEvent('BRAND_SETTLEMENT', rec);
+      saveDB();
+      renderOwnerReportsTab(document.getElementById('mainContentArea'));
+      showToast(`Setoran ${row.brand} (${rp(row.netTransfer)}) dicatat ke Arus Kas & Google Sheets!`);
+    }
+
+    function sendBrandSettlementWhatsApp(brandName) {
+      const periodLabel = ownerReportPeriod === 'Custom Date'
+        ? `${ownerReportStartDate} s/d ${ownerReportEndDate}`
+        : ownerReportPeriod;
+      const calc = computeBrandSettlementData(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
+      const row = calc.rows.find(r => r.brand === brandName);
+      if (!row) return;
+
+      const pctShare = (row.salaryShareRatio * 100).toFixed(1);
+      const msg = `*BERITA ACARA SETTLEMENT MINGGUAN BRAND*\n` +
+        `Outlet: *${db.outlet.name}*\n` +
+        `Brand: *${row.brand}*\n` +
+        `Periode: ${periodLabel}\n\n` +
+        `*RINCIAN PENJUALAN & POTONGAN:*\n` +
+        `• Total Produk Terjual: ${row.totalQty} Porsi/Cup\n` +
+        `• Omzet Kotor Brand: *${rp(row.grossSales)}*\n` +
+        `• Dasar Omzet Kena Komisi (${row.commissionQty} item): ${rp(row.commissionableSales)}\n` +
+        `• Potongan Komisi (${row.commissionPct}%): -${rp(row.commissionAmount)}\n` +
+        `• Produk Masuk Hitungan Gaji: ${row.qualifyingQty} Porsi/Cup (${pctShare}%)\n` +
+        `• Potongan Porsi Beban Gaji (${pctShare}%): -${rp(row.salaryDeduction)}\n` +
+        `--------------------------------\n` +
+        `• *NET TRANSFER KE BRAND OWNER: ${rp(row.netTransfer)}*\n\n` +
+        `Terima kasih atas kerja samanya!`;
+
+      let waUrl = 'https://wa.me/';
+      const cleanPhone = (row.ownerPhone || '').replace(/\D/g, '');
+      if (cleanPhone) {
+        const intlPhone = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone;
+        waUrl += intlPhone;
+      }
+      waUrl += '?text=' + encodeURIComponent(msg);
+      window.open(waUrl, '_blank');
     }
 
     function renderOwnerReportsTab(container) {
@@ -4043,15 +4591,19 @@ function getOrCreateSheet(ss, name, headers) {
 
       const brandTotals = {};
       list.forEach(t => (t.items || []).forEach(it => {
-        const b = getBrandFromCategory(it.category);
+        const b = getProductBrand(it);
         brandTotals[b] = (brandTotals[b] || 0) + (it.price * it.qty);
       }));
+
+      const settleCalc = computeBrandSettlementData(ownerReportPeriod, ownerReportStartDate, ownerReportEndDate);
+      const totalNetTransferAll = settleCalc.rows.reduce((s, r) => s + r.netTransfer, 0);
+      const totalCommissionAll = settleCalc.rows.reduce((s, r) => s + r.commissionAmount, 0);
 
       container.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div>
-            <h2 style="margin:0;font-size:20px;">Laporan Keuangan & Arus Kas</h2>
-            <div style="font-size:12px;color:var(--text-muted);">Analitik laba rugi, omzet per brand, dan mutasi arus kas Dapur Jiwara</div>
+            <h2 style="margin:0;font-size:20px;">Laporan Keuangan & Settlement Brand</h2>
+            <div style="font-size:12px;color:var(--text-muted);">Analitik laba rugi, mutasi arus kas, dan setoran mingguan Brand Owner</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
             <div>
@@ -4075,6 +4627,7 @@ function getOrCreateSheet(ss, name, headers) {
 
         <div class="subtab-bar no-scroll">
           <button class="subtab-btn ${ownerReportSubTab === 'ringkasan' ? 'active' : ''}" onclick="ownerReportSubTab='ringkasan';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Ringkasan & Laba Rugi</button>
+          <button class="subtab-btn ${ownerReportSubTab === 'settlement' ? 'active' : ''}" onclick="ownerReportSubTab='settlement';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Settlement Brand Mingguan</button>
           <button class="subtab-btn ${ownerReportSubTab === 'aruskas' ? 'active' : ''}" onclick="ownerReportSubTab='aruskas';saveSessionState();renderOwnerReportsTab(document.getElementById('mainContentArea'))">Arus Kas (Cashflow)</button>
         </div>
 
@@ -4097,6 +4650,114 @@ function getOrCreateSheet(ss, name, headers) {
                       <td><strong>${esc(brand)}</strong></td>
                       <td><strong>${rp(amt)}</strong></td>
                       <td>${net > 0 ? ((amt / net) * 100).toFixed(1) : 0}%</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ownerReportSubTab === 'settlement' ? `
+          <div class="bento-grid-4" style="margin-bottom:14px;">
+            <div class="kpi-tile dark"><div class="kpi-label">Total Omzet Semua Brand</div><div class="kpi-value">${rp(net)}</div></div>
+            <div class="kpi-tile yellow"><div class="kpi-label">Komisi Dapur Jiwara</div><div class="kpi-value">${rp(totalCommissionAll)}</div></div>
+            <div class="kpi-tile pink"><div class="kpi-label">Total Beban Gaji Dibagi</div><div class="kpi-value">${rp(settleCalc.salaryPool)}</div><div class="kpi-sub">Acuan: ${settleCalc.totalQualifyingQty} Porsi/Cup</div></div>
+            <div class="kpi-tile"><div class="kpi-label">Total Net Transfer Brand</div><div class="kpi-value">${rp(totalNetTransferAll)}</div></div>
+          </div>
+
+          <div class="bento-card" style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+              <div>
+                <h3 style="margin:0;font-size:16px;">Parameter Pembagian Beban Gaji & Komisi Brand</h3>
+                <div style="font-size:11px;color:var(--text-muted);">
+                  Potongan komisi dan porsi beban gaji diatur terpisah per produk di menu <strong>Pengaturan -> Produk & Kategori</strong>.
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;">
+              <div>
+                <label class="field-label">Total Beban Gaji Periode Ini (Rp)</label>
+                <input type="text" inputmode="numeric" class="styled-input" style="padding:8px 11px;font-size:13px;" value="${formatDigits(settleCalc.salaryPool)}" oninput="settlementCustomSalaryPool=parseDigits(this.value);this.value=formatDigits(this.value)" onblur="renderOwnerReportsTab(document.getElementById('mainContentArea'))" />
+                <div style="display:flex;gap:6px;margin-top:5px;">
+                  <button type="button" class="btn btn-soft btn-sm" onclick="settlementCustomSalaryPool=null;renderOwnerReportsTab(document.getElementById('mainContentArea'))">Gunakan Data Absensi (${rp(settleCalc.attWages)})</button>
+                </div>
+              </div>
+              <div>
+                <label class="field-label">Dasar Pembagian Proporsi Gaji</label>
+                <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="settlementBasisMode=this.value;renderOwnerReportsTab(document.getElementById('mainContentArea'))">
+                  <option value="qty" ${settlementBasisMode === 'qty' ? 'selected' : ''}>Berdasarkan Qty Produk Terpilih (Porsi/Cup)</option>
+                  <option value="sales" ${settlementBasisMode === 'sales' ? 'selected' : ''}>Berdasarkan Nilai Rupiah Omzet Produk Terpilih</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="bento-card" style="margin-bottom:14px;">
+            <h3 style="margin:0 0 10px;font-size:16px;">Kalkulator Settlement & Setoran Brand Owner</h3>
+            <div class="table-box">
+              <table class="compact-table">
+                <thead>
+                  <tr>
+                    <th>Brand Owner</th>
+                    <th>Item Terjual & Acuan</th>
+                    <th>Omzet Kotor Brand</th>
+                    <th>Komisi (%)</th>
+                    <th>Porsi Beban Gaji</th>
+                    <th>Net Wajib Transfer</th>
+                    <th>No. WA Owner & Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${settleCalc.rows.map(r => `
+                    <tr>
+                      <td><strong>${esc(r.brand)}</strong></td>
+                      <td>
+                        <div><strong>${r.totalQty}</strong> total item</div>
+                        <div style="font-size:10px;color:#0B2E23;">Kena komisi: ${r.commissionQty} (${rp(r.commissionableSales)})</div>
+                        <div style="font-size:10px;color:#065F46;">Hitung gaji: ${r.qualifyingQty} (${(r.salaryShareRatio * 100).toFixed(1)}%)</div>
+                      </td>
+                      <td><strong>${rp(r.grossSales)}</strong></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:4px;">
+                          <input type="number" min="0" max="100" step="0.5" class="styled-input" style="width:62px;padding:5px 7px;font-size:12px;" value="${r.commissionPct}" onchange="updateBrandCommissionSetting('${esc(r.brand)}', this.value)" />
+                          <span style="font-size:11px;font-weight:800;">%</span>
+                        </div>
+                        <div style="font-size:10px;color:#BE185D;margin-top:2px;">-${rp(r.commissionAmount)}</div>
+                      </td>
+                      <td style="color:#BE185D;font-weight:800;">-${rp(r.salaryDeduction)}</td>
+                      <td><strong style="font-size:14px;color:var(--green-deep);">${rp(r.netTransfer)}</strong></td>
+                      <td>
+                        <div style="display:grid;gap:5px;min-width:165px;">
+                          <input type="tel" class="styled-input" style="padding:5px 8px;font-size:11px;" placeholder="No. WA Brand Owner..." value="${esc(r.ownerPhone)}" onchange="updateBrandOwnerPhone('${esc(r.brand)}', this.value)" />
+                          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                            <button type="button" class="btn btn-dark btn-sm" onclick="recordBrandSettlementTransfer('${esc(r.brand)}')" ${r.grossSales <= 0 ? 'disabled' : ''}>Catat Transfer</button>
+                            <button type="button" class="btn btn-pink btn-sm" onclick="sendBrandSettlementWhatsApp('${esc(r.brand)}')" ${r.grossSales <= 0 ? 'disabled' : ''}>Kirim WA</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bento-card">
+            <h3 style="margin:0 0 10px;font-size:16px;">Arsip Histori Transfer Settlement Brand</h3>
+            <div class="table-box">
+              <table class="compact-table">
+                <thead><tr><th>Tanggal Catat</th><th>Periode</th><th>Brand</th><th>Omzet Brand</th><th>Komisi</th><th>Potongan Gaji</th><th>Net Transfer</th><th>PIC</th></tr></thead>
+                <tbody>
+                  ${(db.brandSettlements || []).length === 0 ? `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">Belum ada riwayat transfer settlement yang dicatat.</td></tr>` : (db.brandSettlements || []).map(st => `
+                    <tr>
+                      <td>${new Date(st.date).toLocaleDateString('id-ID')}</td>
+                      <td>${esc(st.periodLabel)}</td>
+                      <td><strong>${esc(st.brand)}</strong></td>
+                      <td>${rp(st.grossSales)}</td>
+                      <td>-${rp(st.commissionAmount)} (${st.commissionPct}%)</td>
+                      <td>-${rp(st.salaryDeduction)}</td>
+                      <td><strong style="color:#065F46;">${rp(st.netTransfer)}</strong></td>
+                      <td>${esc(st.pic)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -4561,8 +5222,9 @@ function getOrCreateSheet(ss, name, headers) {
       const pq = prodSearch.trim().toLowerCase();
       const filteredProds = db.products.filter(p => {
         const matchCat = prodCatFilter === 'ALL' || p.category === prodCatFilter;
+        const matchBrand = prodBrandFilter === 'ALL' || getProductBrand(p) === prodBrandFilter;
         const matchQ = !pq || p.name.toLowerCase().includes(pq) || p.sku.toLowerCase().includes(pq);
-        return matchCat && matchQ;
+        return matchCat && matchBrand && matchQ;
       });
       const totalProdPages = Math.max(1, Math.ceil(filteredProds.length / prodPageSize));
       if (prodPage > totalProdPages) prodPage = totalProdPages;
@@ -4615,15 +5277,19 @@ function getOrCreateSheet(ss, name, headers) {
         <div class="bento-card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
             <div>
-              <h3 style="margin:0;font-size:16px;">Daftar Produk Jual</h3>
-              <div style="font-size:11px;color:var(--text-muted);">Klik Edit atau baris produk untuk ubah harga, kategori, atau hapus (Otomatis sinkron ke semua kasir)</div>
+              <h3 style="margin:0;font-size:16px;">Daftar Produk Jual, Brand & Aturan Komisi / Gaji</h3>
+              <div style="font-size:11px;color:var(--text-muted);">Atur Brand Owner, serta centang terpisah apakah produk terkena <strong>Potongan Komisi</strong> dan/atau <strong>Pembagian % Beban Gaji</strong></div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openProductFormModal(null)">+ Tambah Produk</button>
           </div>
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-            <input type="text" class="styled-input" style="flex:2;min-width:180px;padding:8px 11px;font-size:12px;" placeholder="Cari nama produk atau SKU..." value="${esc(prodSearch)}" oninput="prodSearch=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
-            <select class="styled-select" style="flex:1;min-width:140px;padding:8px 11px;font-size:12px;" onchange="prodCatFilter=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">
+            <input type="text" class="styled-input" style="flex:2;min-width:160px;padding:8px 11px;font-size:12px;" placeholder="Cari nama produk atau SKU..." value="${esc(prodSearch)}" oninput="prodSearch=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))" />
+            <select class="styled-select" style="flex:1;min-width:130px;padding:8px 11px;font-size:12px;" onchange="prodBrandFilter=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">
+              <option value="ALL" ${prodBrandFilter === 'ALL' ? 'selected' : ''}>Semua Brand</option>
+              ${getAllAvailableBrands().map(b => `<option value="${esc(b)}" ${prodBrandFilter === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}
+            </select>
+            <select class="styled-select" style="flex:1;min-width:130px;padding:8px 11px;font-size:12px;" onchange="prodCatFilter=this.value;prodPage=1;renderSettingsProdukKategori(document.getElementById('settingsSubBody'))">
               <option value="ALL" ${prodCatFilter === 'ALL' ? 'selected' : ''}>Semua Kategori</option>
               ${db.categories.filter(c => c !== 'Favorit').map(c => `<option value="${esc(c)}" ${prodCatFilter === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
             </select>
@@ -4634,18 +5300,26 @@ function getOrCreateSheet(ss, name, headers) {
 
           <div class="table-box">
             <table class="compact-table">
-              <thead><tr><th>SKU</th><th>Nama Produk</th><th>Kategori</th><th>Harga Jual</th><th>Satuan</th><th>Aksi</th></tr></thead>
+              <thead><tr><th>SKU</th><th>Nama Produk</th><th>Brand</th><th>Kena Komisi</th><th>Hitung % Gaji</th><th>Harga Jual</th><th>Aksi</th></tr></thead>
               <tbody>
-                ${pagedProds.map(p => `
-                  <tr style="cursor:pointer;" onclick="openProductFormModal('${esc(p.id)}')">
-                    <td><strong>${esc(p.sku)}</strong></td>
-                    <td><strong>${esc(p.name)}</strong> ${p.fav ? '<span class="badge-pill badge-yellow">Fav</span>' : ''}</td>
-                    <td><span class="badge-pill badge-green">${esc(p.category)}</span></td>
-                    <td><strong>${rp(p.price)}</strong></td>
-                    <td>${esc(p.unit)}</td>
-                    <td><button type="button" class="btn btn-soft btn-sm" onclick="event.stopPropagation();openProductFormModal('${esc(p.id)}')">Edit</button></td>
-                  </tr>
-                `).join('')}
+                ${pagedProds.map(p => {
+                  const incCom = isProductIncludedInCommission(p);
+                  const incSal = isProductIncludedInSalaryShare(p);
+                  return `
+                    <tr style="cursor:pointer;" onclick="openProductFormModal('${esc(p.id)}')">
+                      <td><strong>${esc(p.sku)}</strong></td>
+                      <td>
+                        <div><strong>${esc(p.name)}</strong> ${p.fav ? '<span class="badge-pill badge-yellow">Fav</span>' : ''}</div>
+                        <div style="font-size:10px;color:var(--text-muted);">${esc(p.category)}</div>
+                      </td>
+                      <td><span class="badge-pill badge-green">${esc(getProductBrand(p))}</span></td>
+                      <td><span class="badge-pill ${incCom ? 'badge-green' : 'badge-pink'}">${incCom ? 'Ya' : 'Tidak'}</span></td>
+                      <td><span class="badge-pill ${incSal ? 'badge-yellow' : 'badge-pink'}">${incSal ? 'Ya' : 'Tidak'}</span></td>
+                      <td><strong>${rp(p.price)}</strong></td>
+                      <td><button type="button" class="btn btn-soft btn-sm" onclick="event.stopPropagation();openProductFormModal('${esc(p.id)}')">Edit</button></td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -4718,6 +5392,11 @@ function getOrCreateSheet(ss, name, headers) {
     function openProductFormModal(prodId) {
       const prod = prodId ? db.products.find(p => p.id === prodId) : null;
       const cats = db.categories.filter(c => c !== 'Favorit');
+      const brands = getAllAvailableBrands();
+      const curBrand = prod ? getProductBrand(prod) : 'Kopi Jiwara';
+      const curIncludeComm = prod ? isProductIncludedInCommission(prod) : true;
+      const curIncludeSalary = prod ? isProductIncludedInSalaryShare(prod) : true;
+
       openModal(`
         <div class="modal-head"><h3 style="margin:0;font-size:17px;">${prod ? 'Edit Detail Produk' : '+ Tambah Produk Baru'}</h3><button class="close-circle" onclick="closeModal()">x</button></div>
         <div style="display:grid;gap:10px;margin-bottom:14px;">
@@ -4726,16 +5405,34 @@ function getOrCreateSheet(ss, name, headers) {
             <div><label class="field-label">Nama Produk</label><input id="pfName" class="styled-input" value="${esc(prod ? prod.name : '')}" placeholder="Nama menu..." /></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div><label class="field-label">Kategori</label><select id="pfCat" class="styled-select">${cats.map(c => `<option value="${esc(c)}" ${prod && prod.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
-            <div><label class="field-label">Satuan</label><input id="pfUnit" class="styled-input" value="${esc(prod ? prod.unit : 'Cup')}" /></div>
+            <div>
+              <label class="field-label">Brand Pemilik Produk</label>
+              <input id="pfBrand" list="brandChoiceList" class="styled-input" value="${esc(curBrand)}" placeholder="Pilih atau ketik brand..." />
+              <datalist id="brandChoiceList">
+                ${brands.map(b => `<option value="${esc(b)}"></option>`).join('')}
+              </datalist>
+            </div>
+            <div><label class="field-label">Kategori Menu</label><select id="pfCat" class="styled-select">${cats.map(c => `<option value="${esc(c)}" ${prod && prod.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div><label class="field-label">Satuan</label><input id="pfUnit" class="styled-input" value="${esc(prod ? prod.unit : 'Cup')}" /></div>
             <div><label class="field-label">Harga Jual (Rp)</label><input id="pfPrice" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.price) : ''}" oninput="this.value=formatDigits(this.value)" /></div>
             <div><label class="field-label">HPP / Modal (Rp)</label><input id="pfCost" type="text" inputmode="numeric" class="styled-input" value="${prod ? formatDigits(prod.cost) : ''}" oninput="this.value=formatDigits(this.value)" /></div>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;">
-            <input id="pfFav" type="checkbox" ${prod && prod.fav ? 'checked' : ''} /> Tampilkan di Kategori Favorit
-          </label>
+          <div style="background:var(--green-soft);padding:10px 12px;border-radius:14px;display:grid;gap:8px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;">
+              <input id="pfIncludeComm" type="checkbox" ${curIncludeComm ? 'checked' : ''} />
+              Masuk Hitungan Potongan Komisi Brand (%)
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;">
+              <input id="pfIncludeSalary" type="checkbox" ${curIncludeSalary ? 'checked' : ''} />
+              Masuk Hitungan Pembagian % Beban Gaji Brand
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;">
+              <input id="pfFav" type="checkbox" ${prod && prod.fav ? 'checked' : ''} />
+              Tampilkan di Kategori Favorit Kasir
+            </label>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:${prod ? '1fr 1.5fr' : '1fr'};gap:8px;">
           ${prod ? `<button class="btn btn-danger" onclick="deleteProductById('${esc(prod.id)}')">Hapus Produk</button>` : ''}
@@ -4747,23 +5444,29 @@ function getOrCreateSheet(ss, name, headers) {
     function saveProductForm(prodId) {
       const sku = document.getElementById('pfSku').value.trim();
       const name = document.getElementById('pfName').value.trim();
+      const brand = document.getElementById('pfBrand').value.trim() || 'Kopi Jiwara';
       const category = document.getElementById('pfCat').value;
       const unit = document.getElementById('pfUnit').value.trim() || 'Cup';
       const price = parseDigits(document.getElementById('pfPrice').value);
       const cost = parseDigits(document.getElementById('pfCost').value);
+      const includeCommissionShare = document.getElementById('pfIncludeComm').checked;
+      const includeSalaryShare = document.getElementById('pfIncludeSalary').checked;
       const fav = document.getElementById('pfFav').checked;
       if (!name || price <= 0) { showToast('Nama produk dan harga jual wajib diisi.', true); return; }
+
+      getBrandConfig(brand);
+
       if (prodId) {
         const idx = db.products.findIndex(p => p.id === prodId);
-        if (idx >= 0) db.products[idx] = { ...db.products[idx], sku, name, category, unit, price, cost, fav };
+        if (idx >= 0) db.products[idx] = { ...db.products[idx], sku, name, brand, category, unit, price, cost, includeCommissionShare, includeSalaryShare, fav };
       } else {
-        db.products.unshift({ id: 'prd-' + Date.now(), sku, name, category, unit, price, cost, fav, stock: 50 });
+        db.products.unshift({ id: 'prd-' + Date.now(), sku, name, brand, category, unit, price, cost, includeCommissionShare, includeSalaryShare, fav, stock: 50 });
       }
       saveDB();
       autoSyncMasterSlices(['products']);
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Data produk disimpan & disinkronkan ke semua perangkat.');
+      showToast('Data produk & aturan Komisi/Gaji disimpan.');
     }
 
     function deleteProductById(prodId) {
@@ -5099,10 +5802,10 @@ function getOrCreateSheet(ss, name, headers) {
         <div class="bento-card" style="margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
             <h3 style="margin:0;font-size:16px;">Sinkronisasi 2 Arah Real-Time (Multi-Device Cloud Sync)</h3>
-            <span class="badge-pill ${isConnected ? 'badge-green' : 'badge-pink'}">${isConnected ? '2-Way Live Sync Aktif (13 Sheet)' : 'Webhook Belum Diisi'}</span>
+            <span class="badge-pill ${isConnected ? 'badge-green' : 'badge-pink'}">${isConnected ? '2-Way Live Sync Aktif (14 Sheet)' : 'Webhook Belum Diisi'}</span>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">
-            Terhubung 2 arah ke Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong>. Setiap perubahan menu, harga, stok, promo, pegawai, Open Order, dan transaksi di satu perangkat otomatis ditarik secara berkala ke seluruh perangkat HP, Tablet, dan Laptop lainnya.
+            Terhubung 2 arah ke Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> (termasuk sheet <strong>SETTLEMENT_BRAND</strong> & pengaturan komisi/gaji per produk).
           </div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
@@ -5131,7 +5834,7 @@ function getOrCreateSheet(ss, name, headers) {
             <button class="btn btn-yellow" onclick="pullFromCloudMaster(true)">Tarik Data Terbaru dari Cloud (Sync Pull)</button>
             <button class="btn btn-soft" onclick="syncFullMasterDatabase()">Kirim Semua Data Lokal ke Cloud (Sync Push)</button>
             <button class="btn btn-soft" onclick="testWebhookConnection()">Test Ping</button>
-            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2.3</button>
+            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2.5</button>
           </div>
         </div>
 
@@ -5415,13 +6118,13 @@ function getOrCreateSheet(ss, name, headers) {
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.3 (2-Way Sync)</h3>
+            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.5 (Split Komisi & Gaji + 2-Way Sync)</h3>
             <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script, jalankan <strong>inisialisasiSemuaSheetMaster()</strong> 1x, lalu Deploy New Version</div>
           </div>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.3</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.5</button>
       `);
     }
 
@@ -5430,7 +6133,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (!ta) return;
       ta.select();
       document.execCommand('copy');
-      showToast('Kode Google Apps Script v2.3 berhasil disalin.');
+      showToast('Kode Google Apps Script v2.5 berhasil disalin.');
     }
 
     if (!restoreSessionState()) {
