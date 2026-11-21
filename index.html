@@ -915,6 +915,7 @@
           outletName: 'Kopi Jiwara - Pusat (Dapur Jiwara)',
           address: 'Jl. Dapur Jiwara No. 88, Bandung',
           phone: '0812-2223-6346',
+          socialMedia: '@kopijiwara',
           taxRate: 0,
           receiptFooter: 'Terima kasih telah mampir ke Kopi Jiwara! Selamat menikmati.',
           logoDataUrl: '',
@@ -1300,8 +1301,16 @@
     }
 
     function buildWhatsAppReceiptText(trx) {
+      const contactInfo = [
+        db.settings.phone ? `Telp/WA: ${db.settings.phone}` : '',
+        db.settings.socialMedia ? `Sosmed: ${db.settings.socialMedia}` : ''
+      ].filter(Boolean).join(' | ');
+
       const lines = [
         `*STRUK PEMBAYARAN — ${db.settings.outletName}*`,
+        ...(db.settings.address ? [db.settings.address] : []),
+        ...(contactInfo ? [contactInfo] : []),
+        `--------------------------------`,
         `No. Nota : ${trx.id}`,
         `Tanggal  : ${trx.date} (${trx.time})`,
         `Pesanan  : ${trx.orderType}${trx.tableOrCustomer ? ' • ' + trx.tableOrCustomer : ''}`,
@@ -1577,6 +1586,15 @@
       if (slices.includes('openOrders')) {
         data.openOrders = (db.transactions || []).filter(t => t.status === 'OPEN');
       }
+      if (slices.includes('outlet')) {
+        data.outletProfile = {
+          outletName: db.settings.outletName || '',
+          address: db.settings.address || '',
+          phone: db.settings.phone || '',
+          socialMedia: db.settings.socialMedia || '',
+          receiptFooter: db.settings.receiptFooter || ''
+        };
+      }
       if (slices.includes('meta') || slices.includes('products')) {
         db.categories = normalizeUniqueCategories(db.categories);
         data.categories = db.categories;
@@ -1653,6 +1671,15 @@
 
     function applyCloudPullData(data) {
       let changed = false;
+
+      if (data.outletProfile && typeof data.outletProfile === 'object') {
+        const op = data.outletProfile;
+        if (op.outletName && op.outletName !== db.settings.outletName) { db.settings.outletName = op.outletName; changed = true; }
+        if (op.address !== undefined && op.address !== db.settings.address) { db.settings.address = op.address; changed = true; }
+        if (op.phone !== undefined && op.phone !== db.settings.phone) { db.settings.phone = op.phone; changed = true; }
+        if (op.socialMedia !== undefined && op.socialMedia !== db.settings.socialMedia) { db.settings.socialMedia = op.socialMedia; changed = true; }
+        if (op.receiptFooter !== undefined && op.receiptFooter !== db.settings.receiptFooter) { db.settings.receiptFooter = op.receiptFooter; changed = true; }
+      }
 
       if (Array.isArray(data.products) && data.products.length > 0) {
         const prevStr = JSON.stringify(db.products);
@@ -1890,6 +1917,13 @@
         includeSalaryShare: p.includeSalaryShare !== false
       }));
       syncMasterEvent('FULL_MASTER_SYNC', {
+        outletProfile: {
+          outletName: db.settings.outletName || '',
+          address: db.settings.address || '',
+          phone: db.settings.phone || '',
+          socialMedia: db.settings.socialMedia || '',
+          receiptFooter: db.settings.receiptFooter || ''
+        },
         products: enrichedProducts,
         categories: db.categories,
         brandConfigs: db.brandConfigs || [],
@@ -1931,7 +1965,9 @@
       chunks.push(new Uint8Array([0x1B, 0x45, 0x01]));
       chunks.push(encoder.encode((db.settings.outletName || 'KOPI JIWARA') + '\n'));
       chunks.push(new Uint8Array([0x1B, 0x45, 0x00]));
-      chunks.push(encoder.encode((db.settings.address || '') + '\n'));
+      if (db.settings.address) chunks.push(encoder.encode(db.settings.address + '\n'));
+      if (db.settings.phone) chunks.push(encoder.encode('Telp/WA: ' + db.settings.phone + '\n'));
+      if (db.settings.socialMedia) chunks.push(encoder.encode('Sosmed: ' + db.settings.socialMedia + '\n'));
       chunks.push(new Uint8Array([0x1B, 0x61, 0x00]));
 
       lines.forEach(line => {
@@ -2090,6 +2126,8 @@
       area.innerHTML = `
         <div style="text-align:center;font-weight:bold;">${esc(db.settings.outletName)}</div>
         <div style="text-align:center;font-size:10px;">${esc(db.settings.address)}</div>
+        ${db.settings.phone ? `<div style="text-align:center;font-size:10px;">Telp/WA: ${esc(db.settings.phone)}</div>` : ''}
+        ${db.settings.socialMedia ? `<div style="text-align:center;font-size:10px;">${esc(db.settings.socialMedia)}</div>` : ''}
         <hr/>
         ${lines.map(l => `<div>${esc(l)}</div>`).join('')}
       `;
@@ -2187,7 +2225,12 @@
       if (logoEl) {
         logoEl.src = db.settings.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
       }
-      document.getElementById('headerUserMeta').textContent = `${currentUser.name} • ${currentUser.role}`;
+      const metaParts = [
+        `${currentUser.name} • ${currentUser.role}`,
+        db.settings.phone ? `Telp: ${db.settings.phone}` : '',
+        db.settings.socialMedia ? db.settings.socialMedia : ''
+      ].filter(Boolean);
+      document.getElementById('headerUserMeta').textContent = metaParts.join(' • ');
       updateHeaderCloudSyncBadge(isPullingFromCloud);
 
       const shiftBadge = document.getElementById('headerShiftBadge');
@@ -2862,6 +2905,8 @@
       area.innerHTML = `
         <div style="text-align:center;font-weight:bold;">${esc(db.settings.outletName)}</div>
         <div style="text-align:center;font-size:10px;">${esc(db.settings.address)}</div>
+        ${db.settings.phone ? `<div style="text-align:center;font-size:10px;">Telp/WA: ${esc(db.settings.phone)}</div>` : ''}
+        ${db.settings.socialMedia ? `<div style="text-align:center;font-size:10px;">${esc(db.settings.socialMedia)}</div>` : ''}
         <hr/>
         <div>Nota: ${esc(trx.id)}</div>
         <div>Tgl : ${esc(trx.date)} ${esc(trx.time)}</div>
@@ -4526,7 +4571,7 @@
       const currentLogo = db.settings.logoDataUrl || DEFAULT_JIWARA_LOGO_URL;
       body.innerHTML = `
         <div class="bento-card">
-          <h3 style="margin:0 0 12px;font-size:16px;">Profil Outlet, Logo Brand & Struk Thermal</h3>
+          <h3 style="margin:0 0 12px;font-size:16px;">Profil Outlet, Logo Brand, Kontak & Struk Thermal</h3>
 
           <div style="display:flex;align-items:center;gap:14px;background:var(--green-soft);padding:12px 14px;border-radius:16px;margin-bottom:14px;flex-wrap:wrap;">
             <img src="${currentLogo}" alt="Logo Kopi Jiwara" style="width:62px;height:62px;border-radius:16px;object-fit:cover;border:2px solid var(--green-deep);background:#093814;" />
@@ -4543,20 +4588,30 @@
             </div>
           </div>
 
-          <div style="display:grid;gap:10px;max-width:560px;">
+          <div style="display:grid;gap:10px;max-width:600px;">
             <div>
-              <label class="field-label">Nama Outlet</label>
+              <label class="field-label">Nama Outlet / Toko</label>
               <input id="setOutletName" class="styled-input" value="${esc(db.settings.outletName)}" />
             </div>
             <div>
               <label class="field-label">Alamat Outlet</label>
               <input id="setOutletAddr" class="styled-input" value="${esc(db.settings.address)}" />
             </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label class="field-label">No. Telepon / WhatsApp Toko</label>
+                <input id="setOutletPhone" type="tel" class="styled-input" placeholder="Contoh: 0812-2223-6346" value="${esc(db.settings.phone || '')}" />
+              </div>
+              <div>
+                <label class="field-label">Akun Sosial Media Toko (IG / TikTok)</label>
+                <input id="setOutletSocial" class="styled-input" placeholder="Contoh: @kopijiwara" value="${esc(db.settings.socialMedia || '')}" />
+              </div>
+            </div>
             <div>
               <label class="field-label">Catatan Kaki Struk (Footer)</label>
               <input id="setOutletFooter" class="styled-input" value="${esc(db.settings.receiptFooter)}" />
             </div>
-            <button class="btn btn-dark" style="padding:12px;" onclick="saveOutletProfileSettings()">Simpan Info Outlet</button>
+            <button class="btn btn-dark" style="padding:12px;" onclick="saveOutletProfileSettings()">Simpan Info Outlet & Sinkronkan</button>
           </div>
         </div>
       `;
@@ -4578,10 +4633,13 @@
     function saveOutletProfileSettings() {
       db.settings.outletName = document.getElementById('setOutletName').value.trim() || db.settings.outletName;
       db.settings.address = document.getElementById('setOutletAddr').value.trim();
+      db.settings.phone = document.getElementById('setOutletPhone').value.trim();
+      db.settings.socialMedia = document.getElementById('setOutletSocial').value.trim();
       db.settings.receiptFooter = document.getElementById('setOutletFooter').value.trim();
       saveDB();
+      autoSyncMasterSlices(['outlet']);
       renderWorkspace();
-      showToast('Profil outlet disimpan.');
+      showToast('Profil outlet (Telepon & Sosmed) disimpan & disinkronkan.');
     }
 
     // Sub-tab: Sinkronisasi System & Printer Bluetooth
@@ -4655,7 +4713,7 @@
             </span>
           </div>
           <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-            Semua perangkat (HP Owner, Tablet Kasir, Laptop) otomatis berbagi <strong>Menu, Urutan Kategori, Brand Aktif, Harga, Stok, Pegawai, Promo, Pelanggan, Open Order, & Transaksi Lunas</strong> melalui 1 database Google Sheets.
+            Semua perangkat (HP Owner, Tablet Kasir, Laptop) otomatis berbagi <strong>Menu, Urutan Kategori, Brand Aktif, Harga, Stok, Pegawai, Promo, Pelanggan, Open Order, Info Outlet, & Transaksi Lunas</strong> melalui 1 database Google Sheets.
           </p>
           <div style="margin-bottom:10px;">
             <label class="field-label">URL Web App Google Apps Script</label>
@@ -5044,7 +5102,7 @@
     // ==================== GOOGLE APPS SCRIPT GENERATOR (MASTER v2.6) ====================
     function getMasterAppsScriptCode() {
       return `/**
- * MASTER POS & ERP - KOPI JIWARA v2.6 (Urutan Kategori, Manajemen Brand Aktif & 2-Way Sync)
+ * MASTER POS & ERP - KOPI JIWARA v2.6 (Urutan Kategori, Manajemen Brand Aktif, Info Outlet & 2-Way Sync)
  * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 15 tab database otomatis.
  * 2. Klik Deploy -> New deployment (atau Manage deployments -> Edit -> New version) -> Web app.
  *    Execute as: Me | Who has access: Anyone.
@@ -5133,6 +5191,7 @@ function doGet(e) {
     var result = {
       status: 'OK',
       serverTime: new Date().toISOString(),
+      outletProfile: meta.outletProfile,
       products: readMenuSheet(ss),
       categories: meta.categories,
       brandConfigs: meta.brandConfigs,
@@ -5181,14 +5240,19 @@ function readCategoryBrandSheet(ss) {
   var categories = [];
   var brandConfigs = [];
   var deletedBrands = [];
+  var outletProfile = null;
   if (!sh || sh.getLastRow() <= 1) {
-    return { categories: categories, brandConfigs: brandConfigs, deletedBrands: deletedBrands };
+    return { categories: categories, brandConfigs: brandConfigs, deletedBrands: deletedBrands, outletProfile: outletProfile };
   }
   var rows = sh.getDataRange().getValues();
   for (var r = 1; r < rows.length; r++) {
     var tipe = String(rows[r][1] || '').toUpperCase();
     var nama = String(rows[r][3] || '').trim();
     var status = String(rows[r][6] || 'Aktif');
+    if (tipe === 'OUTLET_PROFILE') {
+      try { outletProfile = JSON.parse(String(rows[r][5] || '{}')); } catch (e) {}
+      continue;
+    }
     if (!nama) continue;
     if (tipe === 'KATEGORI') {
       categories.push(nama);
@@ -5206,7 +5270,7 @@ function readCategoryBrandSheet(ss) {
       }
     }
   }
-  return { categories: categories, brandConfigs: brandConfigs, deletedBrands: deletedBrands };
+  return { categories: categories, brandConfigs: brandConfigs, deletedBrands: deletedBrands, outletProfile: outletProfile };
 }
 
 function readInventorySheet(ss) {
@@ -5450,19 +5514,28 @@ function syncMasterTables(ss, ts, outlet, p) {
       shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.includeCommissionShare === false ? 'Tidak' : 'Ya', pr.includeSalaryShare === false ? 'Tidak' : 'Ya', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
     });
   }
-  if (p.categories || p.brandConfigs || p.deletedBrands) {
+  if (p.categories || p.brandConfigs || p.deletedBrands || p.outletProfile) {
     var shMeta = getOrCreateSheet(ss, 'MASTER_KATEGORI_BRAND', [
       'Update_Time', 'Tipe_Data', 'Urutan', 'Nama_Item', 'Komisi_Persen', 'No_WA_Owner', 'Status'
     ]);
+    var existingMeta = readCategoryBrandSheet(ss);
+    var finalCats = p.categories || existingMeta.categories;
+    var finalBrands = p.brandConfigs || existingMeta.brandConfigs;
+    var finalDeleted = p.deletedBrands || existingMeta.deletedBrands;
+    var finalOutlet = p.outletProfile || existingMeta.outletProfile;
+
     shMeta.clearContents();
     shMeta.appendRow(['Update_Time', 'Tipe_Data', 'Urutan', 'Nama_Item', 'Komisi_Persen', 'No_WA_Owner', 'Status']);
-    (p.categories || []).forEach(function(cat, idx) {
+    if (finalOutlet) {
+      shMeta.appendRow([ts, 'OUTLET_PROFILE', 0, finalOutlet.outletName || '', '', JSON.stringify(finalOutlet), 'Aktif']);
+    }
+    (finalCats || []).forEach(function(cat, idx) {
       shMeta.appendRow([ts, 'KATEGORI', idx + 1, cat, '', '', 'Aktif']);
     });
-    (p.brandConfigs || []).forEach(function(bc, idx) {
+    (finalBrands || []).forEach(function(bc, idx) {
       shMeta.appendRow([ts, 'BRAND', idx + 1, bc.brand, bc.commissionPct || 10, bc.ownerPhone || '', 'Aktif']);
     });
-    (p.deletedBrands || []).forEach(function(dbName, idx) {
+    (finalDeleted || []).forEach(function(dbName, idx) {
       shMeta.appendRow([ts, 'BRAND', idx + 1, dbName, 0, '', 'Dihapus']);
     });
   }
