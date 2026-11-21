@@ -734,7 +734,7 @@
   </div>
 
   <script>
-    // ==================== OFFICIAL KOPI JIWARA LOGO (WHITE CIRCLE + DARK GREEN CUP) ====================
+    // ==================== OFFICIAL KOPI JIWARA LOGO ====================
     const DEFAULT_JIWARA_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#093814"/><circle cx="256" cy="256" r="180" fill="#FFFFFF"/><path d="M 169 271 C 164 353, 190 400, 266 400 C 338 400, 358 353, 369 225 C 374 148, 348 128, 246 128 C 169 128, 148 154, 154 179 C 159 210, 210 225, 266 220 C 307 215, 317 190, 297 174 C 276 159, 230 164, 225 184" fill="none" stroke="#093814" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const DEFAULT_JIWARA_LOGO_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(DEFAULT_JIWARA_LOGO_SVG);
 
@@ -786,7 +786,7 @@
         const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v2';
+            const CACHE_NAME = 'kopi-jiwara-offline-v3';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -906,7 +906,13 @@
           socialMedia: '@kopijiwara.id',
           logoDataUrl: DEFAULT_JIWARA_LOGO_URL,
           receiptFooter: 'Terima kasih telah menikmati Kopi Jiwara!',
-          webhookUrl: ''
+          webhookUrl: '',
+          printerName: '',
+          printerDeviceId: '',
+          printerNote: '',
+          printerLocked: false,
+          printerPaperWidth: '58mm',
+          printerAutoPrint: true
         },
         shift: {
           isOpen: true,
@@ -969,6 +975,21 @@
       };
     }
 
+    function loadDB() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return getSeedData();
+        const parsed = JSON.parse(raw);
+        const merged = { ...getSeedData(), ...parsed };
+        if (merged.outlet && (!merged.outlet.logoDataUrl || merged.outlet.logoDataUrl.includes('#0F5127'))) {
+          merged.outlet.logoDataUrl = DEFAULT_JIWARA_LOGO_URL;
+        }
+        return merged;
+      } catch (e) {
+        return getSeedData();
+      }
+    }
+
     // ==================== STATE ====================
     let db = loadDB();
     let currentUser = null;
@@ -1014,32 +1035,17 @@
     let invSubTab = 'opname';
     let invSearch = '';
     let settingsSubTab = 'produk';
+    let catSearch = '';
+    let catPage = 1;
+    let catPageSize = 10;
     let prodSearch = '';
     let prodCatFilter = 'ALL';
-    let prodPageSize = 10;
     let prodPage = 1;
-    let catSearch = '';
-    let catPageSize = 10;
-    let catPage = 1;
+    let prodPageSize = 10;
 
-    function loadDB() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-          const seed = getSeedData();
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-          return seed;
-        }
-        const parsed = JSON.parse(raw);
-        const merged = { ...getSeedData(), ...parsed };
-        if (merged.outlet && (!merged.outlet.logoDataUrl || merged.outlet.logoDataUrl.includes('#0F5127'))) {
-          merged.outlet.logoDataUrl = DEFAULT_JIWARA_LOGO_URL;
-        }
-        return merged;
-      } catch (e) {
-        return getSeedData();
-      }
-    }
+    let btPrinterDevice = null;
+    let btPrinterCharacteristic = null;
+    let btPrinterConnected = false;
 
     function saveDB() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
@@ -1244,7 +1250,7 @@
       }
     });
 
-    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC (v2.0) ====================
+    // ==================== GOOGLE SHEETS MASTER POS & ERP SYNC ====================
     const OFFLINE_QUEUE_KEY = 'kopi_jiwara_sync_queue_v1';
 
     function enqueueOfflineSync(item) {
@@ -1266,11 +1272,11 @@
           fetch(url, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(item)
           }).catch(() => enqueueOfflineSync(item));
         });
-        showToast(`${q.length} data transaksi offline berhasil disinkronkan ke Google Sheets.`);
+        showToast(`${q.length} data offline berhasil disinkronkan ke Google Sheets.`);
       } catch (e) {}
     }
 
@@ -1297,12 +1303,53 @@
         fetch(url, {
           method: 'POST',
           mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(bodyObj)
         }).catch(() => enqueueOfflineSync(bodyObj));
       } catch (e) {
         enqueueOfflineSync(bodyObj);
       }
+    }
+
+    function autoSyncMasterSlices(slices) {
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url) return;
+      const data = {};
+      if (slices.includes('products')) {
+        data.products = (db.products || []).map(p => ({ ...p, brand: getBrandFromCategory(p.category) }));
+      }
+      if (slices.includes('inventory')) {
+        data.inventory = db.inventory || [];
+      }
+      if (slices.includes('customers')) {
+        data.customers = db.customers || [];
+      }
+      if (slices.includes('staff')) {
+        data.staff = db.staff || [];
+      }
+      if (slices.includes('promos')) {
+        data.promos = db.promos || [];
+      }
+      syncMasterEvent('SYNC_MASTER_TABLES', data);
+    }
+
+    function testWebhookConnection() {
+      const inp = document.getElementById('outWebhookInp');
+      if (inp) {
+        db.outlet.webhookUrl = inp.value.trim();
+        saveDB();
+      }
+      const url = (db.outlet && db.outlet.webhookUrl || '').trim();
+      if (!url) {
+        showToast('Masukkan URL Google Apps Script terlebih dahulu.', true);
+        return;
+      }
+      if (!url.startsWith('https://script.google.com/macros/s/')) {
+        showToast('Format URL harus diawali https://script.google.com/macros/s/...', true);
+        return;
+      }
+      syncMasterEvent('PING_TEST', { tester: currentUser ? currentUser.name : 'Owner' });
+      showToast('Sinyal Ping terkirim! Cek tab AUDIT_OTORISASI di Google Sheets Anda.');
     }
 
     function syncFullMasterDatabase() {
@@ -1318,6 +1365,8 @@
       syncMasterEvent('FULL_MASTER_SYNC', {
         products: enrichedProducts,
         inventory: db.inventory,
+        staff: db.staff,
+        promos: db.promos,
         transactions: db.transactions,
         cashDrawerLogs: db.cashDrawerLogs,
         attendanceLogs: db.attendanceLogs,
@@ -1325,13 +1374,13 @@
         orderAuditLogs: db.orderAuditLogs || [],
         shiftClosings: db.shiftClosings || []
       });
-      showToast('Seluruh database POS & ERP v2 sedang disinkronkan ke Google Sheets!');
+      showToast('Seluruh database (12 Sheet Master) sedang disinkronkan ke Google Sheets!');
     }
 
     function getMasterAppsScriptCode() {
       return `/**
- * MASTER POS & ERP - KOPI JIWARA v2.0 (Google Apps Script)
- * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 10 tab database otomatis.
+ * MASTER POS & ERP - KOPI JIWARA v2.2 (Google Apps Script)
+ * 1. Jalankan fungsi "inisialisasiSemuaSheetMaster" 1x untuk membuat 12 tab database otomatis.
  * 2. Klik Deploy -> New deployment -> Web app (Execute as: Me, Who has access: Anyone).
  */
 function inisialisasiSemuaSheetMaster() {
@@ -1381,6 +1430,16 @@ function inisialisasiSemuaSheetMaster() {
     'Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang',
     'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok'
   ]);
+
+  getOrCreateSheet(ss, 'MASTER_PEGAWAI', [
+    'Update_Time', 'ID_Pegawai', 'Nama_Pegawai', 'Jabatan_Role',
+    'PIN_Akses', 'Upah_Harian', 'Status_Aktif'
+  ]);
+
+  getOrCreateSheet(ss, 'MASTER_PROMO', [
+    'Update_Time', 'ID_Promo', 'Kode_Promo', 'Nama_Program',
+    'Tipe_Potongan', 'Nilai_Potongan', 'Tanggal_Mulai', 'Tanggal_Berakhir', 'Status_Promo'
+  ]);
   
   getOrCreateSheet(ss, 'ABSENSI_KARYAWAN', [
     'Timestamp', 'ID_Absen', 'Tanggal', 'Nama_Karyawan',
@@ -1406,6 +1465,69 @@ function inisialisasiSemuaSheetMaster() {
   }
 }
 
+function writeMasterTables(ss, ts, p) {
+  if (p.products) {
+    var shMenu = getOrCreateSheet(ss, 'MASTER_MENU', [
+      'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
+      'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
+    ]);
+    shMenu.clearContents();
+    shMenu.appendRow(['Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand', 'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit']);
+    p.products.forEach(function(pr) {
+      var mRp = (Number(pr.price) || 0) - (Number(pr.cost) || 0);
+      var mPct = pr.price > 0 ? Math.round((mRp / pr.price) * 100) + '%' : '0%';
+      shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
+    });
+  }
+  if (p.inventory) {
+    var shInv = getOrCreateSheet(ss, 'GUDANG_STOK', [
+      'Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang',
+      'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok'
+    ]);
+    shInv.clearContents();
+    shInv.appendRow(['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok']);
+    p.inventory.forEach(function(item) {
+      var st = Number(item.stock) <= Number(item.minStock) ? 'RESTOCK' : 'AMAN';
+      shInv.appendRow([ts, item.sku, item.name, item.category, item.stock, item.minStock, item.unit, st]);
+    });
+  }
+  if (p.customers) {
+    var shCrm = getOrCreateSheet(ss, 'CRM_PELANGGAN', [
+      'ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member',
+      'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir',
+      'Voucher_Khusus', 'Catatan_Preferensi'
+    ]);
+    shCrm.clearContents();
+    shCrm.appendRow(['ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member', 'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir', 'Voucher_Khusus', 'Catatan_Preferensi']);
+    p.customers.forEach(function(c) {
+      shCrm.appendRow([c.id, c.name, c.phone || '-', c.tier || 'Regular', c.totalVisits || 0, c.totalSpent || 0, (c.lastVisit || '').slice(0, 10), c.specialVoucher || '-', c.notes || '-']);
+    });
+  }
+  if (p.staff) {
+    var shStf = getOrCreateSheet(ss, 'MASTER_PEGAWAI', [
+      'Update_Time', 'ID_Pegawai', 'Nama_Pegawai', 'Jabatan_Role',
+      'PIN_Akses', 'Upah_Harian', 'Status_Aktif'
+    ]);
+    shStf.clearContents();
+    shStf.appendRow(['Update_Time', 'ID_Pegawai', 'Nama_Pegawai', 'Jabatan_Role', 'PIN_Akses', 'Upah_Harian', 'Status_Aktif']);
+    p.staff.forEach(function(s) {
+      shStf.appendRow([ts, s.id, s.name, s.role, s.pin, s.dailyWage || 0, s.active ? 'Aktif' : 'Nonaktif']);
+    });
+  }
+  if (p.promos) {
+    var shPrm = getOrCreateSheet(ss, 'MASTER_PROMO', [
+      'Update_Time', 'ID_Promo', 'Kode_Promo', 'Nama_Program',
+      'Tipe_Potongan', 'Nilai_Potongan', 'Tanggal_Mulai', 'Tanggal_Berakhir', 'Status_Promo'
+    ]);
+    shPrm.clearContents();
+    shPrm.appendRow(['Update_Time', 'ID_Promo', 'Kode_Promo', 'Nama_Program', 'Tipe_Potongan', 'Nilai_Potongan', 'Tanggal_Mulai', 'Tanggal_Berakhir', 'Status_Promo']);
+    p.promos.forEach(function(pr) {
+      var tipeStr = pr.type === 'percent' ? 'Persentase (%)' : 'Nominal (Rp)';
+      shPrm.appendRow([ts, pr.id, pr.code, pr.name, tipeStr, pr.value || 0, pr.startDate || '-', pr.endDate || '-', pr.active ? 'Aktif' : 'Dihentikan']);
+    });
+  }
+}
+
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1416,7 +1538,14 @@ function doPost(e) {
     var jam = ts.slice(11, 19);
     var p = data.payload || {};
 
-    if (eventType === 'SALE_COMPLETED') {
+    if (eventType === 'PING_TEST') {
+      var shPing = getOrCreateSheet(ss, 'AUDIT_OTORISASI', [
+        'Timestamp', 'ID_Audit', 'Jenis_Aksi', 'No_Order',
+        'Detail_Perubahan', 'Alasan', 'Kasir_Pelaksana', 'Disetujui_Oleh_PIN'
+      ]);
+      shPing.appendRow([ts, 'PING-' + Date.now(), 'TEST_KONEKSI_OK', '-', 'Koneksi POS & ERP Terhubung', 'Test Manual', p.tester || 'Owner', '-']);
+
+    } else if (eventType === 'SALE_COMPLETED') {
       var shSales = getOrCreateSheet(ss, 'POS_TRANSAKSI', [
         'Timestamp', 'No_Nota', 'Tanggal', 'Jam', 'Outlet', 'Jenis_Order',
         'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar',
@@ -1475,7 +1604,19 @@ function doPost(e) {
         'Timestamp', 'ID_Absen', 'Tanggal', 'Nama_Karyawan',
         'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status'
       ]);
-      shAtt.appendRow([ts, p.id || '-', p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]);
+      var rows = shAtt.getDataRange().getValues();
+      var updatedRow = -1;
+      for (var r = 1; r < rows.length; r++) {
+        if (p.id && String(rows[r][1]) === String(p.id)) {
+          updatedRow = r + 1;
+          break;
+        }
+      }
+      if (updatedRow > 0) {
+        shAtt.getRange(updatedRow, 1, 1, 8).setValues([[ts, p.id, p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]]);
+      } else {
+        shAtt.appendRow([ts, p.id || '-', p.date, p.staffName, p.clockIn, p.clockOut || '-', p.wage || 0, p.status]);
+      }
 
     } else if (eventType === 'CLOSE_SHIFT') {
       var shCls = getOrCreateSheet(ss, 'CLOSING_SHIFT', [
@@ -1497,40 +1638,8 @@ function doPost(e) {
       var detail = p.itemName ? (p.itemName + ' (' + p.fromQty + ' -> ' + p.toQty + ')') : ('Batal Order (' + (p.customer || '-') + ')');
       shAud.appendRow([ts, p.id, p.action || eventType, p.orderId, detail, p.reason, p.cashier, p.approvedBy]);
 
-    } else if (eventType === 'FULL_MASTER_SYNC') {
-      var shMenu = getOrCreateSheet(ss, 'MASTER_MENU', [
-        'Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand',
-        'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit'
-      ]);
-      shMenu.clearContents();
-      shMenu.appendRow(['Update_Time', 'SKU', 'Nama_Produk', 'Kategori', 'Brand', 'Satuan', 'Harga_Jual', 'HPP_Modal', 'Margin_Rp', 'Margin_Persen', 'Menu_Favorit']);
-      (p.products || []).forEach(function(pr) {
-        var mRp = (Number(pr.price) || 0) - (Number(pr.cost) || 0);
-        var mPct = pr.price > 0 ? Math.round((mRp / pr.price) * 100) + '%' : '0%';
-        shMenu.appendRow([ts, pr.sku, pr.name, pr.category, pr.brand || 'Kopi Jiwara', pr.unit, pr.price, pr.cost || 0, mRp, mPct, pr.fav ? 'Ya' : 'Tidak']);
-      });
-
-      var shInv = getOrCreateSheet(ss, 'GUDANG_STOK', [
-        'Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang',
-        'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok'
-      ]);
-      shInv.clearContents();
-      shInv.appendRow(['Update_Time', 'SKU', 'Nama_Bahan', 'Kategori_Gudang', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Status_Stok']);
-      (p.inventory || []).forEach(function(item) {
-        var st = Number(item.stock) <= Number(item.minStock) ? 'RESTOCK' : 'AMAN';
-        shInv.appendRow([ts, item.sku, item.name, item.category, item.stock, item.minStock, item.unit, st]);
-      });
-
-      var shCrm = getOrCreateSheet(ss, 'CRM_PELANGGAN', [
-        'ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member',
-        'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir',
-        'Voucher_Khusus', 'Catatan_Preferensi'
-      ]);
-      shCrm.clearContents();
-      shCrm.appendRow(['ID_CRM', 'Nama_Pelanggan', 'No_WhatsApp', 'Tier_Member', 'Total_Kunjungan', 'Total_Belanja', 'Kunjungan_Terakhir', 'Voucher_Khusus', 'Catatan_Preferensi']);
-      (p.customers || []).forEach(function(c) {
-        shCrm.appendRow([c.id, c.name, c.phone || '-', c.tier || 'Regular', c.totalVisits || 0, c.totalSpent || 0, (c.lastVisit || '').slice(0, 10), c.specialVoucher || '-', c.notes || '-']);
-      });
+    } else if (eventType === 'SYNC_MASTER_TABLES' || eventType === 'FULL_MASTER_SYNC') {
+      writeMasterTables(ss, ts, p);
     }
 
     return ContentService.createTextOutput(JSON.stringify({ status: 'OK', eventType: eventType })).setMimeType(ContentService.MimeType.JSON);
@@ -2137,7 +2246,7 @@ function getOrCreateSheet(ss, name, headers) {
     function upsertCRMCustomerFromOrder(name, phone, orderTotal, promoUsed) {
       const cleanName = String(name || '').trim();
       const cleanPhone = String(phone || '').trim();
-      if (!cleanPhone && (!cleanName || cleanName === 'Walk-in' || cleanName === 'Split Bill')) return;
+      if (!cleanPhone && (!cleanName || cleanName === 'Walk-in' || cleanName === 'Split Bill')) return false;
       if (!db.customers) db.customers = [];
 
       const digits = cleanPhone.replace(/\D/g, '');
@@ -2166,6 +2275,7 @@ function getOrCreateSheet(ss, name, headers) {
           specialVoucher: ''
         });
       }
+      return true;
     }
 
     function saveAsOpenOrder() {
@@ -2411,11 +2521,13 @@ function getOrCreateSheet(ss, name, headers) {
       const customerLabel = isSplitFlow
         ? ((cartCustomer.trim() || 'Split Bill') + ' (Split)')
         : (cartCustomer.trim() || 'Walk-in');
+      const promoLabel = cartPromoCode === '__MANUAL__' ? 'MANUAL' : cartPromoCode;
 
       const trx = {
         id: trxId, date: new Date().toISOString(), orderType: cartOrderType,
         customer: customerLabel,
         customerPhone: cartCustomerPhone.trim(),
+        promoCode: promoLabel,
         cashier: currentUser.name,
         status: 'PAID', paymentMethod: checkoutMethod, subtotal, discount, total, costTotal,
         cashPaid, change, items: itemsToPay
@@ -2423,11 +2535,12 @@ function getOrCreateSheet(ss, name, headers) {
 
       db.transactions.unshift(trx);
       deductProductStock(itemsToPay);
-      upsertCRMCustomerFromOrder(cartCustomer.trim(), cartCustomerPhone.trim(), total, cartPromoCode !== '__MANUAL__' ? cartPromoCode : '');
+      const crmUpdated = upsertCRMCustomerFromOrder(cartCustomer.trim(), cartCustomerPhone.trim(), total, promoLabel);
 
       const brandMap = {};
       trx.items.forEach(it => { brandMap[it.id] = getBrandFromCategory(it.category); });
       syncMasterEvent('SALE_COMPLETED', { ...trx, brandMap });
+      if (crmUpdated) autoSyncMasterSlices(['customers']);
 
       if (isSplitFlow && leftoverItems.length > 0) {
         const remTotal = leftoverItems.reduce((s, i) => s + i.price * i.qty, 0);
@@ -2452,6 +2565,9 @@ function getOrCreateSheet(ss, name, headers) {
       clearCart();
       closeModal();
       printThermalReceipt(trx);
+      if (db.outlet && db.outlet.printerAutoPrint && db.outlet.printerLocked) {
+        sendReceiptToBluetoothPrinter(trx, true);
+      }
       showToast(`${isSplitFlow ? 'Split Bill' : 'Transaksi'} ${trxId} berhasil (${checkoutMethod})`);
     }
 
@@ -2583,10 +2699,14 @@ function getOrCreateSheet(ss, name, headers) {
       const trx = db.transactions.find(t => t.id === trxId);
       if (!trx) return;
       printThermalReceipt(trx);
-      window.print();
+      if (db.outlet && db.outlet.printerLocked && (btPrinterConnected || db.outlet.printerDeviceId)) {
+        sendReceiptToBluetoothPrinter(trx, false);
+      } else {
+        window.print();
+      }
     }
 
-    // ==================== 3. LAPORAN KASIR (TERMASUK CUSTOM DATE) ====================
+    // ==================== 3. LAPORAN KASIR ====================
     function filterTransactionsByPreset(preset, customStart = '', customEnd = '') {
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
@@ -3003,7 +3123,7 @@ function getOrCreateSheet(ss, name, headers) {
       doDirectLogout();
     }
 
-    // ==================== 7. OWNER: PENJUALAN & LAPORAN (TERMASUK ARUS KAS) ====================
+    // ==================== 7. OWNER: PENJUALAN & LAPORAN ====================
     function renderOwnerSalesTab(container) {
       const presets = ['Hari Ini', 'Kemarin', '7 Hari Terakhir', 'Minggu Ini', 'Minggu Lalu', 'Bulan Ini', 'Bulan Lalu', 'Custom Date'];
       const list = filterTransactionsByPreset(ownerSalesPeriod, ownerSalesStartDate, ownerSalesEndDate);
@@ -3384,14 +3504,16 @@ function getOrCreateSheet(ss, name, headers) {
         });
       }
       saveDB();
+      autoSyncMasterSlices(['customers']);
       closeModal();
       renderOwnerCRMTab(document.getElementById('mainContentArea'));
-      showToast(`Data pelanggan ${name} tersimpan di CRM.`);
+      showToast(`Data pelanggan ${name} tersimpan & disinkronkan ke CRM_PELANGGAN.`);
     }
 
     function deleteCRMCustomer(custId) {
       db.customers = (db.customers || []).filter(c => c.id !== custId);
       saveDB();
+      autoSyncMasterSlices(['customers']);
       closeModal();
       renderOwnerCRMTab(document.getElementById('mainContentArea'));
       showToast('Pelanggan dihapus dari database CRM.');
@@ -3453,9 +3575,10 @@ function getOrCreateSheet(ss, name, headers) {
         (db.customers || []).forEach(c => { if (c.tier === 'VIP Member' || c.tier === 'Gold Member') c.specialVoucher = code; });
       }
       saveDB();
+      autoSyncMasterSlices(['customers', 'promos']);
       closeModal();
       renderOwnerCRMTab(document.getElementById('mainContentArea'));
-      showToast(`Voucher CRM ${code} berhasil dibuat & aktif di Kasir!`);
+      showToast(`Voucher CRM ${code} berhasil dibuat & disinkronkan!`);
     }
 
     function sendCRMVoucherWhatsApp(custId) {
@@ -3519,7 +3642,7 @@ function getOrCreateSheet(ss, name, headers) {
                 </tbody>
               </table>
             </div>
-            <button class="btn btn-dark" onclick="syncFullMasterDatabase()">Simpan & Sync Stok Opname ke GUDANG_STOK</button>
+            <button class="btn btn-dark" onclick="autoSyncMasterSlices(['inventory']);showToast('Stok Opname berhasil disinkronkan ke tab GUDANG_STOK!')">Simpan & Sync Stok Opname ke GUDANG_STOK</button>
           ` : invSubTab === 'mutasi' ? `
             <h3 style="margin:0 0 10px;font-size:15px;">Terima Barang Masuk / Restock</h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px;">
@@ -3556,6 +3679,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (!item) return;
       item.stock = Math.max(0, Number(val) || 0);
       saveDB();
+      autoSyncMasterSlices(['inventory']);
       showToast(`Stok ${item.name} diperbarui menjadi ${item.stock} ${item.unit}`);
     }
 
@@ -3567,8 +3691,9 @@ function getOrCreateSheet(ss, name, headers) {
       if (!item) return;
       item.stock = Math.max(0, Number(item.stock) + sign * qty);
       saveDB();
+      autoSyncMasterSlices(['inventory']);
       renderOwnerInventoryTab(document.getElementById('mainContentArea'));
-      showToast(`Stok ${item.name} sekarang ${item.stock} ${item.unit}`);
+      showToast(`Stok ${item.name} sekarang ${item.stock} ${item.unit} & tersinkron ke Sheets.`);
     }
 
     function openAddInventoryModal() {
@@ -3602,9 +3727,10 @@ function getOrCreateSheet(ss, name, headers) {
       if (!name) { showToast('Nama bahan wajib diisi.', true); return; }
       db.inventory.push({ id: 'inv-' + Date.now(), sku: sku || 'BHN-99', name, category, stock, minStock, unit });
       saveDB();
+      autoSyncMasterSlices(['inventory']);
       closeModal();
       renderOwnerInventoryTab(document.getElementById('mainContentArea'));
-      showToast(`Bahan "${name}" ditambahkan.`);
+      showToast(`Bahan "${name}" ditambahkan & disinkronkan ke GUDANG_STOK.`);
     }
 
     // ==================== 10. OWNER: PENGATURAN ====================
@@ -3777,9 +3903,10 @@ function getOrCreateSheet(ss, name, headers) {
       if (idx >= 0) db.categories[idx] = nextName;
       db.products.forEach(p => { if (p.category === oldName) p.category = nextName; });
       saveDB();
+      autoSyncMasterSlices(['products']);
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Kategori diperbarui.');
+      showToast('Kategori diperbarui & disinkronkan.');
     }
 
     function deleteMenuCategory(catName) {
@@ -3835,17 +3962,19 @@ function getOrCreateSheet(ss, name, headers) {
         db.products.unshift({ id: 'prd-' + Date.now(), sku, name, category, unit, price, cost, fav, stock: 50 });
       }
       saveDB();
+      autoSyncMasterSlices(['products']);
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Data produk disimpan.');
+      showToast('Data produk disimpan & disinkronkan ke MASTER_MENU.');
     }
 
     function deleteProductById(prodId) {
       db.products = db.products.filter(p => p.id !== prodId);
       saveDB();
+      autoSyncMasterSlices(['products']);
       closeModal();
       renderSettingsProdukKategori(document.getElementById('settingsSubBody'));
-      showToast('Produk dihapus.');
+      showToast('Produk dihapus & MASTER_MENU diperbarui.');
     }
 
     function renderSettingsStaff(body) {
@@ -3854,7 +3983,7 @@ function getOrCreateSheet(ss, name, headers) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div>
               <h3 style="margin:0;font-size:16px;">Manajemen Pegawai & PIN</h3>
-              <div style="font-size:11px;color:var(--text-muted);">Kelola detail pegawai, jabatan, upah harian, PIN, atau hapus staf</div>
+              <div style="font-size:11px;color:var(--text-muted);">Kelola detail pegawai, jabatan, upah harian, PIN, atau hapus staf (Otomatis sinkron ke MASTER_PEGAWAI)</div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openStaffFormModal(null)">+ Tambah Staf</button>
           </div>
@@ -3893,8 +4022,9 @@ function getOrCreateSheet(ss, name, headers) {
       const st = db.staff.find(s => s.id === staffId);
       if (st) st.pin = val;
       saveDB();
+      autoSyncMasterSlices(['staff']);
       document.getElementById('pinInp_' + staffId).value = '';
-      showToast(`PIN untuk ${st.name} berhasil diperbarui.`);
+      showToast(`PIN untuk ${st.name} diperbarui & disinkronkan ke MASTER_PEGAWAI.`);
     }
 
     function openStaffFormModal(staffId) {
@@ -3942,17 +4072,19 @@ function getOrCreateSheet(ss, name, headers) {
         db.staff.push({ id: 'stf-' + Date.now(), name, role, pin, active, dailyWage });
       }
       saveDB();
+      autoSyncMasterSlices(['staff']);
       closeModal();
       renderSettingsStaff(document.getElementById('settingsSubBody'));
-      showToast(`Data pegawai ${name} disimpan.`);
+      showToast(`Data pegawai ${name} disimpan & disinkronkan ke MASTER_PEGAWAI.`);
     }
 
     function deleteStaffMember(staffId) {
       if (staffId === 'stf-1') { showToast('Akun Owner utama tidak dapat dihapus.', true); return; }
       db.staff = db.staff.filter(s => s.id !== staffId);
       saveDB();
+      autoSyncMasterSlices(['staff']);
       renderSettingsStaff(document.getElementById('settingsSubBody'));
-      showToast('Data pegawai berhasil dihapus.');
+      showToast('Data pegawai berhasil dihapus & MASTER_PEGAWAI diperbarui.');
     }
 
     function renderSettingsPromo(body) {
@@ -3961,7 +4093,7 @@ function getOrCreateSheet(ss, name, headers) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div>
               <h3 style="margin:0;font-size:16px;">Manajemen Kode Promo</h3>
-              <div style="font-size:11px;color:var(--text-muted);">Atur diskon, jangka waktu berlaku, serta aktifkan/hentikan promo secara manual</div>
+              <div style="font-size:11px;color:var(--text-muted);">Atur diskon, jangka waktu berlaku, serta aktifkan/hentikan promo (Otomatis sinkron ke MASTER_PROMO)</div>
             </div>
             <button class="btn btn-yellow btn-sm" onclick="openPromoFormModal(null)">+ Tambah Promo</button>
           </div>
@@ -4052,9 +4184,10 @@ function getOrCreateSheet(ss, name, headers) {
         db.promos.unshift({ id: 'prm-' + Date.now(), code, name, type, value, startDate, endDate, active });
       }
       saveDB();
+      autoSyncMasterSlices(['promos']);
       closeModal();
       renderSettingsPromo(document.getElementById('settingsSubBody'));
-      showToast(`Promo ${code} berhasil disimpan.`);
+      showToast(`Promo ${code} disimpan & disinkronkan ke MASTER_PROMO.`);
     }
 
     function togglePromoManualStatus(promoId) {
@@ -4062,16 +4195,18 @@ function getOrCreateSheet(ss, name, headers) {
       if (!pr) return;
       pr.active = !pr.active;
       saveDB();
+      autoSyncMasterSlices(['promos']);
       renderSettingsPromo(document.getElementById('settingsSubBody'));
-      showToast(`Promo ${pr.code} sekarang ${pr.active ? 'Aktif' : 'Dihentikan'}.`);
+      showToast(`Promo ${pr.code} sekarang ${pr.active ? 'Aktif' : 'Dihentikan'} & tersinkron ke Sheets.`);
     }
 
     function deletePromoItem(promoId) {
       db.promos = db.promos.filter(p => p.id !== promoId);
       saveDB();
+      autoSyncMasterSlices(['promos']);
       closeModal();
       renderSettingsPromo(document.getElementById('settingsSubBody'));
-      showToast('Promo dihapus.');
+      showToast('Promo dihapus & MASTER_PROMO diperbarui.');
     }
 
     function renderSettingsOutletInfo(body) {
@@ -4151,27 +4286,296 @@ function getOrCreateSheet(ss, name, headers) {
       showToast('Detail Info Outlet & Struk berhasil disimpan.');
     }
 
+    // ==================== SINKRONISASI SYSTEM (BLUETOOTH PRINTER + GOOGLE SHEETS) ====================
     function renderSettingsSystemSync(body) {
+      const isConnected = Boolean((db.outlet.webhookUrl || '').trim());
+      const pName = db.outlet.printerName || '';
+      const pId = db.outlet.printerDeviceId || '';
+      const pLocked = Boolean(db.outlet.printerLocked && pName);
+      const pPaper = db.outlet.printerPaperWidth || '58mm';
+      const pAuto = db.outlet.printerAutoPrint !== false;
+
       body.innerHTML = `
+        <div class="bento-card" style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+            <h3 style="margin:0;font-size:16px;">Sinkronisasi Perangkat — Printer Thermal Bluetooth</h3>
+            <span class="badge-pill ${pLocked ? 'badge-green' : (pName ? 'badge-yellow' : 'badge-pink')}">
+              ${pLocked ? (btPrinterConnected ? 'Terkunci & Terhubung' : 'Terkunci (' + esc(pName) + ')') : (pName ? 'Terdeteksi (Belum Dikunci)' : 'Belum Ada Printer')}
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">
+            Pindai dan sambungkan mesin printer thermal Bluetooth terdekat (58mm / 80mm), lalu kunci perangkat agar kasir tidak salah memilih printer saat mencetak struk.
+          </div>
+
+          <div style="background:var(--green-soft);border:1.5px solid ${pLocked ? 'var(--green-deep)' : 'var(--border-glass)'};border-radius:16px;padding:12px 14px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div>
+                <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text-muted);">Perangkat Printer Terpilih</div>
+                <div style="font-size:15px;font-weight:900;color:var(--green-deep);margin-top:2px;">
+                  ${pName ? esc(pName) : 'Belum ada printer Bluetooth yang disambungkan'}
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+                  ${pId ? `ID Perangkat: ${esc(pId)} • Ukuran Kertas: ${esc(pPaper)}` : 'Klik tombol "Cari & Sambungkan Printer" untuk memindai perangkat terdekat.'}
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${pName ? `
+                  <button type="button" class="btn ${pLocked ? 'btn-yellow' : 'btn-dark'} btn-sm" onclick="toggleLockBluetoothPrinter()">
+                    ${pLocked ? 'Buka Kunci Printer' : 'Kunci Mesin Printer'}
+                  </button>
+                  <button type="button" class="btn btn-soft btn-sm" style="background:#FFF;" onclick="testPrintBluetooth()">Test Cetak Struk</button>
+                  ${!pLocked ? `<button type="button" class="btn btn-danger btn-sm" onclick="disconnectBluetoothPrinter()">Lepas</button>` : ''}
+                ` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+            <div>
+              <label class="field-label">Lebar Kertas Thermal</label>
+              <select class="styled-select" style="padding:8px 11px;font-size:12px;" onchange="updatePrinterPreference('printerPaperWidth', this.value)">
+                <option value="58mm" ${pPaper === '58mm' ? 'selected' : ''}>58 mm (Standar Kasir Portable)</option>
+                <option value="80mm" ${pPaper === '80mm' ? 'selected' : ''}>80 mm (Desktop Thermal)</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;cursor:pointer;padding:9px 12px;border-radius:13px;border:1.5px solid var(--border-glass);background:#FFF;width:100%;">
+                <input type="checkbox" ${pAuto ? 'checked' : ''} onchange="updatePrinterPreference('printerAutoPrint', this.checked)" />
+                Cetak Otomatis Setelah Bayar
+              </label>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-dark" onclick="scanAndConnectBluetoothPrinter()" ${pLocked ? 'disabled' : ''}>
+              ${pLocked ? 'Printer Terkunci (Buka Kunci untuk Ganti)' : 'Cari & Sambungkan Printer Bluetooth'}
+            </button>
+            ${!pLocked ? `<button type="button" class="btn btn-soft" onclick="openManualPrinterPairModal()">Input Nama / Pasangkan Manual</button>` : ''}
+          </div>
+        </div>
+
         <div class="bento-card">
-          <h3 style="margin:0 0 4px;font-size:16px;">Sinkronisasi System — Master POS & ERP v2.0</h3>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Hubungkan aplikasi ke file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> (10 Sheet Otomatis: Transaksi, Item Terjual, CRM, Arus Kas, Closing, Audit Otorisasi, Menu, Gudang, Absensi, & Dashboard L/R)</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+            <h3 style="margin:0;font-size:16px;">Sinkronisasi System — Master POS & ERP v2.2</h3>
+            <span class="badge-pill ${isConnected ? 'badge-green' : 'badge-pink'}">${isConnected ? 'Auto-Sync Aktif (12 Sheet)' : 'Webhook Belum Diisi'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Terhubung ke Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> (Otomatis sinkron setiap transaksi, mutasi kas, absensi, stok gudang, edit menu, pegawai & PIN, promo, serta pelanggan CRM).</div>
           <div style="margin-bottom:12px;">
             <label class="field-label">Google Apps Script Webhook URL</label>
             <input id="outWebhookInp" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.outlet.webhookUrl || '')}" />
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-dark" onclick="saveWebhookOnly()">Simpan URL Webhook</button>
-            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data ke Master v2</button>
-            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2 (10 Sheet)</button>
+            <button class="btn btn-soft" onclick="testWebhookConnection()">Test Koneksi (Ping)</button>
+            <button class="btn btn-yellow" onclick="syncFullMasterDatabase()">Sync Semua Data (12 Sheet)</button>
+            <button class="btn btn-pink" onclick="openMasterScriptModal()">Skrip Google Sheets v2.2</button>
           </div>
         </div>
       `;
     }
 
+    async function scanAndConnectBluetoothPrinter() {
+      if (db.outlet.printerLocked) {
+        showToast('Perangkat printer sedang terkunci. Buka kunci terlebih dahulu untuk mengganti.', true);
+        return;
+      }
+      if (!navigator.bluetooth) {
+        showToast('Browser tidak mendukung Web Bluetooth langsung. Gunakan pasangan manual / Bluetooth OS.', true);
+        openManualPrinterPairModal();
+        return;
+      }
+      try {
+        showToast('Memindai perangkat printer Bluetooth terdekat...');
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [
+            '000018f0-0000-1000-8000-00805f9b34fb',
+            '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+            'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+            '0000ffe0-0000-1000-8000-00805f9b34fb'
+          ]
+        });
+        btPrinterDevice = device;
+        btPrinterCharacteristic = null;
+        btPrinterConnected = false;
+
+        if (device.gatt) {
+          const server = await device.gatt.connect();
+          const services = await server.getPrimaryServices();
+          for (const svc of services) {
+            const chars = await svc.getCharacteristics();
+            const writable = chars.find(c => c.properties.write || c.properties.writeWithoutResponse);
+            if (writable) {
+              btPrinterCharacteristic = writable;
+              btPrinterConnected = true;
+              break;
+            }
+          }
+          device.addEventListener('gattserverdisconnected', () => {
+            btPrinterConnected = false;
+            if (settingsSubTab === 'sinkronisasi' && currentTab === 'pengaturan') {
+              renderSettingsSystemSync(document.getElementById('settingsSubBody'));
+            }
+          });
+        }
+
+        db.outlet.printerName = device.name || 'Thermal Printer BT';
+        db.outlet.printerDeviceId = device.id || ('BT-' + Date.now());
+        db.outlet.printerLocked = true;
+        if (db.outlet.printerAutoPrint === undefined) db.outlet.printerAutoPrint = true;
+        saveDB();
+        renderSettingsSystemSync(document.getElementById('settingsSubBody'));
+        showToast(`Printer "${db.outlet.printerName}" berhasil terhubung & dikunci!`);
+      } catch (err) {
+        if (err && err.name !== 'NotFoundError') {
+          showToast('Gagal menyambungkan BLE. Anda dapat memasangkan via Pengaturan Bluetooth HP/Tablet.', true);
+        }
+      }
+    }
+
+    function openManualPrinterPairModal() {
+      openModal(`
+        <div class="modal-head">
+          <h3 style="margin:0;font-size:17px;">Pasangkan Printer Bluetooth Manual</h3>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">
+          Jika menggunakan printer Bluetooth Classic (seperti RPP02N, Panda, Eppos, Bellav) yang sudah terhubung di pengaturan Bluetooth perangkat Anda, masukkan nama printer di bawah ini untuk menguncinya di aplikasi kasir.
+        </p>
+        <div style="display:grid;gap:10px;margin-bottom:14px;">
+          <div>
+            <label class="field-label">Nama Mesin Printer Bluetooth</label>
+            <input id="manualPrinterNameInp" class="styled-input" placeholder="Contoh: RPP02N / Epson TM-P20 / Panda 58mm" value="${esc(db.outlet.printerName || '')}" />
+          </div>
+          <div>
+            <label class="field-label">Keterangan Lokasi / Meja Kasir</label>
+            <input id="manualPrinterNoteInp" class="styled-input" placeholder="Contoh: Kasir Utama Bar" value="${esc(db.outlet.printerNote || 'Kasir Utama')}" />
+          </div>
+        </div>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="saveManualPrinterPair()">Simpan & Kunci Mesin Printer</button>
+      `);
+    }
+
+    function saveManualPrinterPair() {
+      const pName = document.getElementById('manualPrinterNameInp').value.trim();
+      const pNote = document.getElementById('manualPrinterNoteInp').value.trim();
+      if (!pName) { showToast('Nama printer wajib diisi.', true); return; }
+      db.outlet.printerName = pName;
+      db.outlet.printerNote = pNote;
+      db.outlet.printerDeviceId = db.outlet.printerDeviceId || ('BT-PAIRED-' + Math.floor(1000 + Math.random() * 9000));
+      db.outlet.printerLocked = true;
+      if (db.outlet.printerAutoPrint === undefined) db.outlet.printerAutoPrint = true;
+      saveDB();
+      closeModal();
+      renderSettingsSystemSync(document.getElementById('settingsSubBody'));
+      showToast(`Printer "${pName}" berhasil dikunci sebagai perangkat cetak kasir.`);
+    }
+
+    function toggleLockBluetoothPrinter() {
+      db.outlet.printerLocked = !db.outlet.printerLocked;
+      saveDB();
+      renderSettingsSystemSync(document.getElementById('settingsSubBody'));
+      showToast(db.outlet.printerLocked
+        ? `Printer "${db.outlet.printerName}" dikunci.`
+        : `Kunci printer "${db.outlet.printerName}" dibuka.`);
+    }
+
+    function disconnectBluetoothPrinter() {
+      if (btPrinterDevice && btPrinterDevice.gatt && btPrinterDevice.gatt.connected) {
+        try { btPrinterDevice.gatt.disconnect(); } catch (e) {}
+      }
+      btPrinterDevice = null;
+      btPrinterCharacteristic = null;
+      btPrinterConnected = false;
+      db.outlet.printerName = '';
+      db.outlet.printerDeviceId = '';
+      db.outlet.printerLocked = false;
+      saveDB();
+      renderSettingsSystemSync(document.getElementById('settingsSubBody'));
+      showToast('Perangkat printer Bluetooth dilepas.');
+    }
+
+    function updatePrinterPreference(key, val) {
+      db.outlet[key] = val;
+      saveDB();
+      showToast('Pengaturan printer thermal diperbarui.');
+    }
+
+    function buildEscPosBytes(trx) {
+      const enc = new TextEncoder();
+      const sep = '--------------------------------\n';
+      let lines = '\x1B\x40\x1B\x61\x01';
+      lines += (db.outlet.name || 'KOPI JIWARA') + '\n';
+      if (db.outlet.address) lines += db.outlet.address + '\n';
+      if (db.outlet.phone) lines += 'Telp: ' + db.outlet.phone + '\n';
+      lines += sep + '\x1B\x61\x00';
+      lines += `No   : ${trx.id}\n`;
+      lines += `Tgl  : ${new Date(trx.date).toLocaleString('id-ID')}\n`;
+      lines += `Kasir: ${trx.cashier} (${trx.orderType})\n`;
+      lines += `Pel  : ${trx.customer || 'Walk-in'}\n`;
+      lines += sep;
+      (trx.items || []).forEach(it => {
+        lines += `${it.name}\n`;
+        lines += `  ${it.qty} x ${rp(it.price)} = ${rp(it.price * it.qty)}\n`;
+      });
+      lines += sep;
+      if (trx.discount > 0) lines += `Diskon : -${rp(trx.discount)}\n`;
+      lines += `TOTAL (${trx.paymentMethod}) : ${rp(trx.total)}\n`;
+      if (trx.paymentMethod === 'Cash') {
+        lines += `Bayar  : ${rp(trx.cashPaid)}\n`;
+        lines += `Kembali: ${rp(trx.change)}\n`;
+      }
+      lines += sep + '\x1B\x61\x01';
+      lines += (db.outlet.receiptFooter || 'Terima kasih!') + '\n\n\n\x1D\x56\x41\x03';
+      return enc.encode(lines);
+    }
+
+    async function sendReceiptToBluetoothPrinter(trx, silentFallback = false) {
+      if (btPrinterCharacteristic) {
+        try {
+          const bytes = buildEscPosBytes(trx);
+          const chunkSize = 100;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const slice = bytes.slice(i, i + chunkSize);
+            if (btPrinterCharacteristic.properties.writeWithoutResponse) {
+              await btPrinterCharacteristic.writeValueWithoutResponse(slice);
+            } else {
+              await btPrinterCharacteristic.writeValue(slice);
+            }
+          }
+          showToast(`Struk berhasil dicetak ke ${db.outlet.printerName}`);
+          return;
+        } catch (e) {
+          btPrinterConnected = false;
+        }
+      }
+      if (!silentFallback) {
+        window.print();
+      }
+    }
+
+    function testPrintBluetooth() {
+      const sampleTrx = {
+        id: 'TEST-BT',
+        date: new Date().toISOString(),
+        orderType: 'Meja',
+        customer: 'Test Printer (' + (db.outlet.printerName || 'BT') + ')',
+        cashier: currentUser ? currentUser.name : 'Owner',
+        paymentMethod: 'QRIS',
+        discount: 0,
+        total: 18000,
+        cashPaid: 18000,
+        change: 0,
+        items: [{ name: 'Kopi Susu Gula Aren', price: 18000, qty: 1 }]
+      };
+      printThermalReceipt(sampleTrx);
+      sendReceiptToBluetoothPrinter(sampleTrx, false);
+    }
+
     function saveWebhookOnly() {
       db.outlet.webhookUrl = document.getElementById('outWebhookInp').value.trim();
       saveDB();
+      renderSettingsSystemSync(document.getElementById('settingsSubBody'));
       showToast('URL Webhook Google Sheets berhasil disimpan.');
     }
 
@@ -4180,13 +4584,13 @@ function getOrCreateSheet(ss, name, headers) {
       openModal(`
         <div class="modal-head">
           <div>
-            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.0</h3>
+            <h3 style="margin:0;font-size:16px;">Google Apps Script — Master POS & ERP v2.2</h3>
             <div style="font-size:11px;color:var(--text-muted);">Tempel di Extensions → Apps Script, lalu jalankan <strong>inisialisasiSemuaSheetMaster()</strong> 1x</div>
           </div>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <textarea id="appsScriptBox" readonly style="width:100%;height:240px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#0B2E23;color:#FACC15;margin-bottom:10px;">${esc(code)}</textarea>
-        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.0</button>
+        <button class="btn btn-yellow" style="width:100%;padding:12px;" onclick="copyMasterScript()">Salin Kode Apps Script v2.2</button>
       `);
     }
 
@@ -4195,7 +4599,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (!ta) return;
       ta.select();
       document.execCommand('copy');
-      showToast('Kode Google Apps Script v2.0 berhasil disalin.');
+      showToast('Kode Google Apps Script v2.2 berhasil disalin.');
     }
 
     if (!restoreSessionState()) {
