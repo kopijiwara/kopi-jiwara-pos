@@ -855,7 +855,7 @@
         const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v13';
+            const CACHE_NAME = 'kopi-jiwara-offline-v15';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -957,7 +957,7 @@
           printerName: '',
           printerDeviceId: '',
           printerLocked: false,
-          printerAutoPrint: true,
+          printerAutoPrint: false,
           printerPaperSize: '58mm',
           autoPullEnabled: true,
           autoPullIntervalSec: 15
@@ -1666,6 +1666,65 @@
     let btPrinterDevice = null;
     let btPrinterCharacteristic = null;
 
+    const BT_PRINTER_SERVICES = [
+      '000018f0-0000-1000-8000-00805f9b34fb',
+      '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+      'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+      '0000ff00-0000-1000-8000-00805f9b34fb'
+    ];
+
+    async function findWritableBtCharacteristic(server) {
+      const services = await server.getPrimaryServices();
+      for (const svc of services) {
+        const chars = await svc.getCharacteristics();
+        for (const ch of chars) {
+          if (ch.properties.write || ch.properties.writeWithoutResponse) {
+            return ch;
+          }
+        }
+      }
+      return null;
+    }
+
+    async function ensureBtPrinterConnected(silent = true) {
+      if (btPrinterCharacteristic && btPrinterDevice && btPrinterDevice.gatt && btPrinterDevice.gatt.connected) {
+        return true;
+      }
+      if (!navigator.bluetooth) return false;
+
+      try {
+        if (btPrinterDevice && btPrinterDevice.gatt) {
+          const server = await btPrinterDevice.gatt.connect();
+          const ch = await findWritableBtCharacteristic(server);
+          if (ch) {
+            btPrinterCharacteristic = ch;
+            return true;
+          }
+        }
+
+        if (db.settings.printerLocked && typeof navigator.bluetooth.getDevices === 'function') {
+          const pairedDevices = await navigator.bluetooth.getDevices();
+          const target = pairedDevices.find(d =>
+            (db.settings.printerDeviceId && d.id === db.settings.printerDeviceId) ||
+            (db.settings.printerName && d.name === db.settings.printerName)
+          ) || pairedDevices[0];
+
+          if (target && target.gatt) {
+            const server = await target.gatt.connect();
+            const ch = await findWritableBtCharacteristic(server);
+            if (ch) {
+              btPrinterDevice = target;
+              btPrinterCharacteristic = ch;
+              return true;
+            }
+          }
+        }
+      } catch (err) {
+        if (!silent) showToast('Menghubungkan ke printer Bluetooth...', false);
+      }
+      return false;
+    }
+
     function buildEscPosReceiptBytes(trx) {
       const encoder = new TextEncoder();
       const lineWidth = db.settings.printerPaperSize === '80mm' ? 42 : 32;
@@ -1729,31 +1788,19 @@
         showToast('Memindai printer thermal Bluetooth...');
         const device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: [
-            '000018f0-0000-1000-8000-00805f9b34fb',
-            '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-            'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
-          ]
+          optionalServices: BT_PRINTER_SERVICES
         });
         const server = await device.gatt.connect();
-        const services = await server.getPrimaryServices();
-        let writeChar = null;
-        for (const svc of services) {
-          const chars = await svc.getCharacteristics();
-          for (const ch of chars) {
-            if (ch.properties.write || ch.properties.writeWithoutResponse) {
-              writeChar = ch;
-              break;
-            }
-          }
-          if (writeChar) break;
-        }
+        const writeChar = await findWritableBtCharacteristic(server);
         if (!writeChar) {
           showToast('Karakteristik tulis printer tidak ditemukan.', true);
           return;
         }
         btPrinterDevice = device;
         btPrinterCharacteristic = writeChar;
+        device.addEventListener('gattserverdisconnected', () => {
+          btPrinterCharacteristic = null;
+        });
         db.settings.printerName = device.name || 'Thermal Printer BT';
         db.settings.printerDeviceId = device.id || 'BT-LOCKED';
         db.settings.printerLocked = true;
@@ -1777,7 +1824,8 @@
     }
 
     async function writeBytesToBtPrinter(bytes) {
-      if (!btPrinterCharacteristic) return false;
+      const connected = await ensureBtPrinterConnected(true);
+      if (!connected || !btPrinterCharacteristic) return false;
       try {
         const chunkSize = 100;
         for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -1786,18 +1834,17 @@
         }
         return true;
       } catch (e) {
+        btPrinterCharacteristic = null;
         return false;
       }
     }
 
     async function printReceiptThermal(trx) {
       if (!trx) return;
-      if (btPrinterCharacteristic) {
-        const ok = await writeBytesToBtPrinter(buildEscPosReceiptBytes(trx));
-        if (ok) {
-          showToast(`Struk ${trx.id} tercetak di ${db.settings.printerName}!`);
-          return;
-        }
+      const ok = await writeBytesToBtPrinter(buildEscPosReceiptBytes(trx));
+      if (ok) {
+        showToast(`Struk ${trx.id} tercetak di ${db.settings.printerName || 'Printer BT'}!`);
+        return;
       }
       const isDraft = Boolean(trx.isDraftBill);
       const totalQty = (trx.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0);
@@ -1942,40 +1989,38 @@
       const diff = actualCash !== null ? actualCash - expected : 0;
       const productLines = stats.soldProductsList || [];
 
-      if (btPrinterCharacteristic) {
-        const encoder = new TextEncoder();
-        const lineWidth = db.settings.printerPaperSize === '80mm' ? 42 : 32;
-        const hr = '-'.repeat(lineWidth) + '\n';
-        const lr = (l, r) => {
-          const sp = Math.max(1, lineWidth - String(l).length - String(r).length);
-          return String(l) + ' '.repeat(sp) + String(r) + '\n';
-        };
-        let out = '\x1B\x40\x1B\x61\x01\x1B\x45\x01LAPORAN HARIAN KASIR\n' + (db.settings.outletName || 'KOPI JIWARA') + '\n\x1B\x45\x00\x1B\x61\x00' + hr;
-        out += `Tgl   : ${todayISO()} ${nowTimeStr()}\n`;
-        out += `Kasir : ${currentUser ? currentUser.name : '-'}\n` + hr;
-        out += lr('Modal Awal', rp(db.shift.openingCash));
-        out += lr('Total Omzet', rp(stats.grossSales));
-        out += lr('Cash', rp(stats.cashSales));
-        out += lr('QRIS', rp(stats.qrisSales));
-        out += lr('Transfer', rp(stats.tfSales));
-        out += lr('Online Food', rp(stats.onlineSales));
-        out += hr + `\x1B\x45\x01PRODUK TERJUAL (${stats.totalQtySold} ITEM)\x1B\x45\x00\n`;
-        if (productLines.length === 0) out += 'Belum ada produk terjual\n';
-        else productLines.forEach(p => { out += lr(p.name.slice(0, lineWidth - 6), `${p.qty}x`); });
-        out += hr;
-        out += lr('Kas Masuk', rp(stats.cashIn));
-        out += lr('Kas Keluar', rp(stats.cashOut));
-        out += '\x1B\x45\x01' + lr('Ekspektasi Laci', rp(expected)) + '\x1B\x45\x00';
-        if (actualCash !== null) {
-          out += lr('Fisik Laci', rp(actualCash));
-          out += lr('Selisih', rp(diff));
-        }
-        out += '\n\n\n\x1D\x56\x41\x03';
-        const ok = await writeBytesToBtPrinter(encoder.encode(out));
-        if (ok) {
-          showToast(`Laporan Harian tercetak di ${db.settings.printerName}!`);
-          return;
-        }
+      const encoder = new TextEncoder();
+      const lineWidth = db.settings.printerPaperSize === '80mm' ? 42 : 32;
+      const hr = '-'.repeat(lineWidth) + '\n';
+      const lr = (l, r) => {
+        const sp = Math.max(1, lineWidth - String(l).length - String(r).length);
+        return String(l) + ' '.repeat(sp) + String(r) + '\n';
+      };
+      let out = '\x1B\x40\x1B\x61\x01\x1B\x45\x01LAPORAN HARIAN KASIR\n' + (db.settings.outletName || 'KOPI JIWARA') + '\n\x1B\x45\x00\x1B\x61\x00' + hr;
+      out += `Tgl   : ${todayISO()} ${nowTimeStr()}\n`;
+      out += `Kasir : ${currentUser ? currentUser.name : '-'}\n` + hr;
+      out += lr('Modal Awal', rp(db.shift.openingCash));
+      out += lr('Total Omzet', rp(stats.grossSales));
+      out += lr('Cash', rp(stats.cashSales));
+      out += lr('QRIS', rp(stats.qrisSales));
+      out += lr('Transfer', rp(stats.tfSales));
+      out += lr('Online Food', rp(stats.onlineSales));
+      out += hr + `\x1B\x45\x01PRODUK TERJUAL (${stats.totalQtySold} ITEM)\x1B\x45\x00\n`;
+      if (productLines.length === 0) out += 'Belum ada produk terjual\n';
+      else productLines.forEach(p => { out += lr(p.name.slice(0, lineWidth - 6), `${p.qty}x`); });
+      out += hr;
+      out += lr('Kas Masuk', rp(stats.cashIn));
+      out += lr('Kas Keluar', rp(stats.cashOut));
+      out += '\x1B\x45\x01' + lr('Ekspektasi Laci', rp(expected)) + '\x1B\x45\x00';
+      if (actualCash !== null) {
+        out += lr('Fisik Laci', rp(actualCash));
+        out += lr('Selisih', rp(diff));
+      }
+      out += '\n\n\n\x1D\x56\x41\x03';
+      const ok = await writeBytesToBtPrinter(encoder.encode(out));
+      if (ok) {
+        showToast(`Laporan Harian tercetak di ${db.settings.printerName || 'Printer BT'}!`);
+        return;
       }
 
       const area = document.getElementById('printArea');
@@ -2068,6 +2113,7 @@
       renderWorkspace();
       startCloudAutoPullLoop();
       if (db.settings.webhookUrl) pullFromCloudMaster(false);
+      if (db.settings.printerLocked) ensureBtPrinterConnected(true);
     }
 
     function handleLogoutAction() {
@@ -2298,16 +2344,17 @@
                 <div class="bento-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:32px;">
                   Tidak ada menu yang cocok pada kategori ini.
                 </div>
-              ` : filteredProducts.map(p => {
-                const inCart = cart.find(c => String(c.id) === String(p.id));
+              ` : filteredProducts.map((p, pIdx) => {
+                const safeId = String(p.id || p.sku || ('IDX-' + pIdx));
+                const inCart = cart.find(c => String(c.id) === safeId || (p.sku && String(c.sku) === String(p.sku)));
                 return `
-                  <div role="button" tabindex="0" class="prod-card ${inCart ? 'in-cart' : ''}" onclick="addToCart('${esc(p.id)}')">
+                  <div role="button" tabindex="0" class="prod-card ${inCart ? 'in-cart' : ''}" data-prod-id="${esc(safeId)}" data-prod-sku="${esc(p.sku || '')}" style="cursor:pointer;">
                     ${inCart ? `<span class="qty-badge">${inCart.qty}x</span>` : ''}
-                    <div>
+                    <div style="pointer-events:none;">
                       <div style="font-size:10px;font-weight:800;color:var(--text-muted);">${esc(p.sku)} • ${esc(p.brand)}</div>
                       <div style="font-size:13px;font-weight:800;color:var(--green-deep);margin-top:3px;line-height:1.28;">${esc(p.name)}</div>
                     </div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;pointer-events:none;">
                       <span style="font-size:13px;font-weight:900;color:var(--green-deep);">${rp(p.price)}</span>
                       <span style="font-size:10px;font-weight:700;color:var(--text-muted);">Stok ${p.stock}</span>
                     </div>
@@ -2536,19 +2583,49 @@
       renderPosTab(document.getElementById('mainContentArea'));
     }
 
-    function addToCart(prodId) {
-      const targetId = String(prodId);
-      const prod = db.products.find(p => String(p.id) === targetId);
-      if (!prod) return;
-      const existing = cart.find(c => String(c.id) === targetId);
+    let lastPosTapTimestamp = 0;
+    function triggerPosGridSelection(event) {
+      const card = event.target.closest('.prod-card');
+      if (!card) return;
+      const now = Date.now();
+      if (now - lastPosTapTimestamp < 180) return;
+      lastPosTapTimestamp = now;
+
+      const prodId = card.getAttribute('data-prod-id') || '';
+      const prodSku = card.getAttribute('data-prod-sku') || '';
+      addToCart(prodId, prodSku);
+    }
+
+    document.addEventListener('click', function(e) {
+      if (e.target && e.target.closest('#posProductGrid .prod-card')) {
+        triggerPosGridSelection(e);
+      }
+    });
+
+    function addToCart(prodId, prodSku = '') {
+      const targetId = String(prodId || '').trim();
+      const targetSku = String(prodSku || '').trim();
+      const prod = db.products.find(p =>
+        (targetId && String(p.id).trim() === targetId) ||
+        (targetSku && String(p.sku).trim() === targetSku)
+      );
+      if (!prod) {
+        showToast('Data produk tidak ditemukan, silakan muat ulang menu.', true);
+        return;
+      }
+      const canonicalId = String(prod.id || prod.sku || targetId);
+      const existing = cart.find(c =>
+        String(c.id).trim() === canonicalId ||
+        (prod.sku && String(c.sku).trim() === String(prod.sku).trim())
+      );
       if (existing) {
         existing.qty += 1;
       } else {
         cart.push({
-          id: String(prod.id),
-          sku: prod.sku,
+          id: canonicalId,
+          sku: prod.sku || '',
           name: prod.name,
-          brand: prod.brand,
+          brand: prod.brand || 'Kopi Jiwara',
           includeCommissionShare: prod.includeCommissionShare !== false,
           includeSalaryShare: prod.includeSalaryShare !== false,
           price: Number(prod.price) || 0,
@@ -2557,6 +2634,7 @@
         });
       }
       renderPosTab(document.getElementById('mainContentArea'));
+      showToast(`+1 ${prod.name}`);
     }
 
     function updateCartQty(prodId, delta) {
@@ -3006,7 +3084,7 @@
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <button type="button" class="btn btn-soft" onclick="printReceiptThermal(db.transactions.find(t=>t.id==='${esc(trx.id)}'))">Cetak Struk (Opsional)</button>
+          <button type="button" class="btn btn-soft" onclick="printReceiptThermal(db.transactions.find(t=>t.id==='${esc(trx.id)}'))">Cetak Struk (${esc(db.settings.printerName || 'Printer')})</button>
           <button type="button" class="btn btn-dark" onclick="closeModal()">Selesai / Pesanan Baru</button>
         </div>
       `);
@@ -4932,28 +5010,20 @@
                 </span>
               </div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-                Pindai dan kunci printer kasir Bluetooth (58mm/80mm) agar struk otomatis tercetak tanpa dialog berulang.
+                Pindai dan kunci printer kasir Bluetooth (58mm/80mm). Setiap kali Anda menekan tombol <strong>Cetak Struk</strong>, aplikasi otomatis mengirim struk ke printer Bluetooth yang sudah terkunci.
               </p>
 
               <div style="background:var(--green-soft);border-radius:15px;padding:12px;margin-bottom:12px;font-size:12px;">
                 <div>Perangkat Terkunci: <strong>${esc(db.settings.printerName || 'Belum ada perangkat')}</strong></div>
-                <div style="margin-top:4px;">Status Koneksi Sesi Ini: <strong>${btPrinterCharacteristic ? 'Terhubung & Siap Cetak' : 'Siap (Klik Pindai jika baru buka browser)'}</strong></div>
+                <div style="margin-top:4px;">Mode Cetak: <strong>Opsional (Manual saat tombol Cetak ditekan)</strong></div>
               </div>
 
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-                <div>
-                  <label class="field-label">Ukuran Kertas</label>
-                  <select class="styled-select" onchange="db.settings.printerPaperSize=this.value;saveDB()">
-                    <option value="58mm" ${db.settings.printerPaperSize === '58mm' ? 'selected' : ''}>58mm (Standar)</option>
-                    <option value="80mm" ${db.settings.printerPaperSize === '80mm' ? 'selected' : ''}>80mm (Lebar)</option>
-                  </select>
-                </div>
-                <div style="display:flex;align-items:center;padding-top:18px;">
-                  <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;">
-                    <input type="checkbox" ${db.settings.printerAutoPrint ? 'checked' : ''} onchange="db.settings.printerAutoPrint=this.checked;saveDB()" />
-                    Cetak otomatis saat lunas
-                  </label>
-                </div>
+              <div style="margin-bottom:12px;">
+                <label class="field-label">Ukuran Kertas Thermal</label>
+                <select class="styled-select" onchange="db.settings.printerPaperSize=this.value;saveDB()">
+                  <option value="58mm" ${db.settings.printerPaperSize === '58mm' ? 'selected' : ''}>58mm (Standar)</option>
+                  <option value="80mm" ${db.settings.printerPaperSize === '80mm' ? 'selected' : ''}>80mm (Lebar)</option>
+                </select>
               </div>
 
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
