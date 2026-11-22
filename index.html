@@ -781,7 +781,7 @@
           </div>
 
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;">
-            <button id="headerCloudSyncBtn" type="button" class="live-sync-pill hidden" onclick="pullFromCloudMaster(true)" title="Tarik data terbaru dari Google Sheets sekarang">
+            <button id="headerCloudSyncBtn" type="button" class="live-sync-pill hidden" onclick="pullFromCloudMaster(true)" title="Tarik Data Terbaru dari Cloud">
               <span class="live-dot"></span>
               <span id="headerCloudSyncLabel">Live Sync</span>
             </button>
@@ -852,10 +852,10 @@
 
     (function setupOfflineServiceWorker() {
       try {
-        const startUrl = window.location.href.split('#')[0];
+        const startUrl = window.location.href.split('#')[0].split('?')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v15';
+            const CACHE_NAME = 'kopi-jiwara-offline-v16';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -1226,6 +1226,31 @@
       toastTimer = setTimeout(() => wrap.classList.add('hidden'), 3200);
     }
 
+    function normalizeCloudDate(rawDate) {
+      if (!rawDate) return todayISO();
+      if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+        return `${rawDate.getFullYear()}-${String(rawDate.getMonth() + 1).padStart(2, '0')}-${String(rawDate.getDate()).padStart(2, '0')}`;
+      }
+      const s = String(rawDate).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+        const dt = new Date(s);
+        if (!isNaN(dt.getTime())) {
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        }
+        return s.slice(0, 10);
+      }
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (dmy) {
+        return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+      }
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+      }
+      return todayISO();
+    }
+
     function getDateBounds(period, customStart, customEnd) {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -1246,7 +1271,7 @@
         const diffToMon = day === 0 ? -6 : 1 - day;
         start.setDate(start.getDate() + diffToMon - 7);
         end.setTime(start.getTime());
-        end.setDate(start.getDate() + 6);
+        end.setDate(end.getDate() + 6);
         end.setHours(23, 59, 59);
         label = 'Minggu Lalu';
       } else if (period === '7D') {
@@ -1272,29 +1297,7 @@
       return d >= bounds.start && d <= bounds.end;
     }
 
-    function normalizeCloudDate(rawDate) {
-      if (!rawDate) return todayISO();
-      const s = String(rawDate).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-        const dt = new Date(s);
-        if (!isNaN(dt.getTime())) {
-          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-        }
-        return s.slice(0, 10);
-      }
-      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-      if (dmy) {
-        return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
-      }
-      const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) {
-        return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
-      }
-      return todayISO();
-    }
-
-    // ==================== CLOUD WEBHOOK SYNC (2-WAY REALTIME) ====================
+    // ==================== CLOUD WEBHOOK SYNC (2-WAY REALTIME v2.6) ====================
     let isPullingCloud = false;
     let autoPullTimer = null;
 
@@ -1302,14 +1305,13 @@
       const btn = document.getElementById('headerCloudSyncBtn');
       const lbl = document.getElementById('headerCloudSyncLabel');
       if (!btn || !lbl) return;
-      const url = (db.settings.webhookUrl || '').trim();
-      if (!url) {
+      if (!db.settings.webhookUrl) {
         btn.classList.add('hidden');
         return;
       }
       btn.classList.remove('hidden');
       btn.classList.toggle('syncing', isBusy);
-      lbl.textContent = statusText;
+      lbl.textContent = statusText || 'Live Sync';
     }
 
     function isUserActivelyTyping() {
@@ -1485,27 +1487,29 @@
         }
       }
 
-      if (Array.isArray(data.paidTransactions)) {
-        const localMap = new Map(db.transactions.map(t => [t.id, t]));
-        const itemsByTrx = {};
-        if (Array.isArray(data.paidItems)) {
-          data.paidItems.forEach(it => {
-            if (!it || !it.trxId) return;
-            if (!itemsByTrx[it.trxId]) itemsByTrx[it.trxId] = [];
-            itemsByTrx[it.trxId].push({
-              id: it.id || ('PRD-' + (it.sku || it.name)),
-              sku: it.sku || '-',
-              name: it.name || 'Menu',
-              brand: it.brand || 'Kopi Jiwara',
-              includeCommissionShare: it.includeCommissionShare !== false,
-              includeSalaryShare: it.includeSalaryShare !== false,
-              qty: Number(it.qty) || 1,
-              price: Number(it.price) || 0,
-              cost: Number(it.cost) || 0
-            });
+      // Kelompokkan rincian POS_ITEM_TERJUAL per ID_Nota agar laporan di HP Owner sama persis dengan Desktop
+      const itemsByTrx = {};
+      if (Array.isArray(data.paidItems)) {
+        data.paidItems.forEach(it => {
+          if (!it || !it.trxId) return;
+          if (!itemsByTrx[it.trxId]) itemsByTrx[it.trxId] = [];
+          itemsByTrx[it.trxId].push({
+            id: it.id || ('PRD-' + (it.sku || it.name)),
+            sku: it.sku || '-',
+            name: it.name || 'Menu',
+            brand: it.brand || 'Kopi Jiwara',
+            includeCommissionShare: it.includeCommissionShare !== false,
+            includeSalaryShare: it.includeSalaryShare !== false,
+            qty: Number(it.qty) || 1,
+            price: Number(it.price) || 0,
+            cost: Number(it.cost) || 0
           });
-        }
+        });
+      }
 
+      const localMap = new Map(db.transactions.map(t => [t.id, t]));
+
+      if (Array.isArray(data.paidTransactions)) {
         data.paidTransactions.forEach(pt => {
           if (!pt || !pt.id) return;
           const normDate = normalizeCloudDate(pt.date);
@@ -1514,7 +1518,7 @@
           const existing = localMap.get(pt.id);
 
           if (!existing) {
-            db.transactions.push({
+            db.transactions.unshift({
               id: pt.id,
               status: 'PAID',
               date: normDate,
@@ -1554,11 +1558,23 @@
         });
       }
 
+      if (Array.isArray(data.cancelledTransactions)) {
+        data.cancelledTransactions.forEach(ct => {
+          if (!ct || !ct.id) return;
+          const existing = localMap.get(ct.id);
+          if (existing && existing.status !== 'CANCELLED') {
+            existing.status = 'CANCELLED';
+            existing.cancelReason = ct.cancelReason || 'Dibatalkan di perangkat lain';
+            changed = true;
+          }
+        });
+      }
+
       if (Array.isArray(data.cashDrawer)) {
         const localCashIds = new Set(db.cashDrawer.map(c => c.id));
         data.cashDrawer.forEach(cc => {
           if (cc && cc.id && !localCashIds.has(cc.id)) {
-            db.cashDrawer.push({
+            db.cashDrawer.unshift({
               id: cc.id,
               date: normalizeCloudDate(cc.date),
               time: cc.time || '00:00',
@@ -1576,7 +1592,7 @@
         const localAttIds = new Set(db.attendance.map(a => a.id));
         data.attendance.forEach(ca => {
           if (ca && ca.id && !localAttIds.has(ca.id)) {
-            db.attendance.push({
+            db.attendance.unshift({
               id: ca.id,
               date: normalizeCloudDate(ca.date),
               staffId: ca.staffId || '',
@@ -1595,7 +1611,7 @@
         const localStlIds = new Set((db.brandSettlements || []).map(s => s.id));
         data.brandSettlements.forEach(cs => {
           if (cs && cs.id && !localStlIds.has(cs.id)) {
-            db.brandSettlements.push({
+            db.brandSettlements.unshift({
               ...cs,
               date: normalizeCloudDate(cs.date)
             });
@@ -1615,7 +1631,6 @@
         return;
       }
       if (!navigator.onLine) {
-        updateLiveSyncIndicator('Offline', false);
         if (manualTrigger) showToast('Perangkat sedang offline.', true);
         return;
       }
@@ -1640,7 +1655,7 @@
       } catch (err) {
         updateLiveSyncIndicator('Sync Error', false);
         if (manualTrigger) {
-          showToast('Gagal menarik data. Pastikan Apps Script sudah di-deploy dengan fungsi doGet().', true);
+          showToast('Gagal menarik data. Pastikan Apps Script v2.6 sudah di-deploy dengan fungsi doGet().', true);
         }
       } finally {
         isPullingCloud = false;
@@ -1805,7 +1820,7 @@
         db.settings.printerDeviceId = device.id || 'BT-LOCKED';
         db.settings.printerLocked = true;
         saveDB();
-        renderSettingsTab(document.getElementById('mainContentArea'));
+        renderPengaturanTab(document.getElementById('mainContentArea'));
         showToast(`Printer "${db.settings.printerName}" berhasil terhubung & dikunci!`);
       } catch (err) {
         showToast('Koneksi Bluetooth dibatalkan atau gagal.', true);
@@ -1819,7 +1834,7 @@
       db.settings.printerName = '';
       db.settings.printerDeviceId = '';
       saveDB();
-      renderSettingsTab(document.getElementById('mainContentArea'));
+      renderPengaturanTab(document.getElementById('mainContentArea'));
       showToast('Kunci printer Bluetooth dilepas.');
     }
 
@@ -2112,7 +2127,10 @@
       document.getElementById('appWorkspace').classList.remove('hidden');
       renderWorkspace();
       startCloudAutoPullLoop();
-      if (db.settings.webhookUrl) pullFromCloudMaster(false);
+      if (db.settings.webhookUrl) {
+        flushOfflineQueue(true);
+        pullFromCloudMaster(false);
+      }
       if (db.settings.printerLocked) ensureBtPrinterConnected(true);
     }
 
@@ -2172,7 +2190,7 @@
       if (db.settings.webhookUrl) {
         updateLiveSyncIndicator('Live Sync', false);
       } else {
-        updateLiveSyncIndicator('', false);
+        document.getElementById('headerCloudSyncBtn')?.classList.add('hidden');
       }
 
       const isMgmt = currentUser.role === 'Owner' || currentUser.role === 'Manager';
@@ -2213,6 +2231,9 @@
     function switchTab(tabId) {
       activeTab = tabId;
       renderWorkspace();
+      if ((tabId === 'penjualan' || tabId === 'laporan') && db.settings.webhookUrl) {
+        pullFromCloudMaster(false);
+      }
     }
 
     function renderWorkspace() {
@@ -5038,11 +5059,11 @@
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
                 <h3 style="margin:0;font-size:16px;">Sinkronisasi Cloud & Multi-Device</h3>
                 <span class="badge-pill ${db.settings.webhookUrl ? 'badge-green' : 'badge-pink'}">
-                  ${db.settings.webhookUrl ? '2-Way Sync Aktif' : 'Lokal Saja'}
+                  ${db.settings.webhookUrl ? '2-Way Sync Aktif' : 'Belum Terhubung'}
                 </span>
               </div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-                Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP.
+                Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP (<strong>v2.6</strong>).
               </p>
 
               <div style="margin-bottom:10px;">
@@ -5148,6 +5169,7 @@
       if (db.settings.webhookUrl) {
         pullFromCloudMaster(true);
       }
+      renderPengaturanTab(document.getElementById('mainContentArea'));
       showToast('URL Sinkronisasi Google Sheets disimpan!');
     }
 
@@ -5421,7 +5443,7 @@
       }
     }
 
-    // ==================== GOOGLE APPS SCRIPT v2.6 (15 SHEETS + OUTLET PROFILE + VOID SYNC) ====================
+    // ==================== GOOGLE APPS SCRIPT v2.6 (15 SHEETS + VOID & MULTI-DEVICE SYNC) ====================
     function openAppsScriptGuideModal() {
       const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.6 — 2-WAY REALTIME + VOID SYNC) ====================
 function setupMasterJiwaraSheets() {
@@ -5592,17 +5614,22 @@ function doGet(e) {
   }
 
   var paidTransactions = [];
+  var cancelledTransactions = [];
   var shPos = ss.getSheetByName('POS_TRANSAKSI');
   if (shPos && shPos.getLastRow() > 1) {
     var startRow = Math.max(2, shPos.getLastRow() - 499);
     shPos.getRange(startRow, 1, shPos.getLastRow() - startRow + 1, 13).getValues().forEach(function(r) {
-      if (r[0] && String(r[12]).toUpperCase() === 'PAID') {
+      if (!r[0]) return;
+      var st = String(r[12]).toUpperCase();
+      if (st === 'PAID') {
         paidTransactions.push({
           id: String(r[0]), date: toIsoDate(r[1]), time: toTimeStr(r[2]), orderType: String(r[3]),
           tableOrCustomer: String(r[4]), cashier: String(r[5]), subtotal: Number(r[7]) || 0,
           discount: Number(r[8]) || 0, promoCode: String(r[9] || ''), total: Number(r[10]) || 0,
           paymentMethod: String(r[11] || 'Cash'), items: []
         });
+      } else if (st === 'CANCELLED') {
+        cancelledTransactions.push({ id: String(r[0]), cancelReason: 'Dibatalkan di perangkat lain' });
       }
     });
   }
@@ -5673,7 +5700,7 @@ function doGet(e) {
           totalQty: Number(r[4]) || 0, salaryEligibleQty: Number(r[5]) || 0, grossSales: Number(r[6]) || 0,
           commissionPct: parseFloat(String(r[7]).replace('%', '')) || 0, commissionFee: Number(r[8]) || 0,
           salarySharePct: parseFloat(String(r[9]).replace('%', '')) || 0, salaryShare: Number(r[10]) || 0,
-          netTransfer: Number(r[11]) || 0, by: String(r[12] || '')
+          netTransfer: Number(r[11]) || 0, by: String(r[12]) || ''
         });
       }
     });
@@ -5692,6 +5719,7 @@ function doGet(e) {
     customers: customers,
     openOrders: openOrders,
     paidTransactions: paidTransactions,
+    cancelledTransactions: cancelledTransactions,
     paidItems: paidItems,
     cashDrawer: cashDrawer,
     attendance: attendance,
@@ -5816,13 +5844,12 @@ function doPost(e) {
 
       openModal(`
         <div class="modal-head">
-          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.6 (15 Tab + 2-Way Sync)</h3>
+          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.6 (15 Tab + Void & Multi-Device Sync)</h3>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <ol style="font-size:12px;color:var(--text-muted);padding-left:18px;margin-top:0;line-height:1.5;">
           <li>Buka file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> -> klik <strong>Extensions -> Apps Script</strong>.</li>
           <li>Hapus skrip lama, tempel skrip <strong>v2.6</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
-          <li>Pilih fungsi <strong><code>setupMasterJiwaraSheets</code></strong> di menu atas -> klik <strong>Run</strong> (1x saja untuk membuat 15 sheet otomatis).</li>
           <li>Klik <strong>Deploy -> Manage deployments -> Edit (ikon pensil) -> Version: New version -> Deploy</strong> (akses <em>Anyone</em>).</li>
         </ol>
         <textarea id="gasCodeBox" readonly style="width:100%;height:190px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#F8FAFC;">${esc(scriptCode)}</textarea>
