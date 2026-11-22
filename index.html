@@ -2275,30 +2275,30 @@
                   Order Aktif (${openOrders.length})
                 </button>
               </div>
-              <div class="cat-strip no-scroll" style="margin-top:10px;">
+              <div class="cat-strip no-scroll" style="margin-top:10px;" id="posCategoryStrip">
                 ${categories.map(cat => `
-                  <button type="button" class="cat-chip ${selectedCategory === cat ? 'active' : ''}" onclick="selectedCategory='${esc(cat)}';renderPosTab(document.getElementById('mainContentArea'))">
+                  <button type="button" class="cat-chip ${selectedCategory === cat ? 'active' : ''}" data-cat-name="${esc(cat)}">
                     ${esc(cat)}
                   </button>
                 `).join('')}
               </div>
             </div>
 
-            <div class="prod-grid">
+            <div class="prod-grid" id="posProductGrid">
               ${filteredProducts.length === 0 ? `
                 <div class="bento-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:32px;">
                   Tidak ada menu yang cocok pada kategori ini.
                 </div>
               ` : filteredProducts.map(p => {
-                const inCart = cart.find(c => c.id === p.id);
+                const inCart = cart.find(c => String(c.id) === String(p.id));
                 return `
-                  <button type="button" class="prod-card ${inCart ? 'in-cart' : ''}" onclick="addToCart('${esc(p.id)}')">
-                    ${inCart ? `<span class="qty-badge">${inCart.qty}x</span>` : ''}
-                    <div>
+                  <button type="button" class="prod-card ${inCart ? 'in-cart' : ''}" data-prod-id="${esc(p.id)}">
+                    ${inCart ? `<span class="qty-badge" style="pointer-events:none;">${inCart.qty}x</span>` : ''}
+                    <div style="pointer-events:none;">
                       <div style="font-size:10px;font-weight:800;color:var(--text-muted);">${esc(p.sku)} • ${esc(p.brand)}</div>
                       <div style="font-size:13px;font-weight:800;color:var(--green-deep);margin-top:3px;line-height:1.28;">${esc(p.name)}</div>
                     </div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;pointer-events:none;">
                       <span style="font-size:13px;font-weight:900;color:var(--green-deep);">${rp(p.price)}</span>
                       <span style="font-size:10px;font-weight:700;color:var(--text-muted);">Stok ${p.stock}</span>
                     </div>
@@ -2409,6 +2409,26 @@
           </div>
         </div>
       `;
+
+      const catStripEl = document.getElementById('posCategoryStrip');
+      if (catStripEl) {
+        catStripEl.onclick = (e) => {
+          const chip = e.target.closest('[data-cat-name]');
+          if (!chip) return;
+          selectedCategory = chip.getAttribute('data-cat-name');
+          renderPosTab(document.getElementById('mainContentArea'));
+        };
+      }
+
+      const prodGridEl = document.getElementById('posProductGrid');
+      if (prodGridEl) {
+        prodGridEl.onclick = (e) => {
+          const card = e.target.closest('[data-prod-id]');
+          if (!card) return;
+          const pid = card.getAttribute('data-prod-id');
+          if (pid) addToCart(pid);
+        };
+      }
     }
 
     function printCartPreviewReceipt() {
@@ -2523,21 +2543,22 @@
     }
 
     function addToCart(prodId) {
-      const prod = db.products.find(p => p.id === prodId);
+      const targetId = String(prodId);
+      const prod = db.products.find(p => String(p.id) === targetId);
       if (!prod) return;
-      const existing = cart.find(c => c.id === prodId);
+      const existing = cart.find(c => String(c.id) === targetId);
       if (existing) {
         existing.qty += 1;
       } else {
         cart.push({
-          id: prod.id,
+          id: String(prod.id),
           sku: prod.sku,
           name: prod.name,
           brand: prod.brand,
           includeCommissionShare: prod.includeCommissionShare !== false,
           includeSalaryShare: prod.includeSalaryShare !== false,
-          price: prod.price,
-          cost: prod.cost,
+          price: Number(prod.price) || 0,
+          cost: Number(prod.cost) || 0,
           qty: 1
         });
       }
