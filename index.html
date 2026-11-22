@@ -872,7 +872,7 @@
         const startUrl = window.location.href.split('#')[0].split('?')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v17';
+            const CACHE_NAME = 'kopi-jiwara-offline-v18';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -1079,7 +1079,6 @@
 
     function loadDB() {
       try {
-        // Parse ?sync=URL from auto-connect link if provided
         const urlParams = new URLSearchParams(window.location.search);
         const autoSyncParam = urlParams.get('sync');
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -1169,12 +1168,17 @@
     let catPage = 1;
     let catPerPage = 10;
 
-    // Bluetooth Printer State
+    // Bluetooth Printer & Sync Lock State
     let btPrinterDevice = null;
     let btPrinterCharacteristic = null;
     let cloudSyncTimer = null;
     let isCloudPulling = false;
     let lastCloudSyncTime = '';
+    let lastLocalMutationAt = 0;
+
+    function markLocalMutation() {
+      lastLocalMutationAt = Date.now();
+    }
 
     // ==================== TOAST & MODAL ====================
     let toastTimer = null;
@@ -1198,7 +1202,7 @@
       document.getElementById('modalCardBody').innerHTML = '';
     }
 
-    // ==================== SYNC ENGINE (2-WAY REALTIME + ANTI-DUPLIKAT) ====================
+    // ==================== SYNC ENGINE (2-WAY REALTIME + ANTI-DUPLIKAT + RACE GUARD) ====================
     function updateSyncBadgeUI(status, text) {
       const btn = document.getElementById('headerCloudSyncBtn');
       const lbl = document.getElementById('headerCloudSyncLabel');
@@ -1230,6 +1234,7 @@
     }
 
     function syncMasterEvent(eventType, payloadObj) {
+      markLocalMutation();
       const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
       const envelope = {
         eventType,
@@ -1258,7 +1263,7 @@
     function flushOfflineQueue(silent = false) {
       const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
       if (!url) {
-        if (!silent) showToast('https://script.google.com/macros/s/AKfycbx4VEoVisraBp8Rzo-qQGYZNZ8RSOBr0a-87CEl6-6uOyD9uWzwCMEDaY4MbVr2AdY/exec', true);
+        if (!silent) showToast('URL Google Apps Script belum diatur di Pengaturan.', true);
         return;
       }
       if (!navigator.onLine) {
@@ -1307,7 +1312,7 @@
 
     function pushAllMasterToCloud() {
       const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
-      if (!url) return showToast('https://script.google.com/macros/s/AKfycbx4VEoVisraBp8Rzo-qQGYZNZ8RSOBr0a-87CEl6-6uOyD9uWzwCMEDaY4MbVr2AdY/exec', true);
+      if (!url) return showToast('URL Google Apps Script belum diatur di Pengaturan.', true);
       syncMasterEvent('OUTLET_PROFILE_UPDATED', {
         outletName: db.settings.outletName,
         outletAddress: db.settings.outletAddress,
@@ -1332,7 +1337,7 @@
 
     function pushAllLocalTransactionsToCloud() {
       const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
-      if (!url) return showToast('https://script.google.com/macros/s/AKfycbx4VEoVisraBp8Rzo-qQGYZNZ8RSOBr0a-87CEl6-6uOyD9uWzwCMEDaY4MbVr2AdY/exec', true);
+      if (!url) return showToast('URL Google Apps Script belum diatur di Pengaturan.', true);
       if (!db.transactions || db.transactions.length === 0) {
         return showToast('Tidak ada transaksi lokal di perangkat ini.');
       }
@@ -1368,6 +1373,7 @@
         return;
       }
       if (isCloudPulling) return;
+      if (!manualTrigger && (Date.now() - lastLocalMutationAt) < 5500) return;
       if (!manualTrigger && isUserActivelyTyping()) return;
       if (!manualTrigger && !document.getElementById('modalBackdrop').classList.contains('hidden')) return;
 
@@ -1385,7 +1391,7 @@
           if (manualTrigger) showToast('Data berhasil disinkronkan dari Google Sheets!');
         } else {
           updateSyncBadgeUI('online', lastCloudSyncTime ? `Live • ${lastCloudSyncTime}` : 'Live Sync');
-          if (manualTrigger) showToast('Gunakan Skrip Google Sheets v2.7 agar 2-Way Sync aktif.', true);
+          if (manualTrigger) showToast('Gunakan Skrip Google Sheets v2.9 agar 2-Way Sync aktif.', true);
         }
       } catch (err) {
         updateSyncBadgeUI('offline', 'Gagal Sync');
@@ -1400,12 +1406,11 @@
 
       if (cloud.outletProfile && typeof cloud.outletProfile === 'object') {
         const op = cloud.outletProfile;
-        if (op.outletName) db.settings.outletName = op.outletName;
-        if (op.outletAddress) db.settings.outletAddress = op.outletAddress;
-        if (op.outletPhone !== undefined) db.settings.outletPhone = op.outletPhone;
-        if (op.outletSocial !== undefined) db.settings.outletSocial = op.outletSocial;
-        if (op.receiptFooter) db.settings.receiptFooter = op.receiptFooter;
-        changed = true;
+        if (op.outletName && op.outletName !== db.settings.outletName) { db.settings.outletName = op.outletName; changed = true; }
+        if (op.outletAddress && op.outletAddress !== db.settings.outletAddress) { db.settings.outletAddress = op.outletAddress; changed = true; }
+        if (op.outletPhone !== undefined && op.outletPhone !== db.settings.outletPhone) { db.settings.outletPhone = op.outletPhone; changed = true; }
+        if (op.outletSocial !== undefined && op.outletSocial !== db.settings.outletSocial) { db.settings.outletSocial = op.outletSocial; changed = true; }
+        if (op.receiptFooter && op.receiptFooter !== db.settings.receiptFooter) { db.settings.receiptFooter = op.receiptFooter; changed = true; }
       }
 
       if (Array.isArray(cloud.products) && cloud.products.length > 0) {
@@ -1450,8 +1455,11 @@
       }
 
       if (cloud.brandConfig && typeof cloud.brandConfig === 'object') {
-        db.brandConfig = { ...db.brandConfig, ...cloud.brandConfig };
-        changed = true;
+        const mergedCfg = { ...db.brandConfig, ...cloud.brandConfig };
+        if (JSON.stringify(mergedCfg) !== JSON.stringify(db.brandConfig)) {
+          db.brandConfig = mergedCfg;
+          changed = true;
+        }
       }
 
       if (Array.isArray(cloud.inventory) && cloud.inventory.length > 0) {
@@ -1480,8 +1488,8 @@
           id: String(cs.id || ('STF-' + (idx + 1))),
           name: String(cs.name || 'Staf'),
           role: String(cs.role || 'Kasir & Barista'),
-          pin: String(cs.pin || '1111').padStart(4, '0'),
-          dailyWage: Number(cs.dailyWage) || 85000,
+          pin: String(cs.pin || '1111').trim().padStart(4, '0'),
+          dailyWage: Number(cs.dailyWage) || 0,
           active: cs.active !== false && String(cs.active).toLowerCase() !== 'nonaktif'
         }));
         if (nextStaff.filter(s => s.active).length > 0 && JSON.stringify(nextStaff) !== JSON.stringify(db.staff)) {
@@ -1492,13 +1500,13 @@
 
       if (Array.isArray(cloud.promos) && cloud.promos.length > 0) {
         const nextPromos = cloud.promos.map((cp, idx) => ({
-          id: 'PRM-C-' + (idx + 1),
-          code: String(cp.code || 'PROMO').toUpperCase(),
-          name: String(cp.name || 'Promo'),
-          type: String(cp.type || 'percent').toLowerCase().includes('nom') ? 'nominal' : 'percent',
+          id: String(cp.id || ('PRM-C-' + (idx + 1))),
+          code: String(cp.code || 'PROMO').trim().toUpperCase(),
+          name: String(cp.name || 'Promo').trim(),
+          type: String(cp.type || 'PERCENT').toUpperCase().includes('NOM') ? 'nominal' : 'percent',
           value: Number(cp.value) || 0,
           minOrder: Number(cp.minOrder) || 0,
-          validUntil: normalizeCloudDate(cp.validUntil || '2026-12-31'),
+          validUntil: (!cp.validUntil || String(cp.validUntil).trim() === '-') ? '' : normalizeCloudDate(cp.validUntil),
           active: cp.active !== false && String(cp.active).toLowerCase() !== 'nonaktif'
         }));
         if (JSON.stringify(nextPromos) !== JSON.stringify(db.promos)) {
@@ -1559,12 +1567,13 @@
             itemsByTrx.get(tid).push({
               sku: String(ci.sku || '-'),
               name: String(ci.name || 'Menu'),
+              category: String(ci.category || ''),
               brand: String(ci.brand || 'Kopi Jiwara'),
               includeCommissionShare: ci.includeCommissionShare !== false && String(ci.includeCommissionShare).toLowerCase() !== 'tidak',
               includeSalaryShare: ci.includeSalaryShare !== false && String(ci.includeSalaryShare).toLowerCase() !== 'tidak',
               qty: qty,
               price: Number(ci.price) || 0,
-              cost: qty > 0 ? Math.round(totalHpp / qty) : 0
+              cost: Number(ci.unitCost) || (qty > 0 ? Math.round(totalHpp / qty) : 0)
             });
           });
         }
@@ -1574,7 +1583,7 @@
           if (!cid) return;
           const existing = localTrxMap.get(cid);
           const cloudStatus = String(ct.status || 'PAID').toUpperCase();
-          const cloudItems = itemsByTrx.get(cid);
+          const cloudItems = (Array.isArray(ct.items) && ct.items.length > 0) ? ct.items : itemsByTrx.get(cid);
           if (!existing) {
             localTrxMap.set(cid, {
               id: cid,
@@ -1587,9 +1596,11 @@
               items: (cloudItems && cloudItems.length > 0) ? cloudItems : [],
               subtotal: Number(ct.subtotal) || Number(ct.total) || 0,
               discount: Number(ct.discount) || 0,
-              promoCode: String(ct.promoCode || ''),
+              promoCode: ct.promoCode === '-' ? '' : String(ct.promoCode || ''),
               total: Number(ct.total) || 0,
               paymentMethod: String(ct.paymentMethod || 'Cash'),
+              cashReceived: Number(ct.cashReceived) || Number(ct.total) || 0,
+              changeAmount: Number(ct.changeAmount) || 0,
               status: cloudStatus === 'CANCELLED' ? 'CANCELLED' : 'PAID'
             });
             changed = true;
@@ -1633,12 +1644,14 @@
       }
 
       if (Array.isArray(cloud.attendance) && cloud.attendance.length > 0) {
-        const localAttKeys = new Set(db.attendance.map(a => `${a.date}_${a.staffName}`));
+        const localAttMap = new Map(db.attendance.map(a => [`${normalizeCloudDate(a.date)}_${a.staffName}`, a]));
         cloud.attendance.forEach((ca, idx) => {
           const dStr = normalizeCloudDate(ca.date || todayISO());
           const sName = String(ca.staffName || '');
           const key = `${dStr}_${sName}`;
-          if (sName && !localAttKeys.has(key)) {
+          if (!sName) return;
+          const existing = localAttMap.get(key);
+          if (!existing) {
             db.attendance.unshift({
               id: 'ATT-C-' + (idx + 1) + '-' + Date.now(),
               date: dStr,
@@ -1649,6 +1662,74 @@
               clockOut: String(ca.clockOut || '-'),
               wageEarned: Number(ca.wageEarned) || 0,
               status: String(ca.status || 'Hadir')
+            });
+            changed = true;
+          } else if (existing.clockOut === '-' && ca.clockOut && String(ca.clockOut) !== '-') {
+            existing.clockOut = String(ca.clockOut);
+            changed = true;
+          }
+        });
+      }
+
+      if (Array.isArray(cloud.closingHistory) && cloud.closingHistory.length > 0) {
+        const localClsIds = new Set(db.closingHistory.map(c => c.id));
+        cloud.closingHistory.forEach(ccl => {
+          const cid = String(ccl.id || '');
+          if (cid && !localClsIds.has(cid)) {
+            db.closingHistory.unshift({
+              id: cid,
+              date: normalizeCloudDate(ccl.date || todayISO()),
+              time: String(ccl.time || '00:00'),
+              cashier: String(ccl.cashier || 'Kasir'),
+              openingCash: Number(ccl.openingCash) || 0,
+              cashSales: Number(ccl.cashSales) || 0,
+              qrisSales: Number(ccl.qrisSales) || 0,
+              transferSales: Number(ccl.transferSales) || 0,
+              onlineSales: Number(ccl.onlineSales) || 0,
+              totalSales: Number(ccl.totalSales) || 0,
+              expectedCash: Number(ccl.expectedCash) || 0,
+              actualCash: Number(ccl.actualCash) || 0,
+              diff: Number(ccl.diff) || 0
+            });
+            changed = true;
+          }
+        });
+      }
+
+      if (Array.isArray(cloud.auditLogs) && cloud.auditLogs.length > 0) {
+        const localAudIds = new Set(db.auditLogs.map(a => a.id));
+        cloud.auditLogs.forEach(cau => {
+          const aid = String(cau.id || '');
+          if (aid && !localAudIds.has(aid)) {
+            db.auditLogs.unshift({
+              id: aid,
+              date: normalizeCloudDate(cau.date || todayISO()),
+              time: String(cau.time || '00:00'),
+              orderId: String(cau.orderId || '-'),
+              itemName: String(cau.itemName || '-'),
+              cashier: String(cau.cashier || '-'),
+              authorizedBy: String(cau.authorizedBy || '-'),
+              reason: String(cau.reason || '-')
+            });
+            changed = true;
+          }
+        });
+      }
+
+      if (Array.isArray(cloud.stockLogs) && cloud.stockLogs.length > 0) {
+        const localLogIds = new Set(db.stockLogs.map(l => l.id));
+        cloud.stockLogs.forEach(csl => {
+          const lid = String(csl.id || '');
+          if (lid && !localLogIds.has(lid)) {
+            db.stockLogs.unshift({
+              id: lid,
+              date: normalizeCloudDate(csl.date || todayISO()),
+              time: String(csl.time || '00:00'),
+              itemName: String(csl.itemName || '-'),
+              type: String(csl.type || '-'),
+              qty: Number(csl.qty) || 0,
+              afterStock: Number(csl.afterStock) || 0,
+              pic: String(csl.pic || '-')
             });
             changed = true;
           }
@@ -1680,6 +1761,7 @@
       if (changed) {
         saveDB();
         if (currentUser) renderWorkspace();
+        else renderLoginStaffDropdown();
       }
     }
 
@@ -1694,7 +1776,7 @@
       if (db.settings.autoPullEnabled === false) return;
       const intervalMs = Math.max(10, Number(db.settings.autoPullIntervalSec) || 15) * 1000;
       cloudSyncTimer = setInterval(() => {
-        if (currentUser && navigator.onLine) pullFromCloudMaster(false);
+        if (navigator.onLine) pullFromCloudMaster(false);
       }, intervalMs);
     }
 
@@ -1703,10 +1785,18 @@
       pullFromCloudMaster(false);
     });
 
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && navigator.onLine) {
+        flushOfflineQueue(true);
+        pullFromCloudMaster(false);
+      }
+    });
+
     // ==================== LOGIN & SESSION ====================
     function renderLoginStaffDropdown() {
       const sel = document.getElementById('loginStaffSelect');
       if (!sel) return;
+      const prevSelected = sel.value;
       let activeStaff = (db.staff || []).filter(s => s && s.active !== false);
       if (activeStaff.length === 0) {
         db.staff = createCleanSeedDB().staff;
@@ -1716,7 +1806,9 @@
       sel.innerHTML = activeStaff.map(s =>
         `<option value="${esc(s.id)}">${esc(s.name)} • ${esc(s.role)}</option>`
       ).join('');
-      if (activeStaff.length > 0 && !sel.value) {
+      if (prevSelected && activeStaff.some(s => s.id === prevSelected)) {
+        sel.value = prevSelected;
+      } else if (activeStaff.length > 0) {
         sel.value = activeStaff[0].id;
       }
     }
@@ -1744,7 +1836,8 @@
       const staffId = document.getElementById('loginStaffSelect').value;
       const staff = db.staff.find(s => s.id === staffId);
       if (!staff) return showToast('Pilih pegawai terlebih dahulu', true);
-      if (pinBuffer !== String(staff.pin)) {
+      const expectedPin = String(staff.pin || '').trim().padStart(4, '0');
+      if (pinBuffer !== expectedPin) {
         clearPinPad();
         return showToast('PIN salah! Silakan coba lagi.', true);
       }
@@ -2251,6 +2344,7 @@
           id: prod.id,
           sku: prod.sku,
           name: prod.name,
+          category: prod.category || '',
           brand: prod.brand,
           price: prod.price,
           cost: prod.cost,
@@ -2613,6 +2707,8 @@
         promoCode: appliedCode,
         total: paidTotal,
         paymentMethod: checkoutMethod,
+        cashReceived: checkoutMethod === 'Cash' ? checkoutCashReceived : paidTotal,
+        changeAmount: checkoutMethod === 'Cash' ? Math.max(0, checkoutCashReceived - paidTotal) : 0,
         status: 'PAID'
       };
 
@@ -4423,7 +4519,7 @@
               </span>
             </div>
             <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-              Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP (<strong>v2.7</strong>).
+              Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP (<strong>v2.9</strong>).
             </p>
 
             <div style="margin-bottom:10px;">
@@ -4456,55 +4552,50 @@
               <button type="button" class="btn btn-soft" onclick="pushAllLocalTransactionsToCloud()">Upload Transaksi Lokal ke Sheets</button>
               <button type="button" class="btn btn-soft" onclick="pushAllMasterToCloud()">Upload Semua Master</button>
               <button type="button" class="btn btn-soft" onclick="flushOfflineQueue()">Kirim Antrean (${db.offlineQueue.length})</button>
-              <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.7</button>
+              <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.9</button>
+            </div>
+          </div>
+
+          <!-- CARD 3: PRINTER THERMAL BLUETOOTH & RESET DATA -->
+          <div class="bento-card">
+            <h3 style="margin:0 0 10px;font-size:16px;">Printer Struk Thermal & Reset Operasional</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
+              Kunci printer Bluetooth kasir 1x agar setiap pencetakan struk langsung mencetak tanpa pilih perangkat ulang.
+            </p>
+            <div style="background:var(--green-soft);border-radius:14px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+              <div><strong>Printer Terkunci:</strong> ${esc(db.settings.printerName || 'Belum dikunci (Gunakan Print Browser)')}</div>
+              <div><strong>Ukuran Kertas:</strong> ${esc(db.settings.paperWidth || '58')}mm</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+              <button type="button" class="btn btn-dark btn-sm" onclick="pairAndLockBluetoothPrinter()">Pindai & Kunci Printer BT</button>
+              <button type="button" class="btn btn-soft btn-sm" onclick="testPrintThermalReceipt()">Tes Cetak Struk</button>
             </div>
 
-            <div style="border-top:1px solid var(--border-glass);padding-top:12px;margin-top:8px;">
-              <h4 style="margin:0 0 8px;font-size:14px;">Printer Thermal Bluetooth (Opsional)</h4>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-                <button type="button" class="btn btn-soft btn-sm" onclick="scanAndPairBluetoothPrinter()">Pindai & Kunci Printer BT</button>
-                <span style="font-size:11px;color:var(--text-muted);">${db.settings.printerName ? 'Terkunci: ' + esc(db.settings.printerName) : 'Belum ada printer BT terkunci'}</span>
-              </div>
-
-              <button type="button" class="btn btn-danger btn-sm" onclick="confirmResetAllTransactions()">Kosongkan Semua Transaksi (Mulai Rp 0)</button>
+            <div style="border-top:1px dashed rgba(11,46,35,0.18);padding-top:12px;">
+              <div style="font-size:11px;font-weight:800;color:#B91C1C;text-transform:uppercase;margin-bottom:6px;">Zona Reset Awal Operasional</div>
+              <button type="button" class="btn btn-danger btn-sm" style="width:100%;" onclick="promptResetAllTransactions()">Kosongkan Semua Transaksi (Mulai Rp 0)</button>
             </div>
           </div>
         </div>
       `;
     }
 
-    function copyAutoSyncDeviceLink() {
-      const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
-      if (!url) return showToast('Simpan URL Google Apps Script terlebih dahulu!', true);
-      const baseUrl = window.location.href.split('#')[0].split('?')[0];
-      const shareUrl = `${baseUrl}?sync=${encodeURIComponent(url)}`;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          showToast('Link Auto-Sync disalin! Buka link ini di HP/Tablet kasir agar otomatis terhubung.');
-        }).catch(() => {
-          window.prompt('Salin link Auto-Sync ini untuk dibuka di HP/Tablet:', shareUrl);
-        });
-      } else {
-        window.prompt('Salin link Auto-Sync ini untuk dibuka di HP/Tablet:', shareUrl);
-      }
-    }
-
     function handleLogoUpload(e) {
-      const file = e.target.files[0];
+      const file = e.target.files && e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(ev) {
         db.settings.logoDataUrl = ev.target.result;
         saveDB();
         renderWorkspace();
-        showToast('Logo outlet diperbarui!');
+        showToast('Logo outlet berhasil diperbarui!');
       };
       reader.readAsDataURL(file);
     }
 
     function saveOutletProfile() {
-      db.settings.outletName = document.getElementById('setOutletName').value.trim() || 'Kopi Jiwara';
-      db.settings.outletAddress = document.getElementById('setOutletAddr').value.trim();
+      db.settings.outletName = document.getElementById('setOutletName').value.trim() || db.settings.outletName;
+      db.settings.outletAddress = document.getElementById('setOutletAddr').value.trim() || db.settings.outletAddress;
       db.settings.outletPhone = document.getElementById('setOutletPhone').value.trim();
       db.settings.outletSocial = document.getElementById('setOutletSocial').value.trim();
       db.settings.receiptFooter = document.getElementById('setReceiptFooter').value.trim();
@@ -4517,51 +4608,651 @@
         receiptFooter: db.settings.receiptFooter
       });
       renderWorkspace();
-      showToast('Profil & kontak outlet disimpan!');
+      showToast('Profil outlet & kontak struk disimpan!');
     }
 
     function saveWebhookConfig() {
-      const val = document.getElementById('setWebhookUrl').value.trim();
-      db.settings.webhookUrl = val;
+      const url = document.getElementById('setWebhookUrl').value.trim();
+      db.settings.webhookUrl = url;
       saveDB();
       startCloudAutoPullLoop();
-      if (val) {
-        pullFromCloudMaster(true);
+      if (!url) {
+        showToast('URL sinkronisasi dikosongkan.');
+        return;
+      }
+      pullFromCloudMaster(true);
+    }
+
+    function copyAutoSyncDeviceLink() {
+      const url = (db.settings.webhookUrl || DEFAULT_CLOUD_WEBHOOK_URL || '').trim();
+      if (!url) return showToast('Simpan URL Google Apps Script terlebih dahulu!', true);
+      const baseUrl = window.location.href.split('?')[0].split('#')[0];
+      const magicLink = `${baseUrl}?sync=${encodeURIComponent(url)}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(magicLink).then(() => {
+          showToast('Link Auto-Sync disalin! Buka link ini di Tablet/HP lain untuk langsung terhubung.');
+        }).catch(() => {
+          openModal(`<div class="modal-head"><h3 style="margin:0;font-size:16px;">Link Auto-Sync Perangkat Lain</h3><button class="close-circle" onclick="closeModal()">x</button></div><textarea readonly style="width:100%;height:90px;font-size:11px;padding:8px;border-radius:10px;">${esc(magicLink)}</textarea>`);
+        });
       } else {
-        renderWorkspace();
-        showToast('URL Sinkronisasi dikosongkan.');
+        openModal(`<div class="modal-head"><h3 style="margin:0;font-size:16px;">Link Auto-Sync Perangkat Lain</h3><button class="close-circle" onclick="closeModal()">x</button></div><textarea readonly style="width:100%;height:90px;font-size:11px;padding:8px;border-radius:10px;">${esc(magicLink)}</textarea>`);
       }
     }
 
-    async function scanAndPairBluetoothPrinter() {
-      if (!navigator.bluetooth) return showToast('Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome Android/Desktop.', true);
+    async function pairAndLockBluetoothPrinter() {
+      if (!navigator.bluetooth) {
+        return showToast('Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome Android/Desktop atau Print Bawaan OS.', true);
+      }
       try {
         const device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455']
+          optionalServices: [
+            '000018f0-0000-1000-8000-00805f9b34fb',
+            '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+            'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+            '0000ff00-0000-1000-8000-00805f9b34fb'
+          ]
         });
         btPrinterDevice = device;
         db.settings.printerName = device.name || 'Printer Thermal BT';
         saveDB();
         await ensureBtPrinterConnected();
         renderWorkspace();
-        showToast(`Printer ${db.settings.printerName} berhasil dikunci!`);
+        showToast(`Printer "${db.settings.printerName}" berhasil dikunci!`);
       } catch (err) {
-        showToast('Pemindaian printer dibatalkan atau gagal.', true);
+        showToast('Pemindaian printer dibatalkan atau gagal tersambung.', true);
       }
     }
 
-    function confirmResetAllTransactions() {
+    function testPrintThermalReceipt() {
+      printReceipt({
+        id: 'TEST-001',
+        date: todayISO(),
+        time: nowTimeStr(),
+        orderType: 'Meja',
+        tableOrCustomer: 'Tes Printer',
+        cashier: currentUser ? currentUser.name : 'Admin',
+        items: [{ name: 'Kopi Aren Jiwara (Tes)', qty: 1, price: 18000 }],
+        subtotal: 18000,
+        discount: 0,
+        promoCode: '',
+        total: 18000,
+        paymentMethod: 'LUNAS (TES)'
+      });
+    }
+
+    function promptResetAllTransactions() {
       openModal(`
         <div class="modal-head">
-          <h3 style="margin:0;font-size:16px;">Reset Semua Data Transaksi (Mulai Rp 0)</h3>
+          <h3 style="margin:0;font-size:16px;color:#B91C1C;">Kosongkan Semua Transaksi (Mulai Rp 0)</h3>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <p style="font-size:12px;color:var(--text-muted);line-height:1.5;">
-          Tindakan ini akan mengosongkan riwayat penjualan, open order, mutasi kas, absensi, dan settlement di perangkat ini (Master Menu, Pegawai, & Bahan tetap aman). Masukkan PIN Owner untuk melanjutkan:
+          Tindakan ini akan menghapus seluruh riwayat transaksi, open order, arus kas, absensi, dan closing shift di perangkat ini agar omzet dimulai bersih dari <strong>Rp 0</strong>. Data Menu, Kategori, Pegawai, & Promo tetap aman.
         </p>
-        <input id="resetTrxPin" type="password" maxlength="4" class="styled-input" style="margin-bottom:12px;" placeholder="PIN Owner (4-digit)" />
-        <button class="btn btn-danger" style="width:100%;" onclick="executeResetAllTransactions()">Ya, Kosongkan Transaksi</button>
+        <div style="margin-bottom:14px;">
+          <label class="field-label">Konfirmasi PIN 4-Digit Owner</label>
+          <input id="resetTrxPin" type="password" maxlength="4" class="styled-input" placeholder="****" />
+        </div>
+        <button type="button" class="btn btn-danger" style="width:100%;" onclick="executeResetAllTransactions()">Ya, Kosongkan Sekarang</button>
+      `);
+    }
+
+    // ==================== GOOGLE APPS SCRIPT v2.9 (COMPLETE 2-WAY REALTIME SYNC) ====================
+    function openAppsScriptGuideModal() {
+      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.9 — COMPLETE 2-WAY REALTIME SYNC) ====================
+function setupMasterJiwaraSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var specs = {
+    'DASHBOARD_LR': ['Ringkasan', 'Keterangan', 'Rumus_Otomatis'],
+    'POS_TRANSAKSI': ['Timestamp', 'Outlet', 'No_Nota', 'Tanggal', 'Jam', 'Jenis_Order', 'Nama_Pelanggan', 'No_WA_CRM', 'Kasir', 'Metode_Bayar', 'Subtotal', 'Diskon_Promo', 'Kode_Promo', 'Total_Net', 'Total_HPP', 'Laba_Kotor', 'Status', 'Uang_Diterima', 'Kembalian', 'Ringkasan_Item'],
+    'POS_ITEM_TERJUAL': ['Timestamp', 'Tanggal', 'Jam', 'No_Nota', 'Jenis_Order', 'SKU', 'Nama_Menu', 'Kategori', 'Brand', 'Kena_Komisi', 'Hitung_Porsi_Gaji', 'Qty', 'Harga_Satuan', 'HPP_Satuan', 'Subtotal_Jual', 'Subtotal_HPP', 'Profit_Item'],
+    'OPEN_ORDERS': ['ID_Order', 'Tanggal', 'Jam', 'Tipe_Order', 'Meja_Pelanggan', 'No_WA', 'Kasir', 'Total_Tagihan', 'JSON_Items'],
+    'CRM_PELANGGAN': ['ID_Pelanggan', 'Nama_Pelanggan', 'No_WA', 'Tier_Member', 'Total_Kunjungan', 'Total_Belanja', 'Voucher_Khusus', 'Potongan_Voucher', 'Berlaku_Sampai'],
+    'ARUS_KAS_CASHFLOW': ['ID_Kas', 'Tanggal', 'Jam', 'Jenis', 'Kategori', 'Debit_Masuk', 'Kredit_Keluar', 'Keterangan', 'PIC'],
+    'SETTLEMENT_BRAND': ['ID_Settlement', 'Tanggal_Transfer', 'Periode', 'Brand', 'Omzet_Kotor', 'Persen_Komisi', 'Potongan_Komisi', 'Porsi_Beban_Gaji', 'Net_Transfer', 'PIC'],
+    'CLOSING_SHIFT': ['ID_Closing', 'Tanggal', 'Jam', 'Kasir', 'Modal_Awal', 'Sales_Cash', 'Sales_QRIS', 'Sales_Transfer', 'Sales_Online', 'Total_Omzet', 'Ekspektasi_Laci', 'Uang_Fisik', 'Selisih'],
+    'AUDIT_OTORISASI': ['ID_Audit', 'Tanggal', 'Jam', 'No_Order_Nota', 'Tindakan_Item', 'Kasir', 'Otorisasi_Oleh', 'Alasan'],
+    'MASTER_MENU': ['SKU', 'Nama_Menu', 'Kategori', 'Brand', 'Harga_Jual', 'HPP_Modal', 'Stok', 'Favorit', 'Status', 'Kena_Komisi', 'Hitung_Porsi_Gaji'],
+    'MASTER_KATEGORI': ['Urutan', 'Nama_Kategori'],
+    'GUDANG_STOK': ['Kode_Bahan', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Opname_Terakhir'],
+    'LOG_STOK_GUDANG': ['ID_Log', 'Tanggal', 'Jam', 'Nama_Bahan', 'Jenis_Mutasi', 'Jumlah', 'Stok_Akhir', 'PIC'],
+    'MASTER_PEGAWAI': ['Update_Time', 'ID_Pegawai', 'Nama_Pegawai', 'Jabatan_Role', 'PIN_Akses', 'Upah_Harian', 'Status'],
+    'MASTER_PROMO': ['Update_Time', 'ID_Promo', 'Kode_Promo', 'Nama_Program', 'Tipe_Diskon', 'Nilai_Potongan', 'Min_Belanja', 'Berlaku_Sampai', 'Status'],
+    'ABSENSI_KARYAWAN': ['Tanggal', 'Nama_Pegawai', 'Jabatan', 'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status']
+  };
+  Object.keys(specs).forEach(function(name) {
+    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    if (sh.getLastRow() === 0) {
+      sh.appendRow(specs[name]);
+      sh.getRange(1, 1, 1, specs[name].length).setFontWeight('bold').setBackground('#0B2E23').setFontColor('#FACC15');
+    }
+  });
+}
+
+function getHeaderMap(sh) {
+  var lastCol = sh.getLastColumn();
+  if (lastCol === 0) return {};
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var map = {};
+  for (var i = 0; i < headers.length; i++) {
+    var key = String(headers[i] || '').trim().toLowerCase();
+    if (key) map[key] = i;
+  }
+  return map;
+}
+
+function doGet(e) {
+  setupMasterJiwaraSheets();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var metaProps = PropertiesService.getScriptProperties();
+
+  function readRows(sheetName) {
+    var sh = ss.getSheetByName(sheetName);
+    if (!sh || sh.getLastRow() < 2) return { rows: [], h: {} };
+    return {
+      rows: sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues(),
+      h: getHeaderMap(sh)
+    };
+  }
+
+  var prodData = readRows('MASTER_MENU');
+  var products = prodData.rows.map(function(r) {
+    return {
+      sku: r[0], name: r[1], category: r[2], brand: r[3],
+      price: Number(r[4]) || 0, cost: Number(r[5]) || 0, stock: Number(r[6]) || 0,
+      isFavorite: String(r[7]).toLowerCase() === 'ya',
+      active: String(r[8]).toLowerCase() !== 'nonaktif',
+      includeCommissionShare: String(r[9]).toLowerCase() !== 'tidak',
+      includeSalaryShare: String(r[10]).toLowerCase() !== 'tidak'
+    };
+  });
+
+  var catData = readRows('MASTER_KATEGORI');
+  var categories = catData.rows.map(function(r) { return String(r[1] || '').trim(); }).filter(Boolean);
+  var brandsJson = metaProps.getProperty('BRANDS_LIST_JSON');
+  var brandConfigJson = metaProps.getProperty('BRAND_CONFIG_JSON');
+  var outletProfileJson = metaProps.getProperty('OUTLET_PROFILE_JSON');
+
+  var invData = readRows('GUDANG_STOK');
+  var inventory = invData.rows.map(function(r) {
+    return { code: r[0], name: r[1], category: r[2], stock: Number(r[3]) || 0, minStock: Number(r[4]) || 0, unit: r[5], lastOpname: String(r[6] || '') };
+  });
+
+  var stfData = readRows('MASTER_PEGAWAI');
+  var shH = stfData.h;
+  var hasUpdateStf = shH['update_time'] !== undefined;
+  var idxStfId = shH['id_pegawai'] !== undefined ? shH['id_pegawai'] : (shH['id_staf'] !== undefined ? shH['id_staf'] : (hasUpdateStf ? 1 : 0));
+  var idxStfName = shH['nama_pegawai'] !== undefined ? shH['nama_pegawai'] : (hasUpdateStf ? 2 : 1);
+  var idxStfRole = shH['jabatan_role'] !== undefined ? shH['jabatan_role'] : (shH['jabatan'] !== undefined ? shH['jabatan'] : (hasUpdateStf ? 3 : 2));
+  var idxStfPin = shH['pin_akses'] !== undefined ? shH['pin_akses'] : (hasUpdateStf ? 4 : 3);
+  var idxStfWage = shH['upah_harian'] !== undefined ? shH['upah_harian'] : (hasUpdateStf ? 5 : 4);
+  var idxStfStatus = shH['status'] !== undefined ? shH['status'] : (hasUpdateStf ? 6 : 5);
+
+  var staff = stfData.rows.filter(function(r) {
+    return String(r[idxStfName] || '').trim() !== '';
+  }).map(function(r, idx) {
+    var rawPin = String(r[idxStfPin] || '1111').trim();
+    while (rawPin.length < 4) rawPin = '0' + rawPin;
+    return {
+      id: String(r[idxStfId] || ('stf-' + (idx + 1))).trim(),
+      name: String(r[idxStfName] || 'Staf').trim(),
+      role: String(r[idxStfRole] || 'Kasir & Barista').trim(),
+      pin: rawPin,
+      dailyWage: Number(r[idxStfWage]) || 0,
+      active: String(r[idxStfStatus] || 'Aktif').trim().toLowerCase() !== 'nonaktif'
+    };
+  });
+
+  var prmData = readRows('MASTER_PROMO');
+  var prH = prmData.h;
+  var hasUpdatePrm = prH['update_time'] !== undefined || prH['id_promo'] !== undefined;
+  var idxPrmId = prH['id_promo'] !== undefined ? prH['id_promo'] : (hasUpdatePrm ? 1 : -1);
+  var idxPrmCode = prH['kode_promo'] !== undefined ? prH['kode_promo'] : (hasUpdatePrm ? 2 : 0);
+  var idxPrmName = prH['nama_program'] !== undefined ? prH['nama_program'] : (prH['nama_promo'] !== undefined ? prH['nama_promo'] : (hasUpdatePrm ? 3 : 1));
+  var idxPrmType = prH['tipe_diskon'] !== undefined ? prH['tipe_diskon'] : (prH['tipe'] !== undefined ? prH['tipe'] : (hasUpdatePrm ? 4 : 2));
+  var idxPrmVal = prH['nilai_potongan'] !== undefined ? prH['nilai_potongan'] : (prH['nilai'] !== undefined ? prH['nilai'] : (hasUpdatePrm ? 5 : 3));
+  var idxPrmMin = prH['min_belanja'] !== undefined ? prH['min_belanja'] : (hasUpdatePrm ? 6 : 4);
+  var idxPrmExp = prH['berlaku_sampai'] !== undefined ? prH['berlaku_sampai'] : (hasUpdatePrm ? 7 : 5);
+  var idxPrmStat = prH['status'] !== undefined ? prH['status'] : (hasUpdatePrm ? 8 : 6);
+
+  var promos = prmData.rows.filter(function(r) {
+    return String(r[idxPrmCode] || '').trim() !== '';
+  }).map(function(r, idx) {
+    var expVal = String(r[idxPrmExp] || '').trim();
+    return {
+      id: idxPrmId >= 0 && r[idxPrmId] ? String(r[idxPrmId]).trim() : ('prm-' + (idx + 1)),
+      code: String(r[idxPrmCode] || '').trim().toUpperCase(),
+      name: String(r[idxPrmName] || '').trim(),
+      type: String(r[idxPrmType] || 'PERCENT').trim().toUpperCase().indexOf('NOM') >= 0 ? 'nominal' : 'percent',
+      value: Number(r[idxPrmVal]) || 0,
+      minOrder: Number(r[idxPrmMin]) || 0,
+      validUntil: (expVal === '-' || expVal === '') ? '' : expVal,
+      active: String(r[idxPrmStat] || 'Aktif').trim().toLowerCase() !== 'nonaktif'
+    };
+  });
+
+  var cstData = readRows('CRM_PELANGGAN');
+  var customers = cstData.rows.map(function(r) {
+    return { id: r[0], name: r[1], phone: String(r[2] || ''), tier: r[3], visits: Number(r[4]) || 0, totalSpend: Number(r[5]) || 0, specialVoucher: r[6], voucherDiscount: Number(r[7]) || 0, voucherExpiry: String(r[8] || '') };
+  });
+
+  var openData = readRows('OPEN_ORDERS');
+  var openOrders = openData.rows.map(function(r) {
+    var items = [];
+    try { items = JSON.parse(r[8] || '[]'); } catch (err) {}
+    return { id: r[0], date: String(r[1] || ''), time: String(r[2] || ''), orderType: r[3], tableOrCustomer: r[4], customerPhone: String(r[5] || ''), cashier: r[6], total: Number(r[7]) || 0, items: items };
+  });
+
+  var trxData = readRows('POS_TRANSAKSI');
+  var trH = trxData.h;
+  var hasTsTrx = trH['timestamp'] !== undefined || trH['outlet'] !== undefined;
+  var transactions = trxData.rows.slice(-200).map(function(r) {
+    var idVal = trH['no_nota'] !== undefined ? r[trH['no_nota']] : (hasTsTrx ? r[2] : r[0]);
+    var dateVal = trH['tanggal'] !== undefined ? r[trH['tanggal']] : (hasTsTrx ? r[3] : r[1]);
+    var timeVal = trH['jam'] !== undefined ? r[trH['jam']] : (hasTsTrx ? r[4] : r[2]);
+    var typeVal = trH['jenis_order'] !== undefined ? r[trH['jenis_order']] : (trH['tipe_order'] !== undefined ? r[trH['tipe_order']] : (hasTsTrx ? r[5] : r[3]));
+    var custVal = trH['nama_pelanggan'] !== undefined ? r[trH['nama_pelanggan']] : (trH['meja_pelanggan'] !== undefined ? r[trH['meja_pelanggan']] : (hasTsTrx ? r[6] : r[4]));
+    var phoneVal = trH['no_wa_crm'] !== undefined ? r[trH['no_wa_crm']] : '';
+    var cashierVal = trH['kasir'] !== undefined ? r[trH['kasir']] : (hasTsTrx ? r[8] : r[5]);
+    var payVal = trH['metode_bayar'] !== undefined ? r[trH['metode_bayar']] : (hasTsTrx ? r[9] : r[11]);
+    var subVal = trH['subtotal'] !== undefined ? r[trH['subtotal']] : (hasTsTrx ? r[10] : r[7]);
+    var discVal = trH['diskon_promo'] !== undefined ? r[trH['diskon_promo']] : (trH['diskon'] !== undefined ? r[trH['diskon']] : (hasTsTrx ? r[11] : r[8]));
+    var promoVal = trH['kode_promo'] !== undefined ? r[trH['kode_promo']] : (hasTsTrx ? r[12] : r[9]);
+    var netVal = trH['total_net'] !== undefined ? r[trH['total_net']] : (trH['total_bayar'] !== undefined ? r[trH['total_bayar']] : (hasTsTrx ? r[13] : r[10]));
+    var statusVal = trH['status'] !== undefined ? r[trH['status']] : 'PAID';
+    var jsonItems = [];
+    var idxRingkasan = trH['ringkasan_item'];
+    if (idxRingkasan !== undefined && r[idxRingkasan]) {
+      var rawRing = String(r[idxRingkasan]).trim();
+      if (rawRing.charAt(0) === '[') {
+        try { jsonItems = JSON.parse(rawRing); } catch (err) {}
+      }
+    }
+    return {
+      id: String(idVal || ''),
+      date: String(dateVal || ''),
+      time: String(timeVal || ''),
+      orderType: String(typeVal || 'Meja'),
+      tableOrCustomer: String(custVal || '-'),
+      customerPhone: String(phoneVal || ''),
+      cashier: String(cashierVal || 'Kasir'),
+      subtotal: Number(subVal) || Number(netVal) || 0,
+      discount: Number(discVal) || 0,
+      promoCode: (!promoVal || promoVal === '-') ? '' : String(promoVal),
+      total: Number(netVal) || 0,
+      paymentMethod: String(payVal || 'Cash'),
+      status: String(statusVal || 'PAID').toUpperCase() === 'CANCELLED' ? 'CANCELLED' : 'PAID',
+      items: jsonItems
+    };
+  });
+
+  var itemData = readRows('POS_ITEM_TERJUAL');
+  var itH = itemData.h;
+  var transactionItems = itemData.rows.slice(-600).map(function(r) {
+    var trxId = itH['no_nota'] !== undefined ? r[itH['no_nota']] : r[0];
+    var sku = itH['sku'] !== undefined ? r[itH['sku']] : r[3];
+    var name = itH['nama_menu'] !== undefined ? r[itH['nama_menu']] : r[4];
+    var cat = itH['kategori'] !== undefined ? r[itH['kategori']] : '';
+    var brand = itH['brand'] !== undefined ? r[itH['brand']] : r[5];
+    var comm = itH['kena_komisi'] !== undefined ? r[itH['kena_komisi']] : 'Ya';
+    var sal = itH['hitung_porsi_gaji'] !== undefined ? r[itH['hitung_porsi_gaji']] : 'Ya';
+    var qty = itH['qty'] !== undefined ? Number(r[itH['qty']]) : Number(r[8]);
+    var price = itH['harga_satuan'] !== undefined ? Number(r[itH['harga_satuan']]) : Number(r[9]);
+    var unitCost = itH['hpp_satuan'] !== undefined ? Number(r[itH['hpp_satuan']]) : 0;
+    var totalHpp = itH['subtotal_hpp'] !== undefined ? Number(r[itH['subtotal_hpp']]) : (itH['total_hpp'] !== undefined ? Number(r[itH['total_hpp']]) : (unitCost * qty));
+    return {
+      trxId: String(trxId || ''),
+      sku: String(sku || '-'),
+      name: String(name || 'Menu'),
+      category: String(cat || ''),
+      brand: String(brand || 'Kopi Jiwara'),
+      includeCommissionShare: String(comm).toLowerCase() !== 'tidak',
+      includeSalaryShare: String(sal).toLowerCase() !== 'tidak',
+      qty: qty || 1,
+      price: price || 0,
+      unitCost: unitCost || (qty > 0 ? Math.round(totalHpp / qty) : 0),
+      totalHpp: totalHpp || 0
+    };
+  });
+
+  var cfData = readRows('ARUS_KAS_CASHFLOW');
+  var cashflow = cfData.rows.slice(-150).map(function(r) {
+    var isIn = String(r[3]).toUpperCase() === 'IN' || (Number(r[5]) || 0) > 0;
+    return {
+      id: r[0], date: String(r[1] || ''), time: String(r[2] || ''),
+      type: isIn ? 'IN' : 'OUT', category: r[4],
+      amount: isIn ? (Number(r[5]) || 0) : (Number(r[6]) || 0),
+      note: r[7], pic: r[8]
+    };
+  });
+
+  var attData = readRows('ABSENSI_KARYAWAN');
+  var attendance = attData.rows.slice(-100).map(function(r) {
+    return { date: String(r[0] || ''), staffName: r[1], role: r[2], clockIn: String(r[3] || '-'), clockOut: String(r[4] || '-'), wageEarned: Number(r[5]) || 0, status: r[6] || 'Hadir' };
+  });
+
+  var clsData = readRows('CLOSING_SHIFT');
+  var closingHistory = clsData.rows.slice(-60).map(function(r) {
+    return {
+      id: String(r[0] || ''), date: String(r[1] || ''), time: String(r[2] || ''),
+      cashier: String(r[3] || ''), openingCash: Number(r[4]) || 0,
+      cashSales: Number(r[5]) || 0, qrisSales: Number(r[6]) || 0,
+      transferSales: Number(r[7]) || 0, onlineSales: Number(r[8]) || 0,
+      totalSales: Number(r[9]) || 0, expectedCash: Number(r[10]) || 0,
+      actualCash: Number(r[11]) || 0, diff: Number(r[12]) || 0
+    };
+  });
+
+  var audData = readRows('AUDIT_OTORISASI');
+  var auditLogs = audData.rows.slice(-80).map(function(r) {
+    return {
+      id: String(r[0] || ''), date: String(r[1] || ''), time: String(r[2] || ''),
+      orderId: String(r[3] || ''), itemName: String(r[4] || ''),
+      cashier: String(r[5] || ''), authorizedBy: String(r[6] || ''), reason: String(r[7] || '')
+    };
+  });
+
+  var logData = readRows('LOG_STOK_GUDANG');
+  var stockLogs = logData.rows.slice(-100).map(function(r) {
+    return {
+      id: String(r[0] || ''), date: String(r[1] || ''), time: String(r[2] || ''),
+      itemName: String(r[3] || ''), type: String(r[4] || ''),
+      qty: Number(r[5]) || 0, afterStock: Number(r[6]) || 0, pic: String(r[7] || '')
+    };
+  });
+
+  var setData = readRows('SETTLEMENT_BRAND');
+  var brandSettlements = setData.rows.slice(-80).map(function(r) {
+    return {
+      id: r[0], date: String(r[1] || ''), periodLabel: r[2], brand: r[3],
+      grossSales: Number(r[4]) || 0, commissionPct: Number(r[5]) || 10,
+      commissionCut: Number(r[6]) || 0, salaryCut: Number(r[7]) || 0,
+      netTransfer: Number(r[8]) || 0, pic: r[9]
+    };
+  });
+
+  return ContentService.createTextOutput(JSON.stringify({
+    status: 'ok',
+    outletProfile: outletProfileJson ? JSON.parse(outletProfileJson) : null,
+    brands: brandsJson ? JSON.parse(brandsJson) : null,
+    brandConfig: brandConfigJson ? JSON.parse(brandConfigJson) : null,
+    products: products,
+    categories: categories,
+    inventory: inventory,
+    staff: staff,
+    promos: promos,
+    customers: customers,
+    openOrders: openOrders,
+    transactions: transactions,
+    transactionItems: transactionItems,
+    cashflow: cashflow,
+    attendance: attendance,
+    closingHistory: closingHistory,
+    auditLogs: auditLogs,
+    stockLogs: stockLogs,
+    brandSettlements: brandSettlements
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function buildRowByHeaders(sh, valueMap) {
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var row = [];
+  for (var i = 0; i < headers.length; i++) {
+    var key = String(headers[i] || '').trim().toLowerCase();
+    row.push(valueMap[key] !== undefined ? valueMap[key] : '');
+  }
+  return row;
+}
+
+function doPost(e) {
+  setupMasterJiwaraSheets();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var metaProps = PropertiesService.getScriptProperties();
+  var body = JSON.parse(e.postData.contents);
+  var type = body.eventType;
+  var d = body.data || {};
+  var nowIso = new Date().toISOString();
+
+  function getOrCreate(name) { return ss.getSheetByName(name); }
+
+  if (type === 'OUTLET_PROFILE_UPDATED') {
+    metaProps.setProperty('OUTLET_PROFILE_JSON', JSON.stringify(d));
+  } else if (type === 'POS_TRANSACTION_PAID') {
+    var shPos = getOrCreate('POS_TRANSAKSI');
+    var shItem = getOrCreate('POS_ITEM_TERJUAL');
+    var posH = getHeaderMap(shPos);
+    var notaColIdx = posH['no_nota'] !== undefined ? posH['no_nota'] : 0;
+    var alreadyExists = false;
+    if (shPos.getLastRow() > 1) {
+      var existingIds = shPos.getRange(2, notaColIdx + 1, shPos.getLastRow() - 1, 1).getValues();
+      for (var k = 0; k < existingIds.length; k++) {
+        if (String(existingIds[k][0]) === String(d.id)) {
+          alreadyExists = true;
+          break;
+        }
+      }
+    }
+    if (!alreadyExists) {
+      var items = d.items || [];
+      var totalQty = items.reduce(function(s, i) { return s + (i.qty || 0); }, 0);
+      var totalHpp = items.reduce(function(s, i) { return s + ((i.cost || 0) * (i.qty || 1)); }, 0);
+      var labaKotor = (Number(d.total) || 0) - totalHpp;
+      var cashRec = Number(d.cashReceived) || Number(d.total) || 0;
+      var changeAmt = Number(d.changeAmount) || 0;
+
+      var trxRow = buildRowByHeaders(shPos, {
+        'timestamp': body.timestamp || nowIso,
+        'outlet': body.outlet || 'Kopi Jiwara',
+        'no_nota': d.id,
+        'tanggal': d.date,
+        'jam': d.time,
+        'jenis_order': d.orderType,
+        'tipe_order': d.orderType,
+        'nama_pelanggan': d.tableOrCustomer || '-',
+        'meja_pelanggan': d.tableOrCustomer || '-',
+        'no_wa_crm': d.customerPhone || '-',
+        'kasir': d.cashier,
+        'metode_bayar': d.paymentMethod,
+        'total_item': totalQty,
+        'subtotal': d.subtotal,
+        'diskon_promo': d.discount || 0,
+        'diskon': d.discount || 0,
+        'kode_promo': d.promoCode || '-',
+        'total_net': d.total,
+        'total_bayar': d.total,
+        'total_hpp': totalHpp,
+        'laba_kotor': labaKotor,
+        'status': 'PAID',
+        'uang_diterima': cashRec,
+        'kembalian': changeAmt,
+        'ringkasan_item': JSON.stringify(items)
+      });
+      shPos.appendRow(trxRow);
+
+      items.forEach(function(it) {
+        var qty = Number(it.qty) || 1;
+        var unitPrice = Number(it.price) || 0;
+        var unitCost = Number(it.cost) || 0;
+        var subJual = unitPrice * qty;
+        var subHpp = unitCost * qty;
+        var itemRow = buildRowByHeaders(shItem, {
+          'timestamp': body.timestamp || nowIso,
+          'tanggal': d.date,
+          'jam': d.time,
+          'no_nota': d.id,
+          'jenis_order': d.orderType,
+          'sku': it.sku || '-',
+          'nama_menu': it.name,
+          'kategori': it.category || '',
+          'brand': it.brand || 'Kopi Jiwara',
+          'kena_komisi': it.includeCommissionShare === false ? 'Tidak' : 'Ya',
+          'hitung_porsi_gaji': it.includeSalaryShare === false ? 'Tidak' : 'Ya',
+          'qty': qty,
+          'harga_satuan': unitPrice,
+          'hpp_satuan': unitCost,
+          'subtotal_jual': subJual,
+          'subtotal_item': subJual,
+          'subtotal_hpp': subHpp,
+          'total_hpp': subHpp,
+          'profit_item': subJual - subHpp,
+          'laba_kotor_item': subJual - subHpp
+        });
+        shItem.appendRow(itemRow);
+      });
+    }
+  } else if (type === 'PAID_TRX_CANCELLED') {
+    var shPos2 = getOrCreate('POS_TRANSAKSI');
+    var posH2 = getHeaderMap(shPos2);
+    var notaIdx2 = posH2['no_nota'] !== undefined ? posH2['no_nota'] : 0;
+    var statIdx2 = posH2['status'] !== undefined ? posH2['status'] : 12;
+    if (shPos2.getLastRow() > 1) {
+      var vals = shPos2.getRange(2, 1, shPos2.getLastRow() - 1, shPos2.getLastColumn()).getValues();
+      for (var r = 0; r < vals.length; r++) {
+        if (String(vals[r][notaIdx2]) === String(d.id)) {
+          shPos2.getRange(r + 2, statIdx2 + 1).setValue('CANCELLED');
+        }
+      }
+    }
+  } else if (type === 'CASHFLOW_ADDED') {
+    var shCf = getOrCreate('ARUS_KAS_CASHFLOW');
+    shCf.appendRow([d.id, d.date, d.time, d.type, d.category, d.type === 'IN' ? d.amount : 0, d.type === 'OUT' ? d.amount : 0, d.note, d.pic]);
+  } else if (type === 'ATTENDANCE_CLOCK') {
+    var shAtt = getOrCreate('ABSENSI_KARYAWAN');
+    var updatedAtt = false;
+    if (shAtt.getLastRow() > 1) {
+      var attVals = shAtt.getRange(2, 1, shAtt.getLastRow() - 1, 7).getValues();
+      for (var aIdx = attVals.length - 1; aIdx >= 0; aIdx--) {
+        if (String(attVals[aIdx][0]) === String(d.date) && String(attVals[aIdx][1]) === String(d.staffName)) {
+          shAtt.getRange(aIdx + 2, 5).setValue(d.clockOut || '-');
+          updatedAtt = true;
+          break;
+        }
+      }
+    }
+    if (!updatedAtt) {
+      shAtt.appendRow([d.date, d.staffName, d.role, d.clockIn, d.clockOut, d.wageEarned, d.status]);
+    }
+  } else if (type === 'SHIFT_CLOSED') {
+    var shCls = getOrCreate('CLOSING_SHIFT');
+    shCls.appendRow([d.id, d.date, d.time, d.cashier, d.openingCash, d.cashSales, d.qrisSales, d.transferSales, d.onlineSales, d.totalSales, d.expectedCash, d.actualCash, d.diff]);
+  } else if (type === 'AUDIT_VOID_ITEM') {
+    var shAud = getOrCreate('AUDIT_OTORISASI');
+    shAud.appendRow([d.id, d.date, d.time, d.orderId, d.itemName, d.cashier, d.authorizedBy, d.reason]);
+  } else if (type === 'INVENTORY_UPDATED') {
+    var shLog = getOrCreate('LOG_STOK_GUDANG');
+    shLog.appendRow([d.id, d.date, d.time, d.itemName, d.type, d.qty, d.afterStock, d.pic]);
+  } else if (type === 'BRAND_SETTLEMENT_PAID') {
+    var shSet = getOrCreate('SETTLEMENT_BRAND');
+    shSet.appendRow([d.id, d.date, d.periodLabel, d.brand, d.grossSales, d.commissionPct, d.commissionCut, d.salaryCut, d.netTransfer, d.pic]);
+  } else if (type === 'SYNC_MASTER_SNAPSHOT') {
+    if (d.brands) metaProps.setProperty('BRANDS_LIST_JSON', JSON.stringify(d.brands));
+    if (d.brandConfig) metaProps.setProperty('BRAND_CONFIG_JSON', JSON.stringify(d.brandConfig));
+    if (d.products) {
+      var shM = getOrCreate('MASTER_MENU');
+      if (shM.getLastRow() > 1) shM.getRange(2, 1, shM.getLastRow() - 1, 11).clearContent();
+      if (d.products.length > 0) {
+        var rowsM = d.products.map(function(p) {
+          return [p.sku, p.name, p.category, p.brand, p.price, p.cost, p.stock, p.isFavorite ? 'Ya' : 'Tidak', p.active ? 'Aktif' : 'Nonaktif', p.includeCommissionShare === false ? 'Tidak' : 'Ya', p.includeSalaryShare === false ? 'Tidak' : 'Ya'];
+        });
+        shM.getRange(2, 1, rowsM.length, 11).setValues(rowsM);
+      }
+    }
+    if (d.categories) {
+      var shCat = getOrCreate('MASTER_KATEGORI');
+      if (shCat.getLastRow() > 1) shCat.getRange(2, 1, shCat.getLastRow() - 1, 2).clearContent();
+      if (d.categories.length > 0) {
+        var rowsCat = d.categories.map(function(c, idx) { return [idx + 1, c]; });
+        shCat.getRange(2, 1, rowsCat.length, 2).setValues(rowsCat);
+      }
+    }
+    if (d.inventory) {
+      var shI = getOrCreate('GUDANG_STOK');
+      if (shI.getLastRow() > 1) shI.getRange(2, 1, shI.getLastRow() - 1, 7).clearContent();
+      if (d.inventory.length > 0) {
+        var rowsI = d.inventory.map(function(i) { return [i.code, i.name, i.category, i.stock, i.minStock, i.unit, i.lastOpname]; });
+        shI.getRange(2, 1, rowsI.length, 7).setValues(rowsI);
+      }
+    }
+    if (d.staff) {
+      var shS = getOrCreate('MASTER_PEGAWAI');
+      var stfColCount = Math.max(7, shS.getLastColumn());
+      if (shS.getLastRow() > 1) shS.getRange(2, 1, shS.getLastRow() - 1, stfColCount).clearContent();
+      if (d.staff.length > 0) {
+        var rowsS = d.staff.map(function(s) {
+          return buildRowByHeaders(shS, {
+            'update_time': nowIso,
+            'id_pegawai': s.id,
+            'id_staf': s.id,
+            'nama_pegawai': s.name,
+            'jabatan_role': s.role,
+            'jabatan': s.role,
+            'pin_akses': s.pin,
+            'upah_harian': s.dailyWage,
+            'status': s.active ? 'Aktif' : 'Nonaktif'
+          });
+        });
+        shS.getRange(2, 1, rowsS.length, rowsS[0].length).setValues(rowsS);
+      }
+    }
+    if (d.promos) {
+      var shP = getOrCreate('MASTER_PROMO');
+      var prmColCount = Math.max(9, shP.getLastColumn());
+      if (shP.getLastRow() > 1) shP.getRange(2, 1, shP.getLastRow() - 1, prmColCount).clearContent();
+      if (d.promos.length > 0) {
+        var rowsP = d.promos.map(function(p, idx) {
+          return buildRowByHeaders(shP, {
+            'update_time': nowIso,
+            'id_promo': p.id || ('prm-' + (idx + 1)),
+            'kode_promo': p.code,
+            'nama_program': p.name,
+            'nama_promo': p.name,
+            'tipe_diskon': String(p.type || 'percent').toUpperCase(),
+            'tipe': String(p.type || 'percent').toUpperCase(),
+            'nilai_potongan': p.value,
+            'nilai': p.value,
+            'min_belanja': p.minOrder || 0,
+            'berlaku_sampai': p.validUntil || '-',
+            'status': p.active ? 'Aktif' : 'Nonaktif'
+          });
+        });
+        shP.getRange(2, 1, rowsP.length, rowsP[0].length).setValues(rowsP);
+      }
+    }
+    if (d.customers) {
+      var shC = getOrCreate('CRM_PELANGGAN');
+      if (shC.getLastRow() > 1) shC.getRange(2, 1, shC.getLastRow() - 1, 9).clearContent();
+      if (d.customers.length > 0) {
+        var rowsC = d.customers.map(function(c) { return [c.id, c.name, c.phone, c.tier, c.visits, c.totalSpend, c.specialVoucher, c.voucherDiscount, c.voucherExpiry]; });
+        shC.getRange(2, 1, rowsC.length, 9).setValues(rowsC);
+      }
+    }
+    if (d.openOrders !== undefined) {
+      var shO = getOrCreate('OPEN_ORDERS');
+      if (shO.getLastRow() > 1) shO.getRange(2, 1, shO.getLastRow() - 1, 9).clearContent();
+      if (d.openOrders.length > 0) {
+        var rowsO = d.openOrders.map(function(o) { return [o.id, o.date, o.time, o.orderType, o.tableOrCustomer, o.customerPhone || '', o.cashier, o.total, JSON.stringify(o.items || [])]; });
+        shO.getRange(2, 1, rowsO.length, 9).setValues(rowsO);
+      }
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ status: 'ok', eventType: type })).setMimeType(ContentService.MimeType.JSON);
+}`;
+
+      openModal(`
+        <div class="modal-head">
+          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.9 (Complete 2-Way Realtime Sync)</h3>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <ol style="font-size:12px;color:var(--text-muted);padding-left:18px;margin-top:0;line-height:1.5;">
+          <li>Buka file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> -> klik <strong>Extensions -> Apps Script</strong>.</li>
+          <li>Hapus skrip lama, tempel skrip <strong>v2.9</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
+          <li>Klik <strong>Deploy -> Manage deployments -> Edit (ikon pensil) -> Version: New version -> Deploy</strong> (akses <em>Anyone</em>).</li>
+        </ol>
+        <textarea id="gasCodeBox" readonly style="width:100%;height:190px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#F8FAFC;">${esc(scriptCode)}</textarea>
+        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v2.9 berhasil disalin!')">Salin Skrip v2.9</button>
       `);
     }
 
@@ -5059,24 +5750,57 @@
     function renderSettingsPromosSubtab(box) {
       box.innerHTML = `
         <div class="bento-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:16px;">Daftar Kode Promo & Diskon Kasir</h3>
-            <button class="btn btn-dark btn-sm" onclick="openAddPromoModal()">+ Buat Promo Baru</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <div>
+              <h3 style="margin:0;font-size:16px;">Daftar Kode Promo & Diskon Kasir</h3>
+              <div style="font-size:12px;color:var(--text-muted);">Kelola masa berlaku, nilai potongan, dan status aktif/nonaktif promo (otomatis tersinkron ke MASTER_PROMO).</div>
+            </div>
+            <button type="button" class="btn btn-dark btn-sm" onclick="openAddPromoModal()">+ Buat Promo Baru</button>
           </div>
           <div class="table-box">
             <table class="compact-table">
-              <thead><tr><th>Kode Promo</th><th>Nama Promo</th><th>Potongan</th><th>Min. Belanja</th><th>Berlaku Sampai</th><th>Aksi</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Kode Promo</th>
+                  <th>Nama Promo</th>
+                  <th>Potongan</th>
+                  <th>Min. Belanja</th>
+                  <th>Berlaku Sampai</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
               <tbody>
-                ${db.promos.map(p => `
-                  <tr>
-                    <td><strong>${esc(p.code)}</strong></td>
-                    <td>${esc(p.name)}</td>
-                    <td>${p.type === 'percent' ? p.value + '%' : formatRp(p.value)}</td>
-                    <td>${formatRp(p.minOrder)}</td>
-                    <td>${esc(p.validUntil || '-')}</td>
-                    <td><button class="btn btn-danger btn-sm" onclick="deletePromo('${p.id}')">Hapus</button></td>
-                  </tr>
-                `).join('')}
+                ${db.promos.length === 0
+                  ? `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted);">Belum ada program promo terdaftar.</td></tr>`
+                  : db.promos.map(p => {
+                      const isExpired = p.validUntil && p.validUntil < todayISO();
+                      const isActive = p.active !== false;
+                      return `
+                        <tr style="${!isActive ? 'opacity:0.68;' : ''}">
+                          <td><strong>${esc(p.code)}</strong></td>
+                          <td>${esc(p.name)}</td>
+                          <td>${p.type === 'percent' ? p.value + '%' : formatRp(p.value)}</td>
+                          <td>${formatRp(p.minOrder)}</td>
+                          <td>
+                            <span>${esc(p.validUntil || 'Tanpa Batas')}</span>
+                            ${isExpired ? `<span class="badge-pill badge-pink" style="margin-left:4px;">Kedaluwarsa</span>` : ''}
+                          </td>
+                          <td>
+                            <button type="button" class="btn btn-sm ${isActive ? 'btn-yellow' : 'btn-soft'}" onclick="togglePromoStatus('${esc(p.id)}')" title="Klik untuk mengubah status Aktif / Nonaktif">
+                              ${isActive ? 'Aktif' : 'Nonaktif'}
+                            </button>
+                          </td>
+                          <td>
+                            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                              <button type="button" class="btn btn-soft btn-sm" onclick="openEditPromoModal('${esc(p.id)}')">Edit</button>
+                              <button type="button" class="btn btn-danger btn-sm" onclick="deletePromo('${esc(p.id)}')">Hapus</button>
+                            </div>
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')
+                }
               </tbody>
             </table>
           </div>
@@ -5084,9 +5808,99 @@
       `;
     }
 
+    function togglePromoStatus(prmId) {
+      const p = db.promos.find(x => x.id === prmId);
+      if (!p) return;
+      p.active = p.active === false ? true : false;
+      saveDB();
+      autoSyncMasterSlices(['promos']);
+      renderWorkspace();
+      showToast(`Promo ${p.code} sekarang ${p.active ? 'AKTIF' : 'NONAKTIF'}!`);
+    }
+
+    function openEditPromoModal(prmId) {
+      const p = db.promos.find(x => x.id === prmId);
+      if (!p) return;
+      openModal(`
+        <div class="modal-head">
+          <h3 style="margin:0;font-size:16px;">Edit Promo: ${esc(p.code)}</h3>
+          <button type="button" class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="field-label">Kode Promo</label>
+            <input id="edPrmCode" type="text" class="styled-input" value="${esc(p.code)}" />
+          </div>
+          <div>
+            <label class="field-label">Nama Program Promo</label>
+            <input id="edPrmName" type="text" class="styled-input" value="${esc(p.name)}" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="field-label">Tipe Potongan</label>
+            <select id="edPrmType" class="styled-select">
+              <option value="percent" ${p.type === 'percent' ? 'selected' : ''}>Persentase (%)</option>
+              <option value="nominal" ${p.type === 'nominal' ? 'selected' : ''}>Nominal (Rp)</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">Nilai Potongan</label>
+            <input id="edPrmVal" type="number" class="styled-input" value="${p.value}" min="0" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="field-label">Minimal Belanja (Rp)</label>
+            <input id="edPrmMin" type="number" class="styled-input" value="${p.minOrder || 0}" min="0" />
+          </div>
+          <div>
+            <label class="field-label">Berlaku Sampai (Masa Waktu)</label>
+            <input id="edPrmExp" type="date" class="styled-input" value="${esc(p.validUntil || '')}" />
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="field-label">Status Promo</label>
+          <select id="edPrmStatus" class="styled-select">
+            <option value="true" ${p.active !== false ? 'selected' : ''}>Aktif (Tampil di Kasir)</option>
+            <option value="false" ${p.active === false ? 'selected' : ''}>Nonaktif (Disembunyikan dari Kasir)</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-dark" style="width:100%;" onclick="updatePromo('${esc(p.id)}')">Simpan Perubahan Promo</button>
+      `);
+    }
+
+    function updatePromo(prmId) {
+      const p = db.promos.find(x => x.id === prmId);
+      if (!p) return;
+      const code = document.getElementById('edPrmCode').value.trim().toUpperCase();
+      const name = document.getElementById('edPrmName').value.trim();
+      const type = document.getElementById('edPrmType').value;
+      const value = Number(document.getElementById('edPrmVal').value) || 0;
+      const minOrder = Number(document.getElementById('edPrmMin').value) || 0;
+      const validUntil = document.getElementById('edPrmExp').value || '';
+      const active = document.getElementById('edPrmStatus').value === 'true';
+
+      if (!code || !name || value <= 0) return showToast('Kode, nama, dan nilai potongan wajib diisi!', true);
+
+      p.code = code;
+      p.name = name;
+      p.type = type;
+      p.value = value;
+      p.minOrder = minOrder;
+      p.validUntil = validUntil;
+      p.active = active;
+
+      saveDB();
+      autoSyncMasterSlices(['promos']);
+      closeModal();
+      renderWorkspace();
+      showToast(`Promo ${p.code} diperbarui & disinkronkan!`);
+    }
+
     function openAddPromoModal() {
       openModal(`
-        <div class="modal-head"><h3 style="margin:0;font-size:16px;">Buat Kode Promo Baru</h3><button class="close-circle" onclick="closeModal()">x</button></div>
+        <div class="modal-head"><h3 style="margin:0;font-size:16px;">Buat Kode Promo Baru</h3><button type="button" class="close-circle" onclick="closeModal()">x</button></div>
         <div style="margin-bottom:10px;"><label class="field-label">Kode Promo</label><input id="prmCodeIn" type="text" class="styled-input" placeholder="NGOPIHEMAT" /></div>
         <div style="margin-bottom:10px;"><label class="field-label">Nama Promo</label><input id="prmNameIn" type="text" class="styled-input" placeholder="Diskon Akhir Pekan" /></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -5096,11 +5910,18 @@
           </div>
           <div><label class="field-label">Nilai Potongan</label><input id="prmValIn" type="number" class="styled-input" value="10" /></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
           <div><label class="field-label">Minimal Belanja (Rp)</label><input id="prmMinIn" type="number" class="styled-input" value="20000" /></div>
           <div><label class="field-label">Berlaku Sampai</label><input id="prmExpIn" type="date" class="styled-input" value="2026-12-31" /></div>
         </div>
-        <button class="btn btn-dark" style="width:100%;" onclick="saveNewPromo()">Simpan Promo</button>
+        <div style="margin-bottom:14px;">
+          <label class="field-label">Status Awal</label>
+          <select id="prmStatusIn" class="styled-select">
+            <option value="true" selected>Aktif</option>
+            <option value="false">Nonaktif</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-dark" style="width:100%;" onclick="saveNewPromo()">Simpan Promo</button>
       `);
     }
 
@@ -5110,10 +5931,11 @@
       const type = document.getElementById('prmTypeIn').value;
       const value = Number(document.getElementById('prmValIn').value) || 0;
       const minOrder = Number(document.getElementById('prmMinIn').value) || 0;
-      const validUntil = document.getElementById('prmExpIn').value || '2026-12-31';
+      const validUntil = document.getElementById('prmExpIn').value || '';
+      const active = document.getElementById('prmStatusIn') ? document.getElementById('prmStatusIn').value === 'true' : true;
       if (!code || !name || value <= 0) return showToast('Lengkapi data promo!', true);
 
-      db.promos.push({ id: 'PRM-' + Date.now().toString().slice(-4), code, name, type, value, minOrder, validUntil, active: true });
+      db.promos.push({ id: 'PRM-' + Date.now().toString().slice(-4), code, name, type, value, minOrder, validUntil, active });
       saveDB();
       autoSyncMasterSlices(['promos']);
       closeModal();
@@ -5129,301 +5951,14 @@
       showToast('Promo dihapus.');
     }
 
-    // ==================== GOOGLE APPS SCRIPT v2.7 (15 SHEETS + ANTI-DUPLIKAT + MULTI-DEVICE SYNC) ====================
-    function openAppsScriptGuideModal() {
-      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.7 — 2-WAY REALTIME + ANTI-DUPLIKAT) ====================
-function setupMasterJiwaraSheets() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var specs = {
-    'DASHBOARD_LR': ['Ringkasan', 'Keterangan', 'Rumus_Otomatis'],
-    'POS_TRANSAKSI': ['No_Nota', 'Tanggal', 'Jam', 'Tipe_Order', 'Meja_Pelanggan', 'Kasir', 'Total_Item', 'Subtotal', 'Diskon', 'Kode_Promo', 'Total_Bayar', 'Metode_Bayar', 'Status'],
-    'POS_ITEM_TERJUAL': ['No_Nota', 'Tanggal', 'Jam', 'SKU', 'Nama_Menu', 'Brand', 'Kena_Komisi', 'Hitung_Porsi_Gaji', 'Qty', 'Harga_Satuan', 'Subtotal_Item', 'Total_HPP', 'Laba_Kotor_Item'],
-    'OPEN_ORDERS': ['ID_Order', 'Tanggal', 'Jam', 'Tipe_Order', 'Meja_Pelanggan', 'No_WA', 'Kasir', 'Total_Tagihan', 'JSON_Items'],
-    'CRM_PELANGGAN': ['ID_Pelanggan', 'Nama_Pelanggan', 'No_WA', 'Tier_Member', 'Total_Kunjungan', 'Total_Belanja', 'Voucher_Khusus', 'Potongan_Voucher', 'Berlaku_Sampai'],
-    'ARUS_KAS_CASHFLOW': ['ID_Kas', 'Tanggal', 'Jam', 'Jenis', 'Kategori', 'Debit_Masuk', 'Kredit_Keluar', 'Keterangan', 'PIC'],
-    'SETTLEMENT_BRAND': ['ID_Settlement', 'Tanggal_Transfer', 'Periode', 'Brand', 'Omzet_Kotor', 'Persen_Komisi', 'Potongan_Komisi', 'Porsi_Beban_Gaji', 'Net_Transfer', 'PIC'],
-    'CLOSING_SHIFT': ['ID_Closing', 'Tanggal', 'Jam', 'Kasir', 'Modal_Awal', 'Sales_Cash', 'Sales_QRIS', 'Sales_Transfer', 'Sales_Online', 'Total_Omzet', 'Ekspektasi_Laci', 'Uang_Fisik', 'Selisih'],
-    'AUDIT_OTORISASI': ['ID_Audit', 'Tanggal', 'Jam', 'No_Order_Nota', 'Tindakan_Item', 'Kasir', 'Otorisasi_Oleh', 'Alasan'],
-    'MASTER_MENU': ['SKU', 'Nama_Menu', 'Kategori', 'Brand', 'Harga_Jual', 'HPP_Modal', 'Stok', 'Favorit', 'Status', 'Kena_Komisi', 'Hitung_Porsi_Gaji'],
-    'MASTER_KATEGORI': ['Urutan', 'Nama_Kategori'],
-    'GUDANG_STOK': ['Kode_Bahan', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Opname_Terakhir'],
-    'LOG_STOK_GUDANG': ['ID_Log', 'Tanggal', 'Jam', 'Nama_Bahan', 'Jenis_Mutasi', 'Jumlah', 'Stok_Akhir', 'PIC'],
-    'MASTER_PEGAWAI': ['ID_Staf', 'Nama_Pegawai', 'Jabatan', 'PIN_Akses', 'Upah_Harian', 'Status'],
-    'MASTER_PROMO': ['Kode_Promo', 'Nama_Promo', 'Tipe', 'Nilai', 'Min_Belanja', 'Berlaku_Sampai', 'Status'],
-    'ABSENSI_KARYAWAN': ['Tanggal', 'Nama_Pegawai', 'Jabatan', 'Jam_Masuk', 'Jam_Pulang', 'Upah_Harian', 'Status']
-  };
-  Object.keys(specs).forEach(function(name) {
-    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
-    if (sh.getLastRow() === 0) {
-      sh.appendRow(specs[name]);
-      sh.getRange(1, 1, 1, specs[name].length).setFontWeight('bold').setBackground('#0B2E23').setFontColor('#FACC15');
-    }
-  });
-}
-
-function doGet(e) {
-  setupMasterJiwaraSheets();
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var metaProps = PropertiesService.getScriptProperties();
-
-  function readRows(sheetName) {
-    var sh = ss.getSheetByName(sheetName);
-    if (!sh || sh.getLastRow() < 2) return [];
-    return sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
-  }
-
-  var products = readRows('MASTER_MENU').map(function(r) {
-    return {
-      sku: r[0], name: r[1], category: r[2], brand: r[3],
-      price: Number(r[4]) || 0, cost: Number(r[5]) || 0, stock: Number(r[6]) || 0,
-      isFavorite: String(r[7]).toLowerCase() === 'ya',
-      active: String(r[8]).toLowerCase() !== 'nonaktif',
-      includeCommissionShare: String(r[9]).toLowerCase() !== 'tidak',
-      includeSalaryShare: String(r[10]).toLowerCase() !== 'tidak'
-    };
-  });
-
-  var categories = readRows('MASTER_KATEGORI').map(function(r) { return String(r[1] || '').trim(); }).filter(Boolean);
-  var brandsJson = metaProps.getProperty('BRANDS_LIST_JSON');
-  var brandConfigJson = metaProps.getProperty('BRAND_CONFIG_JSON');
-  var outletProfileJson = metaProps.getProperty('OUTLET_PROFILE_JSON');
-
-  var inventory = readRows('GUDANG_STOK').map(function(r) {
-    return { code: r[0], name: r[1], category: r[2], stock: Number(r[3]) || 0, minStock: Number(r[4]) || 0, unit: r[5], lastOpname: String(r[6] || '') };
-  });
-
-  var staff = readRows('MASTER_PEGAWAI').map(function(r) {
-    return { id: r[0], name: r[1], role: r[2], pin: String(r[3] || '1111'), dailyWage: Number(r[4]) || 0, active: String(r[5]).toLowerCase() !== 'nonaktif' };
-  });
-
-  var promos = readRows('MASTER_PROMO').map(function(r) {
-    return { code: r[0], name: r[1], type: r[2], value: Number(r[3]) || 0, minOrder: Number(r[4]) || 0, validUntil: String(r[5] || ''), active: String(r[6]).toLowerCase() !== 'nonaktif' };
-  });
-
-  var customers = readRows('CRM_PELANGGAN').map(function(r) {
-    return { id: r[0], name: r[1], phone: String(r[2] || ''), tier: r[3], visits: Number(r[4]) || 0, totalSpend: Number(r[5]) || 0, specialVoucher: r[6], voucherDiscount: Number(r[7]) || 0, voucherExpiry: String(r[8] || '') };
-  });
-
-  var openOrders = readRows('OPEN_ORDERS').map(function(r) {
-    var items = [];
-    try { items = JSON.parse(r[8] || '[]'); } catch (err) {}
-    return { id: r[0], date: String(r[1] || ''), time: String(r[2] || ''), orderType: r[3], tableOrCustomer: r[4], customerPhone: String(r[5] || ''), cashier: r[6], total: Number(r[7]) || 0, items: items };
-  });
-
-  var transactions = readRows('POS_TRANSAKSI').slice(-200).map(function(r) {
-    return {
-      id: r[0], date: String(r[1] || ''), time: String(r[2] || ''), orderType: r[3],
-      tableOrCustomer: r[4], cashier: r[5], subtotal: Number(r[7]) || 0,
-      discount: Number(r[8]) || 0, promoCode: r[9] === '-' ? '' : r[9],
-      total: Number(r[10]) || 0, paymentMethod: r[11], status: r[12] || 'PAID'
-    };
-  });
-
-  var transactionItems = readRows('POS_ITEM_TERJUAL').slice(-600).map(function(r) {
-    return {
-      trxId: r[0], sku: r[3], name: r[4], brand: r[5],
-      includeCommissionShare: String(r[6]).toLowerCase() !== 'tidak',
-      includeSalaryShare: String(r[7]).toLowerCase() !== 'tidak',
-      qty: Number(r[8]) || 1, price: Number(r[9]) || 0, totalHpp: Number(r[11]) || 0
-    };
-  });
-
-  var cashflow = readRows('ARUS_KAS_CASHFLOW').slice(-150).map(function(r) {
-    var isIn = String(r[3]).toUpperCase() === 'IN' || (Number(r[5]) || 0) > 0;
-    return {
-      id: r[0], date: String(r[1] || ''), time: String(r[2] || ''),
-      type: isIn ? 'IN' : 'OUT', category: r[4],
-      amount: isIn ? (Number(r[5]) || 0) : (Number(r[6]) || 0),
-      note: r[7], pic: r[8]
-    };
-  });
-
-  var attendance = readRows('ABSENSI_KARYAWAN').slice(-100).map(function(r) {
-    return { date: String(r[0] || ''), staffName: r[1], role: r[2], clockIn: String(r[3] || '-'), clockOut: String(r[4] || '-'), wageEarned: Number(r[5]) || 0, status: r[6] || 'Hadir' };
-  });
-
-  var brandSettlements = readRows('SETTLEMENT_BRAND').slice(-80).map(function(r) {
-    return {
-      id: r[0], date: String(r[1] || ''), periodLabel: r[2], brand: r[3],
-      grossSales: Number(r[4]) || 0, commissionPct: Number(r[5]) || 10,
-      commissionCut: Number(r[6]) || 0, salaryCut: Number(r[7]) || 0,
-      netTransfer: Number(r[8]) || 0, pic: r[9]
-    };
-  });
-
-  return ContentService.createTextOutput(JSON.stringify({
-    status: 'ok',
-    outletProfile: outletProfileJson ? JSON.parse(outletProfileJson) : null,
-    brands: brandsJson ? JSON.parse(brandsJson) : null,
-    brandConfig: brandConfigJson ? JSON.parse(brandConfigJson) : null,
-    products: products,
-    categories: categories,
-    inventory: inventory,
-    staff: staff,
-    promos: promos,
-    customers: customers,
-    openOrders: openOrders,
-    transactions: transactions,
-    transactionItems: transactionItems,
-    cashflow: cashflow,
-    attendance: attendance,
-    brandSettlements: brandSettlements
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  setupMasterJiwaraSheets();
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var metaProps = PropertiesService.getScriptProperties();
-  var body = JSON.parse(e.postData.contents);
-  var type = body.eventType;
-  var d = body.data || {};
-
-  function getOrCreate(name) { return ss.getSheetByName(name); }
-
-  if (type === 'OUTLET_PROFILE_UPDATED') {
-    metaProps.setProperty('OUTLET_PROFILE_JSON', JSON.stringify(d));
-  } else if (type === 'POS_TRANSACTION_PAID') {
-    var shPos = getOrCreate('POS_TRANSAKSI');
-    var shItem = getOrCreate('POS_ITEM_TERJUAL');
-    var alreadyExists = false;
-    if (shPos.getLastRow() > 1) {
-      var existingIds = shPos.getRange(2, 1, shPos.getLastRow() - 1, 1).getValues();
-      for (var k = 0; k < existingIds.length; k++) {
-        if (String(existingIds[k][0]) === String(d.id)) {
-          alreadyExists = true;
-          break;
-        }
-      }
-    }
-    if (!alreadyExists) {
-      var items = d.items || [];
-      var totalQty = items.reduce(function(s, i) { return s + (i.qty || 0); }, 0);
-      shPos.appendRow([d.id, d.date, d.time, d.orderType, d.tableOrCustomer || '-', d.cashier, totalQty, d.subtotal, d.discount, d.promoCode || '-', d.total, d.paymentMethod, 'PAID']);
-      items.forEach(function(it) {
-        var sub = (it.price || 0) * (it.qty || 1);
-        var hpp = (it.cost || 0) * (it.qty || 1);
-        shItem.appendRow([
-          d.id, d.date, d.time, it.sku || '-', it.name, it.brand || 'Kopi Jiwara',
-          it.includeCommissionShare === false ? 'Tidak' : 'Ya',
-          it.includeSalaryShare === false ? 'Tidak' : 'Ya',
-          it.qty, it.price, sub, hpp, sub - hpp
-        ]);
-      });
-    }
-  } else if (type === 'PAID_TRX_CANCELLED') {
-    var shPos2 = getOrCreate('POS_TRANSAKSI');
-    if (shPos2.getLastRow() > 1) {
-      var vals = shPos2.getRange(2, 1, shPos2.getLastRow() - 1, 13).getValues();
-      for (var r = 0; r < vals.length; r++) {
-        if (String(vals[r][0]) === String(d.id)) {
-          shPos2.getRange(r + 2, 13).setValue('CANCELLED');
-        }
-      }
-    }
-  } else if (type === 'CASHFLOW_ADDED') {
-    var shCf = getOrCreate('ARUS_KAS_CASHFLOW');
-    shCf.appendRow([d.id, d.date, d.time, d.type, d.category, d.type === 'IN' ? d.amount : 0, d.type === 'OUT' ? d.amount : 0, d.note, d.pic]);
-  } else if (type === 'ATTENDANCE_CLOCK') {
-    var shAtt = getOrCreate('ABSENSI_KARYAWAN');
-    shAtt.appendRow([d.date, d.staffName, d.role, d.clockIn, d.clockOut, d.wageEarned, d.status]);
-  } else if (type === 'SHIFT_CLOSED') {
-    var shCls = getOrCreate('CLOSING_SHIFT');
-    shCls.appendRow([d.id, d.date, d.time, d.cashier, d.openingCash, d.cashSales, d.qrisSales, d.transferSales, d.onlineSales, d.totalSales, d.expectedCash, d.actualCash, d.diff]);
-  } else if (type === 'AUDIT_VOID_ITEM') {
-    var shAud = getOrCreate('AUDIT_OTORISASI');
-    shAud.appendRow([d.id, d.date, d.time, d.orderId, d.itemName, d.cashier, d.authorizedBy, d.reason]);
-  } else if (type === 'INVENTORY_UPDATED') {
-    var shLog = getOrCreate('LOG_STOK_GUDANG');
-    shLog.appendRow([d.id, d.date, d.time, d.itemName, d.type, d.qty, d.afterStock, d.pic]);
-  } else if (type === 'BRAND_SETTLEMENT_PAID') {
-    var shSet = getOrCreate('SETTLEMENT_BRAND');
-    shSet.appendRow([d.id, d.date, d.periodLabel, d.brand, d.grossSales, d.commissionPct, d.commissionCut, d.salaryCut, d.netTransfer, d.pic]);
-  } else if (type === 'SYNC_MASTER_SNAPSHOT') {
-    if (d.brands) metaProps.setProperty('BRANDS_LIST_JSON', JSON.stringify(d.brands));
-    if (d.brandConfig) metaProps.setProperty('BRAND_CONFIG_JSON', JSON.stringify(d.brandConfig));
-    if (d.products) {
-      var shM = getOrCreate('MASTER_MENU');
-      if (shM.getLastRow() > 1) shM.getRange(2, 1, shM.getLastRow() - 1, 11).clearContent();
-      if (d.products.length > 0) {
-        var rowsM = d.products.map(function(p) {
-          return [p.sku, p.name, p.category, p.brand, p.price, p.cost, p.stock, p.isFavorite ? 'Ya' : 'Tidak', p.active ? 'Aktif' : 'Nonaktif', p.includeCommissionShare === false ? 'Tidak' : 'Ya', p.includeSalaryShare === false ? 'Tidak' : 'Ya'];
-        });
-        shM.getRange(2, 1, rowsM.length, 11).setValues(rowsM);
-      }
-    }
-    if (d.categories) {
-      var shCat = getOrCreate('MASTER_KATEGORI');
-      if (shCat.getLastRow() > 1) shCat.getRange(2, 1, shCat.getLastRow() - 1, 2).clearContent();
-      if (d.categories.length > 0) {
-        var rowsCat = d.categories.map(function(c, idx) { return [idx + 1, c]; });
-        shCat.getRange(2, 1, rowsCat.length, 2).setValues(rowsCat);
-      }
-    }
-    if (d.inventory) {
-      var shI = getOrCreate('GUDANG_STOK');
-      if (shI.getLastRow() > 1) shI.getRange(2, 1, shI.getLastRow() - 1, 7).clearContent();
-      if (d.inventory.length > 0) {
-        var rowsI = d.inventory.map(function(i) { return [i.code, i.name, i.category, i.stock, i.minStock, i.unit, i.lastOpname]; });
-        shI.getRange(2, 1, rowsI.length, 7).setValues(rowsI);
-      }
-    }
-    if (d.staff) {
-      var shS = getOrCreate('MASTER_PEGAWAI');
-      if (shS.getLastRow() > 1) shS.getRange(2, 1, shS.getLastRow() - 1, 6).clearContent();
-      if (d.staff.length > 0) {
-        var rowsS = d.staff.map(function(s) { return [s.id, s.name, s.role, s.pin, s.dailyWage, s.active ? 'Aktif' : 'Nonaktif']; });
-        shS.getRange(2, 1, rowsS.length, 6).setValues(rowsS);
-      }
-    }
-    if (d.promos) {
-      var shP = getOrCreate('MASTER_PROMO');
-      if (shP.getLastRow() > 1) shP.getRange(2, 1, shP.getLastRow() - 1, 7).clearContent();
-      if (d.promos.length > 0) {
-        var rowsP = d.promos.map(function(p) { return [p.code, p.name, p.type, p.value, p.minOrder, p.validUntil, p.active ? 'Aktif' : 'Nonaktif']; });
-        shP.getRange(2, 1, rowsP.length, 7).setValues(rowsP);
-      }
-    }
-    if (d.customers) {
-      var shC = getOrCreate('CRM_PELANGGAN');
-      if (shC.getLastRow() > 1) shC.getRange(2, 1, shC.getLastRow() - 1, 9).clearContent();
-      if (d.customers.length > 0) {
-        var rowsC = d.customers.map(function(c) { return [c.id, c.name, c.phone, c.tier, c.visits, c.totalSpend, c.specialVoucher, c.voucherDiscount, c.voucherExpiry]; });
-        shC.getRange(2, 1, rowsC.length, 9).setValues(rowsC);
-      }
-    }
-    if (d.openOrders !== undefined) {
-      var shO = getOrCreate('OPEN_ORDERS');
-      if (shO.getLastRow() > 1) shO.getRange(2, 1, shO.getLastRow() - 1, 9).clearContent();
-      if (d.openOrders.length > 0) {
-        var rowsO = d.openOrders.map(function(o) { return [o.id, o.date, o.time, o.orderType, o.tableOrCustomer, o.customerPhone || '', o.cashier, o.total, JSON.stringify(o.items || [])]; });
-        shO.getRange(2, 1, rowsO.length, 9).setValues(rowsO);
-      }
-    }
-  }
-
-  return ContentService.createTextOutput(JSON.stringify({ status: 'ok', eventType: type })).setMimeType(ContentService.MimeType.JSON);
-}`;
-
-      openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.7 (15 Tab + Anti-Duplikat Sync)</h3>
-          <button class="close-circle" onclick="closeModal()">x</button>
-        </div>
-        <ol style="font-size:12px;color:var(--text-muted);padding-left:18px;margin-top:0;line-height:1.5;">
-          <li>Buka file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> -> klik <strong>Extensions -> Apps Script</strong>.</li>
-          <li>Hapus skrip lama, tempel skrip <strong>v2.7</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
-          <li>Klik <strong>Deploy -> Manage deployments -> Edit (ikon pensil) -> Version: New version -> Deploy</strong> (akses <em>Anyone</em>).</li>
-        </ol>
-        <textarea id="gasCodeBox" readonly style="width:100%;height:190px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#F8FAFC;">${esc(scriptCode)}</textarea>
-        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v2.7 berhasil disalin!')">Salin Skrip v2.7</button>
-      `);
-    }
-
     // ==================== BOOTSTRAP APP ====================
     function initApp() {
       renderLoginStaffDropdown();
       checkExistingSession();
+      startCloudAutoPullLoop();
+      if (db.settings.webhookUrl && navigator.onLine) {
+        pullFromCloudMaster(false);
+      }
     }
 
     if (document.readyState === 'loading') {
