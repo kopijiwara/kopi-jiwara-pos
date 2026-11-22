@@ -137,11 +137,17 @@
       padding: 13px 15px;
       border-radius: 15px;
       border: 1.5px solid rgba(250, 204, 21, 0.55);
-      background: rgba(11, 46, 35, 0.78);
+      background-color: #0B2E23;
       color: #FFFFFF;
       font-size: 14px;
       font-weight: 800;
       outline: none;
+      cursor: pointer;
+    }
+    .login-select option {
+      background-color: #0B2E23;
+      color: #FFFFFF;
+      font-weight: 700;
     }
     .pin-dots {
       display: flex;
@@ -1060,6 +1066,9 @@
           settings: { ...seed.settings, ...(parsed.settings || {}) },
           shift: { ...seed.shift, ...(parsed.shift || {}) }
         };
+        if (!Array.isArray(merged.staff) || merged.staff.filter(s => s && s.active !== false).length === 0) {
+          merged.staff = seed.staff;
+        }
         merged.categories = normalizeUniqueCategories(merged.categories);
         if (!Array.isArray(merged.brandConfigs) || merged.brandConfigs.length === 0) {
           merged.brandConfigs = getDefaultBrandConfigs();
@@ -1457,8 +1466,13 @@
       }
 
       if (Array.isArray(data.staff) && data.staff.length > 0) {
-        if (JSON.stringify(data.staff) !== JSON.stringify(db.staff)) {
-          db.staff = data.staff;
+        const cleanStaff = data.staff.map(s => ({
+          ...s,
+          pin: String(s.pin || '1234').padStart(4, '0'),
+          active: s.active !== false && String(s.active).toLowerCase() !== 'nonaktif'
+        }));
+        if (cleanStaff.some(s => s.active) && JSON.stringify(cleanStaff) !== JSON.stringify(db.staff)) {
+          db.staff = cleanStaff;
           changed = true;
         }
       }
@@ -2079,8 +2093,20 @@
     function renderLoginStaffDropdown() {
       const sel = document.getElementById('loginStaffSelect');
       if (!sel) return;
-      const activeStaff = db.staff.filter(s => s.active);
+      if (!Array.isArray(db.staff) || db.staff.length === 0) {
+        db.staff = getInitialSeedDB().staff;
+        saveDB();
+      }
+      let activeStaff = db.staff.filter(s => s && s.active !== false);
+      if (activeStaff.length === 0) {
+        db.staff = getInitialSeedDB().staff;
+        saveDB();
+        activeStaff = db.staff;
+      }
       sel.innerHTML = activeStaff.map(s => `<option value="${esc(s.id)}">${esc(s.name)} • ${esc(s.role)}</option>`).join('');
+      if (sel.options.length > 0 && sel.selectedIndex < 0) {
+        sel.selectedIndex = 0;
+      }
     }
 
     function updatePinDotsUI() {
