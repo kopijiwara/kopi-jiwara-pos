@@ -274,11 +274,6 @@
       border-color: var(--yellow);
       color: var(--yellow);
     }
-    .live-sync-pill.local-only {
-      border-color: rgba(244, 114, 182, 0.65);
-      background: rgba(244, 114, 182, 0.18);
-      color: #FBCFE8;
-    }
     .live-dot {
       width: 7px;
       height: 7px;
@@ -289,10 +284,6 @@
     .live-sync-pill.syncing .live-dot {
       background: var(--yellow);
       box-shadow: 0 0 6px var(--yellow);
-    }
-    .live-sync-pill.local-only .live-dot {
-      background: var(--pink);
-      box-shadow: 0 0 6px var(--pink);
     }
 
     .nav-bar {
@@ -790,9 +781,9 @@
           </div>
 
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;">
-            <button id="headerCloudSyncBtn" type="button" class="live-sync-pill" onclick="handleHeaderSyncButtonClick()" title="Status Sinkronisasi Cloud Multi-Device">
+            <button id="headerCloudSyncBtn" type="button" class="live-sync-pill hidden" onclick="pullFromCloudMaster(true)" title="Tarik data terbaru dari Google Sheets sekarang">
               <span class="live-dot"></span>
-              <span id="headerCloudSyncLabel">Mode Lokal</span>
+              <span id="headerCloudSyncLabel">Live Sync</span>
             </button>
             <button id="modeSwitchBtn" class="btn btn-yellow btn-sm hidden" onclick="toggleWorkspaceMode()">Mode Kasir</button>
             <button class="btn btn-pink btn-sm" onclick="handleLogoutAction()">Keluar</button>
@@ -861,10 +852,10 @@
 
     (function setupOfflineServiceWorker() {
       try {
-        const startUrl = window.location.href.split('#')[0].split('?')[0];
+        const startUrl = window.location.href.split('#')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v16';
+            const CACHE_NAME = 'kopi-jiwara-offline-v15';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -969,7 +960,7 @@
           printerAutoPrint: false,
           printerPaperSize: '58mm',
           autoPullEnabled: true,
-          autoPullIntervalSec: 10
+          autoPullIntervalSec: 15
         },
         staff: [
           { id: 'STF-1', name: 'Gordon (Owner)', role: 'Owner', pin: '1234', dailyWage: 0, active: true },
@@ -1092,24 +1083,6 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
       } catch (e) {}
     }
-
-    // ==================== AUTO-PAIR WEBHOOK VIA URL HASH / QUERY ====================
-    (function checkUrlAutoPairWebhook() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
-        const pairWebhook = params.get('webhook') || hashParams.get('webhook');
-        if (pairWebhook && pairWebhook.startsWith('https://script.google.com/')) {
-          db.settings.webhookUrl = pairWebhook.trim();
-          saveDB();
-          const cleanUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-          setTimeout(() => {
-            showToast('Perangkat berhasil terhubung otomatis ke Cloud Google Sheets!');
-          }, 500);
-        }
-      } catch (e) {}
-    })();
 
     function resetAllTransactionsToZero() {
       openModal(`
@@ -1273,7 +1246,7 @@
         const diffToMon = day === 0 ? -6 : 1 - day;
         start.setDate(start.getDate() + diffToMon - 7);
         end.setTime(start.getTime());
-        end.setDate(end.getDate() + 6);
+        end.setDate(start.getDate() + 6);
         end.setHours(23, 59, 59);
         label = 'Minggu Lalu';
       } else if (period === '7D') {
@@ -1330,84 +1303,13 @@
       const lbl = document.getElementById('headerCloudSyncLabel');
       if (!btn || !lbl) return;
       const url = (db.settings.webhookUrl || '').trim();
+      if (!url) {
+        btn.classList.add('hidden');
+        return;
+      }
       btn.classList.remove('hidden');
-      if (!url) {
-        btn.classList.remove('syncing');
-        btn.classList.add('local-only');
-        lbl.textContent = 'Belum Sync';
-        return;
-      }
-      btn.classList.remove('local-only');
       btn.classList.toggle('syncing', isBusy);
-      lbl.textContent = statusText || 'Live Sync';
-    }
-
-    function handleHeaderSyncButtonClick() {
-      const url = (db.settings.webhookUrl || '').trim();
-      if (!url) {
-        if (currentUser && (currentUser.role === 'Owner' || currentUser.role === 'Manager')) {
-          workspaceMode = 'OWNER';
-          activeTab = 'pengaturan';
-          settingsSubTab = 'SYNC';
-          renderWorkspace();
-          showToast('Tempel URL Web App Google Sheets di sini agar perangkat terhubung ke Cloud.', true);
-        } else {
-          openQuickDeviceSyncSetupModal();
-        }
-        return;
-      }
-      flushOfflineQueue(true);
-      pullFromCloudMaster(true);
-    }
-
-    function openQuickDeviceSyncSetupModal() {
-      openModal(`
-        <div class="modal-head">
-          <h3 style="margin:0;font-size:17px;">Hubungkan Perangkat ke Cloud</h3>
-          <button class="close-circle" onclick="closeModal()">x</button>
-        </div>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-          Perangkat ini masih dalam <strong>Mode Lokal</strong> sehingga transaksi belum masuk ke HP/Laptop lain. Tempel URL Web App Google Apps Script dari perangkat Owner:
-        </p>
-        <div style="margin-bottom:12px;">
-          <label class="field-label">URL Web App Google Apps Script</label>
-          <input id="quickPairWebhookInp" type="url" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.settings.webhookUrl || '')}" />
-        </div>
-        <button type="button" class="btn btn-dark" style="width:100%;" onclick="saveQuickPairWebhook()">Hubungkan & Sinkronkan Sekarang</button>
-      `);
-    }
-
-    function saveQuickPairWebhook() {
-      const val = (document.getElementById('quickPairWebhookInp')?.value || '').trim();
-      if (!val) {
-        showToast('Masukkan URL Web App terlebih dahulu.', true);
-        return;
-      }
-      db.settings.webhookUrl = val;
-      saveDB();
-      closeModal();
-      renderHeaderAndNav();
-      startCloudAutoPullLoop();
-      pushAllLocalTransactionsToCloud();
-      pullFromCloudMaster(true);
-    }
-
-    function getAutoPairDeviceLink() {
-      const webhook = (db.settings.webhookUrl || '').trim();
-      const base = window.location.origin + window.location.pathname;
-      if (!webhook) return base;
-      return `${base}?webhook=${encodeURIComponent(webhook)}`;
-    }
-
-    function copyAutoPairDeviceLink() {
-      const webhook = (db.settings.webhookUrl || '').trim();
-      if (!webhook) {
-        showToast('Simpan URL Web App Google Apps Script terlebih dahulu.', true);
-        return;
-      }
-      const link = getAutoPairDeviceLink();
-      navigator.clipboard.writeText(link);
-      showToast('Link Auto-Sync berhasil disalin! Buka link ini di HP/Tablet lain agar langsung terhubung.');
+      lbl.textContent = statusText;
     }
 
     function isUserActivelyTyping() {
@@ -1441,21 +1343,6 @@
         db.offlineQueue.push(envelope);
         saveDB();
       });
-    }
-
-    function pushAllLocalTransactionsToCloud() {
-      const url = (db.settings.webhookUrl || '').trim();
-      if (!url) {
-        showToast('Isi URL Web App terlebih dahulu.', true);
-        return;
-      }
-      const paidList = db.transactions.filter(t => t.status === 'PAID');
-      paidList.forEach(trx => {
-        syncMasterEvent('POS_TRANSACTION_PAID', trx);
-      });
-      autoSyncMasterSlices(['OPEN_ORDERS', 'CUSTOMERS']);
-      flushOfflineQueue(true);
-      showToast(`${paidList.length} transaksi lokal disinkronkan ke Cloud!`);
     }
 
     function autoSyncMasterSlices(slices) {
@@ -1598,28 +1485,27 @@
         }
       }
 
-      const itemsByTrx = {};
-      if (Array.isArray(data.paidItems)) {
-        data.paidItems.forEach(it => {
-          if (!it || !it.trxId) return;
-          if (!itemsByTrx[it.trxId]) itemsByTrx[it.trxId] = [];
-          itemsByTrx[it.trxId].push({
-            id: it.id || ('PRD-' + (it.sku || it.name)),
-            sku: it.sku || '-',
-            name: it.name || 'Menu',
-            brand: it.brand || 'Kopi Jiwara',
-            includeCommissionShare: it.includeCommissionShare !== false,
-            includeSalaryShare: it.includeSalaryShare !== false,
-            qty: Number(it.qty) || 1,
-            price: Number(it.price) || 0,
-            cost: Number(it.cost) || 0
-          });
-        });
-      }
-
-      const localMap = new Map(db.transactions.map(t => [t.id, t]));
-
       if (Array.isArray(data.paidTransactions)) {
+        const localMap = new Map(db.transactions.map(t => [t.id, t]));
+        const itemsByTrx = {};
+        if (Array.isArray(data.paidItems)) {
+          data.paidItems.forEach(it => {
+            if (!it || !it.trxId) return;
+            if (!itemsByTrx[it.trxId]) itemsByTrx[it.trxId] = [];
+            itemsByTrx[it.trxId].push({
+              id: it.id || ('PRD-' + (it.sku || it.name)),
+              sku: it.sku || '-',
+              name: it.name || 'Menu',
+              brand: it.brand || 'Kopi Jiwara',
+              includeCommissionShare: it.includeCommissionShare !== false,
+              includeSalaryShare: it.includeSalaryShare !== false,
+              qty: Number(it.qty) || 1,
+              price: Number(it.price) || 0,
+              cost: Number(it.cost) || 0
+            });
+          });
+        }
+
         data.paidTransactions.forEach(pt => {
           if (!pt || !pt.id) return;
           const normDate = normalizeCloudDate(pt.date);
@@ -1628,7 +1514,7 @@
           const existing = localMap.get(pt.id);
 
           if (!existing) {
-            db.transactions.unshift({
+            db.transactions.push({
               id: pt.id,
               status: 'PAID',
               date: normDate,
@@ -1668,23 +1554,11 @@
         });
       }
 
-      if (Array.isArray(data.cancelledTransactions)) {
-        data.cancelledTransactions.forEach(ct => {
-          if (!ct || !ct.id) return;
-          const existing = localMap.get(ct.id);
-          if (existing && existing.status !== 'CANCELLED') {
-            existing.status = 'CANCELLED';
-            existing.cancelReason = ct.cancelReason || 'Dibatalkan di perangkat lain';
-            changed = true;
-          }
-        });
-      }
-
       if (Array.isArray(data.cashDrawer)) {
         const localCashIds = new Set(db.cashDrawer.map(c => c.id));
         data.cashDrawer.forEach(cc => {
           if (cc && cc.id && !localCashIds.has(cc.id)) {
-            db.cashDrawer.unshift({
+            db.cashDrawer.push({
               id: cc.id,
               date: normalizeCloudDate(cc.date),
               time: cc.time || '00:00',
@@ -1702,7 +1576,7 @@
         const localAttIds = new Set(db.attendance.map(a => a.id));
         data.attendance.forEach(ca => {
           if (ca && ca.id && !localAttIds.has(ca.id)) {
-            db.attendance.unshift({
+            db.attendance.push({
               id: ca.id,
               date: normalizeCloudDate(ca.date),
               staffId: ca.staffId || '',
@@ -1721,7 +1595,7 @@
         const localStlIds = new Set((db.brandSettlements || []).map(s => s.id));
         data.brandSettlements.forEach(cs => {
           if (cs && cs.id && !localStlIds.has(cs.id)) {
-            db.brandSettlements.unshift({
+            db.brandSettlements.push({
               ...cs,
               date: normalizeCloudDate(cs.date)
             });
@@ -1737,7 +1611,6 @@
     async function pullFromCloudMaster(manualTrigger = false) {
       const url = (db.settings.webhookUrl || '').trim();
       if (!url) {
-        updateLiveSyncIndicator('Belum Sync', false);
         if (manualTrigger) showToast('Isi URL Webhook Google Apps Script terlebih dahulu.', true);
         return;
       }
@@ -1776,7 +1649,7 @@
 
     function startCloudAutoPullLoop() {
       if (autoPullTimer) clearInterval(autoPullTimer);
-      const sec = Math.max(8, Number(db.settings.autoPullIntervalSec) || 10);
+      const sec = Math.max(10, Number(db.settings.autoPullIntervalSec) || 15);
       autoPullTimer = setInterval(() => {
         if (currentUser && db.settings.webhookUrl && db.settings.autoPullEnabled !== false) {
           pullFromCloudMaster(false);
@@ -1932,7 +1805,7 @@
         db.settings.printerDeviceId = device.id || 'BT-LOCKED';
         db.settings.printerLocked = true;
         saveDB();
-        renderPengaturanTab(document.getElementById('mainContentArea'));
+        renderSettingsTab(document.getElementById('mainContentArea'));
         showToast(`Printer "${db.settings.printerName}" berhasil terhubung & dikunci!`);
       } catch (err) {
         showToast('Koneksi Bluetooth dibatalkan atau gagal.', true);
@@ -1946,7 +1819,7 @@
       db.settings.printerName = '';
       db.settings.printerDeviceId = '';
       saveDB();
-      renderPengaturanTab(document.getElementById('mainContentArea'));
+      renderSettingsTab(document.getElementById('mainContentArea'));
       showToast('Kunci printer Bluetooth dilepas.');
     }
 
@@ -2239,10 +2112,7 @@
       document.getElementById('appWorkspace').classList.remove('hidden');
       renderWorkspace();
       startCloudAutoPullLoop();
-      if (db.settings.webhookUrl) {
-        flushOfflineQueue(true);
-        pullFromCloudMaster(false);
-      }
+      if (db.settings.webhookUrl) pullFromCloudMaster(false);
       if (db.settings.printerLocked) ensureBtPrinterConnected(true);
     }
 
@@ -2302,7 +2172,7 @@
       if (db.settings.webhookUrl) {
         updateLiveSyncIndicator('Live Sync', false);
       } else {
-        updateLiveSyncIndicator('Belum Sync', false);
+        updateLiveSyncIndicator('', false);
       }
 
       const isMgmt = currentUser.role === 'Owner' || currentUser.role === 'Manager';
@@ -2343,9 +2213,6 @@
     function switchTab(tabId) {
       activeTab = tabId;
       renderWorkspace();
-      if ((tabId === 'penjualan' || tabId === 'laporan') && db.settings.webhookUrl) {
-        pullFromCloudMaster(false);
-      }
     }
 
     function renderWorkspace() {
@@ -3462,16 +3329,6 @@
       });
 
       container.innerHTML = `
-        ${!db.settings.webhookUrl ? `
-          <div class="bento-card" style="background:linear-gradient(135deg,#FDF2F8,#FEFCE8);border:1.5px solid var(--pink);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:900;font-size:13px;color:#9D174D;">Perangkat Ini Masih Mode Lokal (Belum Terhubung Cloud)</div>
-              <div style="font-size:11px;color:var(--text-muted);">Hubungkan URL Web App Google Sheets agar laporan penjualan di HP, Tablet, dan Desktop selalu sama.</div>
-            </div>
-            <button type="button" class="btn btn-dark btn-sm" onclick="handleHeaderSyncButtonClick()">Hubungkan Cloud Sekarang</button>
-          </div>
-        ` : ''}
-
         <div class="bento-grid-4" style="margin-bottom:14px;">
           <div class="kpi-tile dark">
             <div class="kpi-label">Total Penjualan (${esc(bounds.label)})</div>
@@ -3512,9 +3369,6 @@
         <div class="bento-card">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
             <input type="text" class="styled-input" style="flex:1;min-width:200px;" placeholder="Cari nomor nota, meja/pelanggan, atau menu..." value="${esc(salesSearch)}" oninput="salesSearch=this.value;renderSalesTab(document.getElementById('mainContentArea'))" />
-            ${db.settings.webhookUrl ? `
-              <button type="button" class="btn btn-soft btn-sm" onclick="pullFromCloudMaster(true)">Refresh Data Cloud</button>
-            ` : ''}
             ${!isKasirMode ? `
               <select class="styled-select" style="width:auto;min-width:150px;" onchange="salesPeriod=this.value;renderSalesTab(document.getElementById('mainContentArea'))">
                 <option value="TODAY" ${salesPeriod === 'TODAY' ? 'selected' : ''}>Hari Ini</option>
@@ -5184,7 +5038,7 @@
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
                 <h3 style="margin:0;font-size:16px;">Sinkronisasi Cloud & Multi-Device</h3>
                 <span class="badge-pill ${db.settings.webhookUrl ? 'badge-green' : 'badge-pink'}">
-                  ${db.settings.webhookUrl ? '2-Way Sync Aktif' : 'Belum Terhubung'}
+                  ${db.settings.webhookUrl ? '2-Way Sync Aktif' : 'Lokal Saja'}
                 </span>
               </div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
@@ -5196,17 +5050,6 @@
                 <input id="setWebhookUrl" type="url" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.settings.webhookUrl || '')}" />
               </div>
 
-              ${db.settings.webhookUrl ? `
-                <div style="background:var(--green-soft);border:1px solid var(--border-glass);border-radius:14px;padding:10px 12px;margin-bottom:10px;">
-                  <div style="font-size:11px;font-weight:900;color:var(--green-deep);">Hubungkan HP / Tablet Lain dalam 1 Klik</div>
-                  <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Salin tautan di bawah lalu kirim ke WA HP/Tablet kasir. Begitu dibuka, URL Cloud langsung terpasang otomatis.</div>
-                  <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-                    <button type="button" class="btn btn-dark btn-sm" onclick="copyAutoPairDeviceLink()">Salin Link Auto-Sync Perangkat</button>
-                    <button type="button" class="btn btn-soft btn-sm" onclick="pushAllLocalTransactionsToCloud()">Upload Transaksi Lokal ke Cloud</button>
-                  </div>
-                </div>
-              ` : ''}
-
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
                 <div style="display:flex;align-items:center;">
                   <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;">
@@ -5216,11 +5059,11 @@
                 </div>
                 <div>
                   <label class="field-label">Interval Tarik Data</label>
-                  <select class="styled-select" onchange="db.settings.autoPullIntervalSec=Number(this.value)||10;saveDB();startCloudAutoPullLoop()">
-                    <option value="8" ${Number(db.settings.autoPullIntervalSec) === 8 ? 'selected' : ''}>Setiap 8 Detik</option>
-                    <option value="10" ${(Number(db.settings.autoPullIntervalSec) || 10) === 10 ? 'selected' : ''}>Setiap 10 Detik</option>
-                    <option value="15" ${Number(db.settings.autoPullIntervalSec) === 15 ? 'selected' : ''}>Setiap 15 Detik</option>
+                  <select class="styled-select" onchange="db.settings.autoPullIntervalSec=Number(this.value)||15;saveDB();startCloudAutoPullLoop()">
+                    <option value="10" ${Number(db.settings.autoPullIntervalSec) === 10 ? 'selected' : ''}>Setiap 10 Detik</option>
+                    <option value="15" ${(Number(db.settings.autoPullIntervalSec) || 15) === 15 ? 'selected' : ''}>Setiap 15 Detik</option>
                     <option value="30" ${Number(db.settings.autoPullIntervalSec) === 30 ? 'selected' : ''}>Setiap 30 Detik</option>
+                    <option value="60" ${Number(db.settings.autoPullIntervalSec) === 60 ? 'selected' : ''}>Setiap 60 Detik</option>
                   </select>
                 </div>
               </div>
@@ -5230,7 +5073,7 @@
                 <button type="button" class="btn btn-yellow" onclick="pullFromCloudMaster(true)">Tarik Data Cloud</button>
                 <button type="button" class="btn btn-soft" onclick="pushAllMasterToCloud()">Upload Semua Master</button>
                 <button type="button" class="btn btn-soft" onclick="flushOfflineQueue()">Kirim Antrean (${db.offlineQueue.length})</button>
-                <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.7</button>
+                <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.6</button>
               </div>
 
               <div style="border-top:1px dashed var(--border-glass);padding-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -5305,7 +5148,6 @@
       if (db.settings.webhookUrl) {
         pullFromCloudMaster(true);
       }
-      renderPengaturanTab(document.getElementById('mainContentArea'));
       showToast('URL Sinkronisasi Google Sheets disimpan!');
     }
 
@@ -5579,9 +5421,9 @@
       }
     }
 
-    // ==================== GOOGLE APPS SCRIPT v2.7 (15 SHEETS + VOID & MULTI-DEVICE SYNC) ====================
+    // ==================== GOOGLE APPS SCRIPT v2.6 (15 SHEETS + OUTLET PROFILE + VOID SYNC) ====================
     function openAppsScriptGuideModal() {
-      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.7 — 2-WAY REALTIME + VOID SYNC) ====================
+      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.6 — 2-WAY REALTIME + VOID SYNC) ====================
 function setupMasterJiwaraSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var specs = [
@@ -5750,22 +5592,17 @@ function doGet(e) {
   }
 
   var paidTransactions = [];
-  var cancelledTransactions = [];
   var shPos = ss.getSheetByName('POS_TRANSAKSI');
   if (shPos && shPos.getLastRow() > 1) {
     var startRow = Math.max(2, shPos.getLastRow() - 499);
     shPos.getRange(startRow, 1, shPos.getLastRow() - startRow + 1, 13).getValues().forEach(function(r) {
-      if (!r[0]) return;
-      var st = String(r[12]).toUpperCase();
-      if (st === 'PAID') {
+      if (r[0] && String(r[12]).toUpperCase() === 'PAID') {
         paidTransactions.push({
           id: String(r[0]), date: toIsoDate(r[1]), time: toTimeStr(r[2]), orderType: String(r[3]),
           tableOrCustomer: String(r[4]), cashier: String(r[5]), subtotal: Number(r[7]) || 0,
           discount: Number(r[8]) || 0, promoCode: String(r[9] || ''), total: Number(r[10]) || 0,
           paymentMethod: String(r[11] || 'Cash'), items: []
         });
-      } else if (st === 'CANCELLED') {
-        cancelledTransactions.push({ id: String(r[0]), cancelReason: 'Dibatalkan di perangkat lain' });
       }
     });
   }
@@ -5855,7 +5692,6 @@ function doGet(e) {
     customers: customers,
     openOrders: openOrders,
     paidTransactions: paidTransactions,
-    cancelledTransactions: cancelledTransactions,
     paidItems: paidItems,
     cashDrawer: cashDrawer,
     attendance: attendance,
@@ -5887,28 +5723,19 @@ function doPost(e) {
   } else if (type === 'POS_TRANSACTION_PAID') {
     var shPos = getOrCreate('POS_TRANSAKSI');
     var shItem = getOrCreate('POS_ITEM_TERJUAL');
-    var exists = false;
-    if (shPos.getLastRow() > 1) {
-      var existingIds = shPos.getRange(2, 1, shPos.getLastRow() - 1, 1).getValues();
-      for (var k = 0; k < existingIds.length; k++) {
-        if (String(existingIds[k][0]) === String(d.id)) { exists = true; break; }
-      }
-    }
-    if (!exists) {
-      var items = d.items || [];
-      var totalQty = items.reduce(function(s, i) { return s + (i.qty || 0); }, 0);
-      shPos.appendRow([d.id, d.date, d.time, d.orderType, d.tableOrCustomer || '-', d.cashier, totalQty, d.subtotal, d.discount, d.promoCode || '-', d.total, d.paymentMethod, 'PAID']);
-      items.forEach(function(it) {
-        var sub = (it.price || 0) * (it.qty || 1);
-        var hpp = (it.cost || 0) * (it.qty || 1);
-        shItem.appendRow([
-          d.id, d.date, d.time, it.sku || '-', it.name, it.brand || 'Kopi Jiwara',
-          it.includeCommissionShare === false ? 'Tidak' : 'Ya',
-          it.includeSalaryShare === false ? 'Tidak' : 'Ya',
-          it.qty, it.price, sub, hpp, sub - hpp
-        ]);
-      });
-    }
+    var items = d.items || [];
+    var totalQty = items.reduce(function(s, i) { return s + (i.qty || 0); }, 0);
+    shPos.appendRow([d.id, d.date, d.time, d.orderType, d.tableOrCustomer || '-', d.cashier, totalQty, d.subtotal, d.discount, d.promoCode || '-', d.total, d.paymentMethod, 'PAID']);
+    items.forEach(function(it) {
+      var sub = (it.price || 0) * (it.qty || 1);
+      var hpp = (it.cost || 0) * (it.qty || 1);
+      shItem.appendRow([
+        d.id, d.date, d.time, it.sku || '-', it.name, it.brand || 'Kopi Jiwara',
+        it.includeCommissionShare === false ? 'Tidak' : 'Ya',
+        it.includeSalaryShare === false ? 'Tidak' : 'Ya',
+        it.qty, it.price, sub, hpp, sub - hpp
+      ]);
+    });
   } else if (type === 'PAID_TRX_CANCELLED') {
     var shPosCancel = getOrCreate('POS_TRANSAKSI');
     if (shPosCancel.getLastRow() > 1) {
@@ -5989,16 +5816,17 @@ function doPost(e) {
 
       openModal(`
         <div class="modal-head">
-          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.7 (15 Tab + Anti-Duplikat & Void Sync)</h3>
+          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.6 (15 Tab + 2-Way Sync)</h3>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <ol style="font-size:12px;color:var(--text-muted);padding-left:18px;margin-top:0;line-height:1.5;">
           <li>Buka file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> -> klik <strong>Extensions -> Apps Script</strong>.</li>
-          <li>Hapus skrip lama, tempel skrip <strong>v2.7</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
+          <li>Hapus skrip lama, tempel skrip <strong>v2.6</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
+          <li>Pilih fungsi <strong><code>setupMasterJiwaraSheets</code></strong> di menu atas -> klik <strong>Run</strong> (1x saja untuk membuat 15 sheet otomatis).</li>
           <li>Klik <strong>Deploy -> Manage deployments -> Edit (ikon pensil) -> Version: New version -> Deploy</strong> (akses <em>Anyone</em>).</li>
         </ol>
         <textarea id="gasCodeBox" readonly style="width:100%;height:190px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#F8FAFC;">${esc(scriptCode)}</textarea>
-        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v2.7 berhasil disalin!')">Salin Skrip v2.7</button>
+        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v2.6 berhasil disalin!')">Salin Skrip v2.6</button>
       `);
     }
 
