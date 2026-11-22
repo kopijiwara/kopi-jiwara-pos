@@ -872,7 +872,7 @@
         const startUrl = window.location.href.split('#')[0].split('?')[0];
         if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
           const swCode = `
-            const CACHE_NAME = 'kopi-jiwara-offline-v18';
+            const CACHE_NAME = 'kopi-jiwara-offline-v19';
             const APP_URL = ${JSON.stringify(startUrl)};
             self.addEventListener('install', function(e) {
               e.waitUntil(
@@ -929,7 +929,7 @@
       const result = ['Favorit'];
       (list || []).forEach(raw => {
         const clean = String(raw || '').trim();
-        if (!clean) return;
+        if (!clean || clean === '-' || /^\d+$/.test(clean) || /^20\d{2}-\d{2}-\d{2}/.test(clean)) return;
         const key = clean.toLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
@@ -945,7 +945,7 @@
       const out = [];
       activeList.forEach(b => {
         const clean = String(b || '').trim();
-        if (!clean) return;
+        if (!clean || clean === '-' || /^\d+$/.test(clean)) return;
         const k = clean.toLowerCase();
         if (!seen.has(k)) {
           seen.add(k);
@@ -1077,6 +1077,33 @@
       };
     }
 
+    function sanitizeCorruptedProducts(prods, seedProds) {
+      if (!Array.isArray(prods) || prods.length === 0) return [...seedProds];
+      const looksCorrupted = prods.some(p =>
+        /^\d{4}-\d{2}-\d{2}T/.test(String(p.sku || '')) ||
+        !isNaN(Number(p.brand)) && String(p.brand).trim() !== ''
+      );
+      if (looksCorrupted) return [...seedProds];
+      const fixed = prods.map((p, idx) => ({
+        id: p.id || ('PRD-' + (idx + 1)),
+        sku: String(p.sku || ('SKU-' + (idx + 1))).trim(),
+        name: String(p.name || 'Menu').trim(),
+        category: String(p.category || 'Kopi Jiwara').trim(),
+        brand: String(p.brand || 'Kopi Jiwara').trim(),
+        price: Number(p.price) || 0,
+        cost: Number(p.cost) || 0,
+        stock: Number(p.stock) || 0,
+        isFavorite: p.isFavorite === true || String(p.isFavorite).toLowerCase() === 'ya',
+        active: p.active !== false && String(p.active).toLowerCase() !== 'nonaktif',
+        includeCommissionShare: p.includeCommissionShare !== false && String(p.includeCommissionShare).toLowerCase() !== 'tidak',
+        includeSalaryShare: p.includeSalaryShare !== false && String(p.includeSalaryShare).toLowerCase() !== 'tidak'
+      }));
+      if (fixed.filter(p => p.active).length === 0) {
+        fixed.forEach(p => { p.active = true; });
+      }
+      return fixed;
+    }
+
     function loadDB() {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -1108,7 +1135,9 @@
         if (!Array.isArray(merged.staff) || merged.staff.filter(s => s && s.active !== false).length === 0) {
           merged.staff = [...seed.staff];
         }
-        merged.categories = normalizeUniqueCategories(merged.categories || seed.categories);
+        merged.products = sanitizeCorruptedProducts(merged.products, seed.products);
+        const prodCats = merged.products.map(p => p.category).filter(Boolean);
+        merged.categories = normalizeUniqueCategories([...(merged.categories || seed.categories), ...prodCats]);
         if (!Array.isArray(merged.brands) || merged.brands.length === 0) {
           merged.brands = [...DEFAULT_BRAND_LIST];
         }
@@ -1388,10 +1417,10 @@
           applyCloudPullData(cloud);
           lastCloudSyncTime = nowTimeStr();
           updateSyncBadgeUI('online', `Live • ${lastCloudSyncTime}`);
-          if (manualTrigger) showToast('Data berhasil disinkronkan dari Google Sheets!');
+          if (manualTrigger) showToast('Data MASTER_MENU & database berhasil disinkronkan!');
         } else {
           updateSyncBadgeUI('online', lastCloudSyncTime ? `Live • ${lastCloudSyncTime}` : 'Live Sync');
-          if (manualTrigger) showToast('Gunakan Skrip Google Sheets v2.9 agar 2-Way Sync aktif.', true);
+          if (manualTrigger) showToast('Gunakan Skrip Google Sheets v3.0 agar 2-Way Sync aktif.', true);
         }
       } catch (err) {
         updateSyncBadgeUI('offline', 'Gagal Sync');
@@ -1399,6 +1428,73 @@
       } finally {
         isCloudPulling = false;
       }
+    }
+
+    function normalizePulledProductRow(cp, idx, existingMap) {
+      let sku = String(cp.sku || '').trim();
+      let name = String(cp.name || '').trim();
+      let category = String(cp.category || '').trim();
+      let brand = String(cp.brand || '').trim();
+      let price = Number(cp.price);
+      let cost = Number(cp.cost);
+      let stock = Number(cp.stock);
+      let favRaw = cp.isFavorite;
+      let actRaw = cp.active;
+      let commRaw = cp.includeCommissionShare;
+      let salRaw = cp.includeSalaryShare;
+
+      // Deteksi otomatis jika skrip GAS lama mengembalikan kolom bergeser akibat kolom Update_Time
+      if (/^\d{4}-\d{2}-\d{2}T/.test(sku) || (!isNaN(Number(brand)) && brand !== '' && Number(brand) >= 1000)) {
+        const shiftedSku = name;
+        const shiftedName = category;
+        const shiftedCat = brand;
+        const shiftedBrand = String(cp.price || 'Kopi Jiwara').trim();
+        const shiftedPrice = Number(cp.cost) || 0;
+        const shiftedCost = Number(cp.stock) || 0;
+        const shiftedStock = Number(cp.isFavorite) || 0;
+        const shiftedFav = cp.active;
+        const shiftedAct = cp.includeCommissionShare;
+        const shiftedComm = cp.includeSalaryShare;
+
+        sku = shiftedSku || ('SKU-' + (idx + 1));
+        name = shiftedName || 'Menu';
+        category = shiftedCat || 'Kopi Jiwara';
+        brand = shiftedBrand || 'Kopi Jiwara';
+        price = shiftedPrice;
+        cost = shiftedCost;
+        stock = shiftedStock;
+        favRaw = shiftedFav;
+        actRaw = shiftedAct;
+        commRaw = shiftedComm;
+        salRaw = true;
+      }
+
+      if (!sku) sku = 'SKU-' + (idx + 1);
+      if (!name) name = 'Menu';
+      if (!category || category === '-' || /^\d+$/.test(category)) category = 'Kopi Jiwara';
+      if (!brand || brand === '-' || /^\d+$/.test(brand)) brand = 'Kopi Jiwara';
+
+      const prev = existingMap.get(sku);
+      const isFavBool = favRaw === true || ['ya', 'true', 'yes', '1'].includes(String(favRaw || '').trim().toLowerCase());
+      const actStr = String(actRaw === undefined || actRaw === null ? 'aktif' : actRaw).trim().toLowerCase();
+      const isActiveBool = actRaw !== false && !['nonaktif', 'tidak', 'false', '0'].includes(actStr);
+      const isCommBool = commRaw !== false && !['tidak', 'nonaktif', 'false', '0'].includes(String(commRaw || 'ya').trim().toLowerCase());
+      const isSalBool = salRaw !== false && !['tidak', 'nonaktif', 'false', '0'].includes(String(salRaw || 'ya').trim().toLowerCase());
+
+      return {
+        id: prev ? prev.id : ('PRD-C-' + (idx + 1)),
+        sku: sku,
+        name: name,
+        category: category,
+        brand: brand,
+        price: isNaN(price) ? 0 : price,
+        cost: isNaN(cost) ? 0 : cost,
+        stock: isNaN(stock) ? 0 : stock,
+        isFavorite: isFavBool,
+        active: isActiveBool,
+        includeCommissionShare: isCommBool,
+        includeSalaryShare: isSalBool
+      };
     }
 
     function applyCloudPullData(cloud) {
@@ -1415,40 +1511,41 @@
 
       if (Array.isArray(cloud.products) && cloud.products.length > 0) {
         const existingMap = new Map(db.products.map(p => [p.sku, p]));
-        const nextProds = cloud.products.map((cp, idx) => {
-          const prev = existingMap.get(cp.sku);
-          return {
-            id: prev ? prev.id : ('PRD-C-' + (idx + 1)),
-            sku: String(cp.sku || ('SKU-' + (idx + 1))),
-            name: String(cp.name || 'Menu'),
-            category: String(cp.category || 'Kopi Jiwara'),
-            brand: String(cp.brand || 'Kopi Jiwara'),
-            price: Number(cp.price) || 0,
-            cost: Number(cp.cost) || 0,
-            stock: Number(cp.stock) || 0,
-            isFavorite: cp.isFavorite === true || String(cp.isFavorite).toLowerCase() === 'ya',
-            active: cp.active !== false && String(cp.active).toLowerCase() !== 'nonaktif',
-            includeCommissionShare: cp.includeCommissionShare !== false && String(cp.includeCommissionShare).toLowerCase() !== 'tidak',
-            includeSalaryShare: cp.includeSalaryShare !== false && String(cp.includeSalaryShare).toLowerCase() !== 'tidak'
-          };
-        });
+        const nextProds = cloud.products.map((cp, idx) => normalizePulledProductRow(cp, idx, existingMap));
+        if (nextProds.filter(p => p.active).length === 0) {
+          nextProds.forEach(p => { p.active = true; });
+        }
         if (JSON.stringify(nextProds) !== JSON.stringify(db.products)) {
           db.products = nextProds;
           changed = true;
         }
       }
 
+      const productDerivedCats = db.products.map(p => p.category).filter(Boolean);
       if (Array.isArray(cloud.categories) && cloud.categories.length > 0) {
-        const mergedCats = normalizeUniqueCategories(cloud.categories);
+        const mergedCats = normalizeUniqueCategories([...cloud.categories, ...productDerivedCats]);
+        if (JSON.stringify(mergedCats) !== JSON.stringify(db.categories)) {
+          db.categories = mergedCats;
+          changed = true;
+        }
+      } else if (productDerivedCats.length > 0) {
+        const mergedCats = normalizeUniqueCategories([...db.categories, ...productDerivedCats]);
         if (JSON.stringify(mergedCats) !== JSON.stringify(db.categories)) {
           db.categories = mergedCats;
           changed = true;
         }
       }
 
+      const productDerivedBrands = db.products.map(p => p.brand).filter(b => b && b !== '-' && isNaN(Number(b)));
       if (Array.isArray(cloud.brands) && cloud.brands.length > 0) {
-        const cleanBrands = cloud.brands.map(b => String(b || '').trim()).filter(Boolean);
+        const cleanBrands = Array.from(new Set([...cloud.brands, ...productDerivedBrands].map(b => String(b || '').trim()).filter(b => b && b !== '-' && isNaN(Number(b)))));
         if (cleanBrands.length > 0 && JSON.stringify(cleanBrands) !== JSON.stringify(db.brands)) {
+          db.brands = cleanBrands;
+          changed = true;
+        }
+      } else if (productDerivedBrands.length > 0) {
+        const cleanBrands = Array.from(new Set([...getActiveBrands(), ...productDerivedBrands]));
+        if (JSON.stringify(cleanBrands) !== JSON.stringify(db.brands)) {
           db.brands = cleanBrands;
           changed = true;
         }
@@ -2030,11 +2127,17 @@
         return;
       }
 
-      const uniqueCategories = normalizeUniqueCategories(db.categories);
+      const activeProds = db.products.filter(p => p.active !== false);
+      const uniqueCategories = normalizeUniqueCategories([
+        ...db.categories,
+        ...activeProds.map(p => p.category).filter(Boolean)
+      ]);
       if (!uniqueCategories.includes(posCategory)) posCategory = 'Favorit';
+      if (posCategory === 'Favorit' && !activeProds.some(p => p.isFavorite) && uniqueCategories.length > 1) {
+        posCategory = uniqueCategories[1];
+      }
 
-      const filteredProds = db.products.filter(p => {
-        if (!p.active) return false;
+      const filteredProds = activeProds.filter(p => {
         const matchSearch = !posSearch || p.name.toLowerCase().includes(posSearch.toLowerCase()) || p.sku.toLowerCase().includes(posSearch.toLowerCase());
         if (!matchSearch) return false;
         if (posCategory === 'Favorit') return p.isFavorite;
@@ -2214,7 +2317,7 @@
       const grid = document.getElementById('posProductGrid');
       if (!grid) return;
       const filteredProds = db.products.filter(p => {
-        if (!p.active) return false;
+        if (p.active === false) return false;
         const matchSearch = !posSearch || p.name.toLowerCase().includes(posSearch.toLowerCase()) || p.sku.toLowerCase().includes(posSearch.toLowerCase());
         if (!matchSearch) return false;
         if (posCategory === 'Favorit') return p.isFavorite;
@@ -4519,7 +4622,7 @@
               </span>
             </div>
             <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
-              Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP (<strong>v2.9</strong>).
+              Semua perubahan di HP, Tablet, dan Laptop otomatis sinkron dua arah melalui Google Spreadsheets Master POS & ERP (<strong>v3.0</strong>).
             </p>
 
             <div style="margin-bottom:10px;">
@@ -4552,7 +4655,7 @@
               <button type="button" class="btn btn-soft" onclick="pushAllLocalTransactionsToCloud()">Upload Transaksi Lokal ke Sheets</button>
               <button type="button" class="btn btn-soft" onclick="pushAllMasterToCloud()">Upload Semua Master</button>
               <button type="button" class="btn btn-soft" onclick="flushOfflineQueue()">Kirim Antrean (${db.offlineQueue.length})</button>
-              <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.9</button>
+              <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v3.0</button>
             </div>
           </div>
 
@@ -4698,9 +4801,9 @@
       `);
     }
 
-    // ==================== GOOGLE APPS SCRIPT v2.9 (COMPLETE 2-WAY REALTIME SYNC) ====================
+    // ==================== GOOGLE APPS SCRIPT v3.0 (HEADER-AWARE MASTER_MENU & 2-WAY REALTIME SYNC) ====================
     function openAppsScriptGuideModal() {
-      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v2.9 — COMPLETE 2-WAY REALTIME SYNC) ====================
+      const scriptCode = `// ==================== KOPI JIWARA MASTER POS & ERP (v3.0 — HEADER-AWARE 2-WAY REALTIME SYNC) ====================
 function setupMasterJiwaraSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var specs = {
@@ -4713,7 +4816,7 @@ function setupMasterJiwaraSheets() {
     'SETTLEMENT_BRAND': ['ID_Settlement', 'Tanggal_Transfer', 'Periode', 'Brand', 'Omzet_Kotor', 'Persen_Komisi', 'Potongan_Komisi', 'Porsi_Beban_Gaji', 'Net_Transfer', 'PIC'],
     'CLOSING_SHIFT': ['ID_Closing', 'Tanggal', 'Jam', 'Kasir', 'Modal_Awal', 'Sales_Cash', 'Sales_QRIS', 'Sales_Transfer', 'Sales_Online', 'Total_Omzet', 'Ekspektasi_Laci', 'Uang_Fisik', 'Selisih'],
     'AUDIT_OTORISASI': ['ID_Audit', 'Tanggal', 'Jam', 'No_Order_Nota', 'Tindakan_Item', 'Kasir', 'Otorisasi_Oleh', 'Alasan'],
-    'MASTER_MENU': ['SKU', 'Nama_Menu', 'Kategori', 'Brand', 'Harga_Jual', 'HPP_Modal', 'Stok', 'Favorit', 'Status', 'Kena_Komisi', 'Hitung_Porsi_Gaji'],
+    'MASTER_MENU': ['Update_Time', 'SKU', 'Nama_Menu', 'Kategori', 'Brand', 'Harga_Jual', 'HPP_Modal', 'Stok', 'Favorit', 'Status', 'Kena_Komisi', 'Hitung_Porsi_Gaji'],
     'MASTER_KATEGORI': ['Urutan', 'Nama_Kategori'],
     'GUDANG_STOK': ['Kode_Bahan', 'Nama_Bahan', 'Kategori', 'Stok_Saat_Ini', 'Stok_Minimum', 'Satuan', 'Opname_Terakhir'],
     'LOG_STOK_GUDANG': ['ID_Log', 'Tanggal', 'Jam', 'Nama_Bahan', 'Jenis_Mutasi', 'Jumlah', 'Stok_Akhir', 'PIC'],
@@ -4742,6 +4845,17 @@ function getHeaderMap(sh) {
   return map;
 }
 
+function buildRowByHeaders(sh, valueMap) {
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var row = [];
+  for (var i = 0; i < headers.length; i++) {
+    var key = String(headers[i] || '').trim().toLowerCase();
+    row.push(valueMap[key] !== undefined ? valueMap[key] : '');
+  }
+  return row;
+}
+
 function doGet(e) {
   setupMasterJiwaraSheets();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -4757,14 +4871,39 @@ function doGet(e) {
   }
 
   var prodData = readRows('MASTER_MENU');
-  var products = prodData.rows.map(function(r) {
+  var mH = prodData.h;
+  var hasUpdateMenu = mH['update_time'] !== undefined;
+  var idxSku = mH['sku'] !== undefined ? mH['sku'] : (hasUpdateMenu ? 1 : 0);
+  var idxName = mH['nama_menu'] !== undefined ? mH['nama_menu'] : (hasUpdateMenu ? 2 : 1);
+  var idxCat = mH['kategori'] !== undefined ? mH['kategori'] : (hasUpdateMenu ? 3 : 2);
+  var idxBrand = mH['brand'] !== undefined ? mH['brand'] : (hasUpdateMenu ? 4 : 3);
+  var idxPrice = mH['harga_jual'] !== undefined ? mH['harga_jual'] : (hasUpdateMenu ? 5 : 4);
+  var idxCost = mH['hpp_modal'] !== undefined ? mH['hpp_modal'] : (hasUpdateMenu ? 6 : 5);
+  var idxStock = mH['stok'] !== undefined ? mH['stok'] : (hasUpdateMenu ? 7 : 6);
+  var idxFav = mH['favorit'] !== undefined ? mH['favorit'] : (hasUpdateMenu ? 8 : 7);
+  var idxStatus = mH['status'] !== undefined ? mH['status'] : (hasUpdateMenu ? 9 : 8);
+  var idxComm = mH['kena_komisi'] !== undefined ? mH['kena_komisi'] : (hasUpdateMenu ? 10 : 9);
+  var idxSal = mH['hitung_porsi_gaji'] !== undefined ? mH['hitung_porsi_gaji'] : (hasUpdateMenu ? 11 : 10);
+
+  var products = prodData.rows.filter(function(r) {
+    return String(r[idxName] || '').trim() !== '';
+  }).map(function(r, idx) {
+    var favVal = String(r[idxFav] || '').trim().toLowerCase();
+    var statVal = String(r[idxStatus] || 'Aktif').trim().toLowerCase();
+    var commVal = idxComm < r.length ? String(r[idxComm] || 'Ya').trim().toLowerCase() : 'ya';
+    var salVal = idxSal < r.length ? String(r[idxSal] || 'Ya').trim().toLowerCase() : 'ya';
     return {
-      sku: r[0], name: r[1], category: r[2], brand: r[3],
-      price: Number(r[4]) || 0, cost: Number(r[5]) || 0, stock: Number(r[6]) || 0,
-      isFavorite: String(r[7]).toLowerCase() === 'ya',
-      active: String(r[8]).toLowerCase() !== 'nonaktif',
-      includeCommissionShare: String(r[9]).toLowerCase() !== 'tidak',
-      includeSalaryShare: String(r[10]).toLowerCase() !== 'tidak'
+      sku: String(r[idxSku] || ('SKU-' + (idx + 1))).trim(),
+      name: String(r[idxName] || 'Menu').trim(),
+      category: String(r[idxCat] || 'Kopi Jiwara').trim(),
+      brand: String(r[idxBrand] || 'Kopi Jiwara').trim(),
+      price: Number(r[idxPrice]) || 0,
+      cost: Number(r[idxCost]) || 0,
+      stock: Number(r[idxStock]) || 0,
+      isFavorite: favVal === 'ya' || favVal === 'true',
+      active: statVal !== 'nonaktif' && statVal !== 'tidak',
+      includeCommissionShare: commVal !== 'tidak' && commVal !== 'nonaktif',
+      includeSalaryShare: salVal !== 'tidak' && salVal !== 'nonaktif'
     };
   });
 
@@ -4995,17 +5134,6 @@ function doGet(e) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-function buildRowByHeaders(sh, valueMap) {
-  var lastCol = sh.getLastColumn();
-  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var row = [];
-  for (var i = 0; i < headers.length; i++) {
-    var key = String(headers[i] || '').trim().toLowerCase();
-    row.push(valueMap[key] !== undefined ? valueMap[key] : '');
-  }
-  return row;
-}
-
 function doPost(e) {
   setupMasterJiwaraSheets();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -5151,12 +5279,26 @@ function doPost(e) {
     if (d.brandConfig) metaProps.setProperty('BRAND_CONFIG_JSON', JSON.stringify(d.brandConfig));
     if (d.products) {
       var shM = getOrCreate('MASTER_MENU');
-      if (shM.getLastRow() > 1) shM.getRange(2, 1, shM.getLastRow() - 1, 11).clearContent();
+      var mColCount = Math.max(12, shM.getLastColumn());
+      if (shM.getLastRow() > 1) shM.getRange(2, 1, shM.getLastRow() - 1, mColCount).clearContent();
       if (d.products.length > 0) {
         var rowsM = d.products.map(function(p) {
-          return [p.sku, p.name, p.category, p.brand, p.price, p.cost, p.stock, p.isFavorite ? 'Ya' : 'Tidak', p.active ? 'Aktif' : 'Nonaktif', p.includeCommissionShare === false ? 'Tidak' : 'Ya', p.includeSalaryShare === false ? 'Tidak' : 'Ya'];
+          return buildRowByHeaders(shM, {
+            'update_time': nowIso,
+            'sku': p.sku,
+            'nama_menu': p.name,
+            'kategori': p.category,
+            'brand': p.brand,
+            'harga_jual': p.price,
+            'hpp_modal': p.cost,
+            'stok': p.stock,
+            'favorit': p.isFavorite ? 'Ya' : 'Tidak',
+            'status': p.active !== false ? 'Aktif' : 'Nonaktif',
+            'kena_komisi': p.includeCommissionShare === false ? 'Tidak' : 'Ya',
+            'hitung_porsi_gaji': p.includeSalaryShare === false ? 'Tidak' : 'Ya'
+          });
         });
-        shM.getRange(2, 1, rowsM.length, 11).setValues(rowsM);
+        shM.getRange(2, 1, rowsM.length, rowsM[0].length).setValues(rowsM);
       }
     }
     if (d.categories) {
@@ -5243,16 +5385,16 @@ function doPost(e) {
 
       openModal(`
         <div class="modal-head">
-          <h3 style="margin:0;font-size:16px;">Skrip Database Master v2.9 (Complete 2-Way Realtime Sync)</h3>
+          <h3 style="margin:0;font-size:16px;">Skrip Database Master v3.0 (Header-Aware 2-Way Sync)</h3>
           <button class="close-circle" onclick="closeModal()">x</button>
         </div>
         <ol style="font-size:12px;color:var(--text-muted);padding-left:18px;margin-top:0;line-height:1.5;">
           <li>Buka file Google Spreadsheets <strong>Master POS & ERP - KOPI JIWARA v2</strong> -> klik <strong>Extensions -> Apps Script</strong>.</li>
-          <li>Hapus skrip lama, tempel skrip <strong>v2.9</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
+          <li>Hapus skrip lama, tempel skrip <strong>v3.0</strong> di bawah ini, lalu klik ikon <strong>Save</strong>.</li>
           <li>Klik <strong>Deploy -> Manage deployments -> Edit (ikon pensil) -> Version: New version -> Deploy</strong> (akses <em>Anyone</em>).</li>
         </ol>
         <textarea id="gasCodeBox" readonly style="width:100%;height:190px;font-family:monospace;font-size:11px;padding:10px;border-radius:12px;border:1px solid var(--border-glass);background:#F8FAFC;">${esc(scriptCode)}</textarea>
-        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v2.9 berhasil disalin!')">Salin Skrip v2.9</button>
+        <button type="button" class="btn btn-dark" style="width:100%;margin-top:10px;" onclick="navigator.clipboard.writeText(document.getElementById('gasCodeBox').value);showToast('Skrip Google Sheets v3.0 berhasil disalin!')">Salin Skrip v3.0</button>
       `);
     }
 
@@ -5289,7 +5431,10 @@ function doPost(e) {
       if (prodPage > totalProdPages) prodPage = totalProdPages;
       const pageProds = filteredProds.slice((prodPage - 1) * prodPerPage, prodPage * prodPerPage);
 
-      const allCats = normalizeUniqueCategories(db.categories);
+      const allCats = normalizeUniqueCategories([
+        ...db.categories,
+        ...db.products.map(p => p.category).filter(Boolean)
+      ]);
       const filteredCats = allCats.filter(c => !catSearch || c.toLowerCase().includes(catSearch.toLowerCase()));
       const totalCatPages = Math.max(1, Math.ceil(filteredCats.length / catPerPage));
       if (catPage > totalCatPages) catPage = totalCatPages;
@@ -5343,8 +5488,8 @@ function doPost(e) {
                 ${pageCats.map(cat => {
                   const realIdx = allCats.indexOf(cat);
                   const count = cat === 'Favorit'
-                    ? db.products.filter(p => p.active && p.isFavorite).length
-                    : db.products.filter(p => p.active && p.category === cat).length;
+                    ? db.products.filter(p => p.active !== false && p.isFavorite).length
+                    : db.products.filter(p => p.active !== false && p.category === cat).length;
                   return `
                     <tr>
                       <td>
@@ -5528,7 +5673,7 @@ function doPost(e) {
     }
 
     function openAddProductModal() {
-      const cats = normalizeUniqueCategories(db.categories).filter(c => c !== 'Favorit');
+      const cats = normalizeUniqueCategories([...db.categories, ...db.products.map(p => p.category).filter(Boolean)]).filter(c => c !== 'Favorit');
       const brands = getActiveBrands();
       openModal(`
         <div class="modal-head"><h3 style="margin:0;font-size:16px;">Tambah Produk Menu Baru</h3><button class="close-circle" onclick="closeModal()">x</button></div>
@@ -5597,7 +5742,7 @@ function doPost(e) {
     function openEditProductModal(prodId) {
       const p = db.products.find(x => x.id === prodId);
       if (!p) return;
-      const cats = normalizeUniqueCategories(db.categories).filter(c => c !== 'Favorit');
+      const cats = normalizeUniqueCategories([...db.categories, ...db.products.map(x => x.category).filter(Boolean)]).filter(c => c !== 'Favorit');
       const brands = getActiveBrands();
       openModal(`
         <div class="modal-head"><h3 style="margin:0;font-size:16px;">Edit Produk: ${esc(p.name)}</h3><button class="close-circle" onclick="closeModal()">x</button></div>
