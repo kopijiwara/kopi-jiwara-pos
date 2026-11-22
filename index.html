@@ -4411,7 +4411,10 @@
                       <td>
                         ${cat === 'Favorit'
                           ? `<span style="color:var(--text-muted);font-size:11px;">Bawaan</span>`
-                          : `<button type="button" class="btn btn-danger btn-sm" onclick="removeCategory('${esc(cat)}')">Hapus</button>`
+                          : `<div style="display:flex;gap:4px;">
+                              <button type="button" class="btn btn-soft btn-sm" onclick="openEditCategoryModal('${esc(cat)}')">Edit</button>
+                              <button type="button" class="btn btn-danger btn-sm" onclick="removeCategory('${esc(cat)}')">Hapus</button>
+                            </div>`
                         }
                       </td>
                     </tr>
@@ -4518,6 +4521,45 @@
       closeModal();
       renderWorkspace();
       showToast('Kategori ditambahkan!');
+    }
+
+    function openEditCategoryModal(catName) {
+      if (catName === 'Favorit') return;
+      openModal(`
+        <div class="modal-head"><h3 style="margin:0;font-size:16px;">Edit Nama Kategori</h3><button type="button" class="close-circle" onclick="closeModal()">x</button></div>
+        <div style="margin-bottom:14px;">
+          <label class="field-label">Nama Kategori Baru</label>
+          <input id="catEditInp" type="text" class="styled-input" value="${esc(catName)}" />
+        </div>
+        <button type="button" class="btn btn-dark" style="width:100%;" onclick="confirmEditCat('${esc(catName)}')">Simpan Perubahan</button>
+      `);
+    }
+
+    function confirmEditCat(oldName) {
+      const newName = document.getElementById('catEditInp').value.trim();
+      if (!newName) return showToast('Nama kategori wajib diisi!', true);
+      if (newName.toLowerCase() === 'favorit') return showToast('Nama "Favorit" sudah dipakai sebagai kategori bawaan.', true);
+      if (newName === oldName) {
+        closeModal();
+        return;
+      }
+      if (db.categories.some(c => c.toLowerCase() === newName.toLowerCase() && c.toLowerCase() !== oldName.toLowerCase())) {
+        return showToast(`Kategori "${newName}" sudah ada!`, true);
+      }
+
+      db.categories = normalizeUniqueCategories(
+        db.categories.map(c => (c === oldName ? newName : c))
+      );
+      db.products.forEach(p => {
+        if (p.category === oldName) p.category = newName;
+      });
+      if (posCategory === oldName) posCategory = newName;
+
+      saveDB();
+      autoSyncMasterSlices(['categories', 'products']);
+      closeModal();
+      renderWorkspace();
+      showToast(`Kategori diubah menjadi "${newName}"!`);
     }
 
     function removeCategory(catName) {
