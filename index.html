@@ -1093,6 +1093,22 @@
       } catch (e) {}
     }
 
+    // ==================== AUTO-CONNECT CLOUD URL VIA LINK PARAMETER ====================
+    (function applyAutoConnectUrlFromLink() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const syncParam = params.get('sync');
+        if (syncParam && syncParam.startsWith('https://script.google.com/')) {
+          if (db.settings.webhookUrl !== syncParam) {
+            db.settings.webhookUrl = syncParam.trim();
+            saveDB();
+          }
+          const cleanUrl = window.location.href.split('?')[0];
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      } catch (e) {}
+    })();
+
     function resetAllTransactionsToZero() {
       openModal(`
         <div class="modal-head">
@@ -1315,7 +1331,9 @@
       const lbl = document.getElementById('headerCloudSyncLabel');
       if (!btn || !lbl) return;
       if (!db.settings.webhookUrl) {
-        btn.classList.add('hidden');
+        btn.classList.remove('hidden');
+        btn.classList.add('syncing');
+        lbl.textContent = 'Offline (Belum Sync)';
         return;
       }
       btn.classList.remove('hidden');
@@ -1641,7 +1659,17 @@
     async function pullFromCloudMaster(manualTrigger = false) {
       const url = (db.settings.webhookUrl || '').trim();
       if (!url) {
-        if (manualTrigger) showToast('Isi URL Webhook Google Apps Script terlebih dahulu.', true);
+        if (manualTrigger) {
+          if (currentUser && (currentUser.role === 'Owner' || currentUser.role === 'Manager')) {
+            workspaceMode = 'OWNER';
+            activeTab = 'pengaturan';
+            settingsSubTab = 'SYNC';
+            renderWorkspace();
+            showToast('Perangkat ini belum terhubung ke Cloud. Silakan tempel URL Webhook Google Sheets.', true);
+          } else {
+            showToast('Perangkat kasir ini belum terhubung ke Google Sheets! Minta Owner membuka Link Auto-Sync di tablet ini.', true);
+          }
+        }
         return;
       }
       if (!navigator.onLine) {
@@ -2216,7 +2244,7 @@
       if (db.settings.webhookUrl) {
         updateLiveSyncIndicator('Live Sync', false);
       } else {
-        document.getElementById('headerCloudSyncBtn')?.classList.add('hidden');
+        updateLiveSyncIndicator('Offline (Belum Sync)', true);
       }
 
       const isMgmt = currentUser.role === 'Owner' || currentUser.role === 'Manager';
@@ -2357,6 +2385,16 @@
         : (selectedPromoCode === 'ONLINE_DISC' ? 'ONLINE_DISC' : selectedPromoCode);
 
       container.innerHTML = `
+        ${!db.settings.webhookUrl ? `
+          <div class="bento-card" style="background:#FEE2E2;border:1.5px solid #DC2626;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:900;font-size:13px;color:#991B1B;">Perangkat Ini Belum Terhubung ke Google Spreadsheets!</div>
+              <div style="font-size:11px;color:#7F1D1D;">Transaksi di perangkat ini tidak akan masuk ke database Master sebelum URL Sync terpasang.</div>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm" onclick="openQuickDeviceSyncModal()">Hubungkan Sekarang</button>
+          </div>
+        ` : ''}
+
         ${!db.shift.isOpen ? `
           <div class="bento-card" style="background:linear-gradient(135deg,#FEFCE8,#FCE7F3);border:1.5px solid var(--pink);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div>
@@ -5118,10 +5156,22 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                 <button type="button" class="btn btn-dark" onclick="saveWebhookConfig()">Simpan URL Sync</button>
                 <button type="button" class="btn btn-yellow" onclick="pullFromCloudMaster(true)">Tarik Data Cloud</button>
+                <button type="button" class="btn btn-soft" onclick="pushAllLocalTransactionsToCloud()">Upload Transaksi Lokal ke Sheets</button>
                 <button type="button" class="btn btn-soft" onclick="pushAllMasterToCloud()">Upload Semua Master</button>
                 <button type="button" class="btn btn-soft" onclick="flushOfflineQueue()">Kirim Antrean (${db.offlineQueue.length})</button>
                 <button type="button" class="btn btn-pink" onclick="openAppsScriptGuideModal()">Skrip Google Sheets v2.6</button>
               </div>
+
+              ${db.settings.webhookUrl ? `
+                <div style="background:var(--green-soft);border:1.5px solid var(--green-deep);border-radius:14px;padding:11px 12px;margin-bottom:12px;">
+                  <div style="font-size:12px;font-weight:900;color:var(--green-deep);margin-bottom:4px;">Link Auto-Sync untuk Tablet Kasir / HP Staf</div>
+                  <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Salin & kirim link ini ke WhatsApp Tablet Kasir. Saat dibuka di tablet, aplikasi otomatis terhubung ke Google Sheets tanpa ketik manual:</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="btn btn-dark btn-sm" onclick="copyAutoConnectDeviceLink()">Salin Link Auto-Sync Tablet</button>
+                    <button type="button" class="btn btn-yellow btn-sm" onclick="shareAutoConnectLinkViaWA()">Kirim Link ke WA Tablet</button>
+                  </div>
+                </div>
+              ` : ''}
 
               <div style="border-top:1px dashed var(--border-glass);padding-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span style="font-size:11px;color:var(--text-muted);">Bersihkan seluruh data transaksi uji coba sebelum operasional:</span>
@@ -5142,6 +5192,71 @@
       autoSyncMasterSlices(['OUTLET_PROFILE', 'MENU', 'CATEGORIES_BRANDS', 'INVENTORY', 'STAFF', 'PROMOS', 'CUSTOMERS', 'OPEN_ORDERS']);
       flushOfflineQueue(true);
       showToast('Seluruh data Master & Profil Outlet sedang diunggah ke Google Sheets!');
+    }
+
+    function openQuickDeviceSyncModal() {
+      openModal(`
+        <div class="modal-head">
+          <h3 style="margin:0;font-size:17px;">Hubungkan Perangkat ke Google Sheets</h3>
+          <button class="close-circle" onclick="closeModal()">x</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:0;">
+          Tempel <strong>URL Web App Google Apps Script</strong> Anda di bawah ini agar seluruh transaksi di perangkat ini langsung masuk ke Master Spreadsheets.
+        </p>
+        <div style="margin-bottom:12px;">
+          <label class="field-label">URL Web App Google Apps Script</label>
+          <input id="quickSyncUrlInp" type="url" class="styled-input" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(db.settings.webhookUrl || '')}" />
+        </div>
+        <button type="button" class="btn btn-dark" style="width:100%;padding:12px;" onclick="saveQuickDeviceSync()">Simpan & Upload Transaksi Lokal Sekarang</button>
+      `);
+    }
+
+    function saveQuickDeviceSync() {
+      const url = (document.getElementById('quickSyncUrlInp')?.value || '').trim();
+      if (!url || !url.startsWith('https://script.google.com/')) {
+        showToast('Masukkan URL Web App Google Apps Script yang valid!', true);
+        return;
+      }
+      db.settings.webhookUrl = url;
+      saveDB();
+      closeModal();
+      renderWorkspace();
+      startCloudAutoPullLoop();
+      pushAllLocalTransactionsToCloud();
+      pullFromCloudMaster(false);
+    }
+
+    function pushAllLocalTransactionsToCloud() {
+      const url = (db.settings.webhookUrl || '').trim();
+      if (!url) {
+        showToast('URL Google Apps Script belum diisi.', true);
+        return;
+      }
+      const paidList = db.transactions.filter(t => t.status === 'PAID');
+      paidList.forEach(trx => {
+        syncMasterEvent('POS_TRANSACTION_PAID', trx);
+      });
+      autoSyncMasterSlices(['OPEN_ORDERS']);
+      flushOfflineQueue(true);
+      showToast(`${paidList.length} transaksi lokal dikirim ke Google Sheets!`);
+    }
+
+    function getAutoConnectDeviceLink() {
+      const baseUrl = window.location.href.split('?')[0].split('#')[0];
+      const url = (db.settings.webhookUrl || '').trim();
+      return `${baseUrl}?sync=${encodeURIComponent(url)}`;
+    }
+
+    function copyAutoConnectDeviceLink() {
+      const link = getAutoConnectDeviceLink();
+      navigator.clipboard.writeText(link);
+      showToast('Link Auto-Sync Tablet disalin! Buka link ini di browser Tablet Kasir.');
+    }
+
+    function shareAutoConnectLinkViaWA() {
+      const link = getAutoConnectDeviceLink();
+      const msg = `Klik link berikut di browser Tablet Kasir Kopi Jiwara untuk menghubungkan database otomatis:\n\n${link}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
     }
 
     function testThermalPrintSample() {
