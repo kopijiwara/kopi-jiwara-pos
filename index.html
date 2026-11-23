@@ -1758,22 +1758,34 @@ function applyCloudPullData(cloud) {
   }
 
   if (Array.isArray(cloud.cashflow) && cloud.cashflow.length > 0) {
-    const localCfIds = new Set(db.cashflow.map(c => c.id));
-    cloud.cashflow.forEach(ccf => {
-      const cfId = String(ccf.id || '');
-      if (cfId && !localCfIds.has(cfId)) {
-        db.cashflow.unshift({
+    const localCfMap = new Map(db.cashflow.map(c => [c.id, c]));
+    cloud.cashflow.forEach((ccf, idx) => {
+      const cleanDate = normalizeCloudDate(ccf.date || todayISO());
+      const cleanTime = normalizeCloudTime(ccf.time || '00:00');
+      const amt = Number(ccf.amount) || 0;
+      const cfType = String(ccf.type || 'OUT') === 'IN' ? 'IN' : 'OUT';
+      const noteStr = String(ccf.note || '').trim();
+      const catStr = String(ccf.category || 'Operasional').trim();
+      const cfId = String(ccf.id || '').trim() || `CF-HIST-${cleanDate}-${idx}-${cfType}-${amt}`;
+      if (!localCfMap.has(cfId)) {
+        const entry = {
           id: cfId,
-          date: normalizeCloudDate(ccf.date || todayISO()),
-          time: normalizeCloudTime(ccf.time || '00:00'),
-          type: String(ccf.type || 'OUT') === 'IN' ? 'IN' : 'OUT',
-          category: String(ccf.category || 'Operasional'),
-          amount: Number(ccf.amount) || 0,
-          note: String(ccf.note || ''),
+          date: cleanDate,
+          time: cleanTime,
+          type: cfType,
+          category: catStr,
+          amount: amt,
+          note: noteStr,
           pic: String(ccf.pic || 'System')
-        });
+        };
+        localCfMap.set(cfId, entry);
         changed = true;
       }
+    });
+    db.cashflow = Array.from(localCfMap.values()).sort((a, b) => {
+      const da = `${a.date} ${a.time}`;
+      const dbStr = `${b.date} ${b.time}`;
+      return dbStr.localeCompare(da);
     });
   }
 
@@ -3484,8 +3496,32 @@ function renderDrawerTab(area) {
   const todayCf = db.cashflow.filter(c => normalizeCloudDate(c.date) === todayISO());
   const kasMasuk = todayCf.filter(c => c.type === 'IN').reduce((s, c) => s + c.amount, 0);
   const kasKeluar = todayCf.filter(c => c.type === 'OUT').reduce((s, c) => s + c.amount, 0);
+  const drawer = getDrawerLiveCashState();
 
   area.innerHTML = `
+    <div class="bento-grid-4" style="margin-bottom:14px;">
+      <div class="kpi-tile dark">
+        <div class="kpi-label">Total Cash Kasir (Saldo Laci)</div>
+        <div class="kpi-value">${formatRp(drawer.actualDrawerCash)}</div>
+        <div class="kpi-sub">${drawer.isShiftOpen ? 'Shift Aktif • ' + esc(db.shift.openedBy) : 'Shift Tutup'}</div>
+      </div>
+      <div class="kpi-tile">
+        <div class="kpi-label">Modal Awal Shift</div>
+        <div class="kpi-value">${formatRp(drawer.openingCash)}</div>
+        <div class="kpi-sub">Saldo pembuka laci</div>
+      </div>
+      <div class="kpi-tile yellow">
+        <div class="kpi-label">Penjualan Tunai (Sales Cash)</div>
+        <div class="kpi-value">+${formatRp(drawer.cashSales)}</div>
+        <div class="kpi-sub">Transaksi cash shift ini</div>
+      </div>
+      <div class="kpi-tile pink">
+        <div class="kpi-label">Mutasi Kas Laci (Masuk / Keluar)</div>
+        <div class="kpi-value">${formatRp(drawer.drawerIn - drawer.drawerOut)}</div>
+        <div class="kpi-sub">+${formatRp(drawer.drawerIn)} • -${formatRp(drawer.drawerOut)}</div>
+      </div>
+    </div>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;">
       <div class="bento-card">
         <h3 style="margin:0 0 12px;font-size:16px;">Catat Mutasi Kas Laci</h3>
@@ -3757,6 +3793,7 @@ function renderReportsTab(area) {
               <option value="THIS_MONTH" ${reportPeriod === 'THIS_MONTH' ? 'selected' : ''}>Bulan Ini</option>
               <option value="LAST_MONTH" ${reportPeriod === 'LAST_MONTH' ? 'selected' : ''}>Bulan Lalu</option>
               <option value="CUSTOM" ${reportPeriod === 'CUSTOM' ? 'selected' : ''}>Custom Date</option>
+              <option value="ALL" ${reportPeriod === 'ALL' ? 'selected' : ''}>Semua Waktu</option>
             </select>
             ${reportPeriod === 'CUSTOM' ? `
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -4542,30 +4579,55 @@ function getDrawerLiveCashState() {
   };
 }
 
+function getCumulativeCashbookBalance() {
+  const allCf = Array.isArray(db.cashflow) ? db.cashflow : [];
+  const totalInAll = allCf.filter(c => c.type === 'IN').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const totalOutAll = allCf.filter(c => c.type === 'OUT').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const runningBalance = totalInAll - totalOutAll;
+
+  const cfPosRefIds = new Set(allCf.map(c => c.posRefId).filter(Boolean));
+  const unrecordedPosPaid = (db.transactions || [])
+    .filter(t => t.status === 'PAID' && !cfPosRefIds.has(t.id))
+    .reduce((s, t) => s + (Number(t.total) || 0), 0);
+
+  return {
+    totalInAll,
+    totalOutAll,
+    runningBalance,
+    unrecordedPosPaid,
+    latestSaldoAkhir: runningBalance + unrecordedPosPaid,
+    totalRecords: allCf.length
+  };
+}
+
 function renderCashflowSubtab(box) {
   const list = db.cashflow.filter(c => filterByPeriod(c.date, reportPeriod));
   const drawer = getDrawerLiveCashState();
+  const cum = getCumulativeCashbookBalance();
+  const periodIn = list.filter(c => c.type === 'IN').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const periodOut = list.filter(c => c.type === 'OUT').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
   box.innerHTML = `
     <div class="bento-grid-4" style="margin-bottom:14px;">
       <div class="kpi-tile dark">
-        <div class="kpi-label">${drawer.isShiftOpen ? 'Saldo Aktual Uang Cash di Kasir (Shift Aktif)' : 'Saldo Akhir Cash di Kasir (Setelah Tutup Shift)'}</div>
-        <div class="kpi-value">${formatRp(drawer.actualDrawerCash)}</div>
-        <div class="kpi-sub">${drawer.isShiftOpen ? 'Kasir: ' + esc(db.shift.openedBy) : (drawer.lastClosed ? 'Tutup Shift: ' + esc(drawer.lastClosed.cashier) + ' (' + normalizeCloudTime(drawer.lastClosed.time) + ')' : 'Shift tutup')}</div>
+        <div class="kpi-label">Saldo Terakhir Buku Kas (Keseluruhan)</div>
+        <div class="kpi-value">${formatRp(cum.latestSaldoAkhir)}</div>
+        <div class="kpi-sub">Buku Kas: ${formatRp(cum.runningBalance)} (${cum.totalRecords} entri)</div>
       </div>
       <div class="kpi-tile">
-        <div class="kpi-label">Modal Awal Shift Aktif</div>
-        <div class="kpi-value">${formatRp(drawer.openingCash)}</div>
-        <div class="kpi-sub">${drawer.isShiftOpen ? 'Terpisah dari shift sebelumnya' : 'Shift sedang tutup'}</div>
+        <div class="kpi-label">${drawer.isShiftOpen ? 'Saldo Cash di Laci Kasir (Shift Aktif)' : 'Saldo Cash Laci (Setelah Tutup Shift)'}</div>
+        <div class="kpi-value">${formatRp(drawer.actualDrawerCash)}</div>
+        <div class="kpi-sub">Modal: ${formatRp(drawer.openingCash)} • Sales Cash: ${formatRp(drawer.cashSales)}</div>
       </div>
       <div class="kpi-tile yellow">
-        <div class="kpi-label">Sales Cash Shift Aktif</div>
-        <div class="kpi-value">${formatRp(drawer.cashSales)}</div>
-        <div class="kpi-sub">Non-Tunai: ${formatRp(drawer.qrisSales + drawer.transferSales + drawer.onlineSales)}</div>
+        <div class="kpi-label">Pemasukan Kas (Periode Ini)</div>
+        <div class="kpi-value">+${formatRp(periodIn)}</div>
+        <div class="kpi-sub">Total Masuk Historis: ${formatRp(cum.totalInAll)}</div>
       </div>
       <div class="kpi-tile pink">
-        <div class="kpi-label">Mutasi Kas Shift Aktif</div>
-        <div class="kpi-value">+${formatRp(drawer.drawerIn)} / -${formatRp(drawer.drawerOut)}</div>
-        <div class="kpi-sub">Masuk / Keluar Laci</div>
+        <div class="kpi-label">Pengeluaran / Ops (Periode Ini)</div>
+        <div class="kpi-value">-${formatRp(periodOut)}</div>
+        <div class="kpi-sub">Total Keluar Historis: ${formatRp(cum.totalOutAll)}</div>
       </div>
     </div>
 
@@ -4581,7 +4643,7 @@ function renderCashflowSubtab(box) {
           </thead>
           <tbody>
             ${list.length === 0
-              ? `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Belum ada catatan arus kas pada periode ini.</td></tr>`
+              ? `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Belum ada catatan arus kas pada periode ini. (Saldo terakhir keseluruhan: <strong>${formatRp(cum.latestSaldoAkhir)}</strong>)</td></tr>`
               : list.map(c => `
                 <tr>
                   <td>${esc(normalizeCloudDate(c.date))} ${esc(normalizeCloudTime(c.time))}</td>
