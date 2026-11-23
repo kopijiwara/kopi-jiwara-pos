@@ -869,46 +869,12 @@ function downloadJiwaraBrandIcons() {
 
 (function setupOfflineServiceWorker() {
   try {
-    const startUrl = window.location.href.split('#')[0].split('?')[0];
     if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
-      const swCode = `
-        const CACHE_NAME = 'kopi-jiwara-offline-v21';
-        const APP_URL = ${JSON.stringify(startUrl)};
-        self.addEventListener('install', function(e) {
-          e.waitUntil(
-            caches.open(CACHE_NAME).then(function(cache) {
-              return cache.addAll([APP_URL, './']).catch(function() {});
-            })
-          );
-          self.skipWaiting();
-        });
-        self.addEventListener('activate', function(e) {
-          e.waitUntil(
-            caches.keys().then(function(keys) {
-              return Promise.all(keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) { return caches.delete(k); }));
-            }).then(function() { return self.clients.claim(); })
-          );
-        });
-        self.addEventListener('fetch', function(e) {
-          if (e.request.method !== 'GET') return;
-          if (e.request.url.includes('script.google.com')) return;
-          e.respondWith(
-            fetch(e.request).then(function(res) {
-              if (res && res.status === 200) {
-                const copy = res.clone();
-                caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, copy); });
-              }
-              return res;
-            }).catch(function() {
-              return caches.match(e.request).then(function(cached) {
-                return cached || caches.match(APP_URL) || caches.match('./');
-              });
-            })
-          );
-        });
-      `;
-      const swBlob = new Blob([swCode], { type: 'application/javascript' });
-      navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(function() {});
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').then(function(reg) {
+          if (reg && reg.update) reg.update().catch(function() {});
+        }).catch(function() {});
+      });
     }
   } catch (e) {}
 })();
@@ -1474,7 +1440,7 @@ async function pullFromCloudMaster(manualTrigger = false) {
       if (manualTrigger) showToast('Data MASTER_MENU & database berhasil disinkronkan!');
     } else {
       updateSyncBadgeUI('online', lastCloudSyncTime ? `Live • ${lastCloudSyncTime}` : 'Live Sync');
-      if (manualTrigger) showToast('Gunakan Skrip Google Sheets v3.2 agar 2-Way Sync aktif.', true);
+      if (manualTrigger) showToast('Gunakan Skrip Google Sheets v3.3 agar 2-Way Sync aktif.', true);
     }
   } catch (err) {
     updateSyncBadgeUI('offline', 'Gagal Sync');
@@ -3968,7 +3934,6 @@ function renderSettlementSubtab(box) {
     return cfg.active !== false;
   });
 
-  // Peta produk master berdasarkan SKU & Nama agar status Hitung_Porsi_Gaji & Kena_Komisi_Brand selalu akurat
   const prodBySku = new Map();
   const prodByName = new Map();
   (db.products || []).forEach(p => {
