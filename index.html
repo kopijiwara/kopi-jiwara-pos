@@ -4494,9 +4494,81 @@ function sendBrandSettlementWA(brand, periodLabel, qty, grossSales, commissionPc
   window.open(url, '_blank');
 }
 
+function getDrawerLiveCashState() {
+  const isShiftOpen = Boolean(db.shift && db.shift.isOpen);
+  const openingCash = isShiftOpen ? (Number(db.shift.openingCash) || 0) : 0;
+  const shiftStartRaw = isShiftOpen ? String(db.shift.openedAt || '').trim() : '';
+  const shiftStartDate = shiftStartRaw ? normalizeCloudDate(shiftStartRaw.split(' ')[0]) : todayISO();
+  const shiftStartTime = shiftStartRaw && shiftStartRaw.includes(' ') ? normalizeCloudTime(shiftStartRaw.split(' ')[1]) : '00:00';
+
+  const lastClosed = Array.isArray(db.closingHistory) && db.closingHistory.length > 0 ? db.closingHistory[0] : null;
+  const lastClosedDate = lastClosed ? normalizeCloudDate(lastClosed.date) : '';
+  const lastClosedTime = lastClosed ? normalizeCloudTime(lastClosed.time) : '';
+
+  const isAfterCutoff = (dRaw, tRaw) => {
+    const d = normalizeCloudDate(dRaw);
+    const t = normalizeCloudTime(tRaw) || '00:00';
+    if (isShiftOpen && shiftStartRaw) {
+      return `${d} ${t}` >= `${shiftStartDate} ${shiftStartTime}`;
+    }
+    if (lastClosed) {
+      return `${d} ${t}` > `${lastClosedDate} ${lastClosedTime}`;
+    }
+    return d === todayISO();
+  };
+
+  const shiftTrx = (db.transactions || []).filter(t => t.status === 'PAID' && isAfterCutoff(t.date, t.time));
+  const cashSales = shiftTrx.filter(t => t.paymentMethod === 'Cash').reduce((s, t) => s + (Number(t.total) || 0), 0);
+  const qrisSales = shiftTrx.filter(t => t.paymentMethod === 'QRIS').reduce((s, t) => s + (Number(t.total) || 0), 0);
+  const transferSales = shiftTrx.filter(t => t.paymentMethod === 'Transfer').reduce((s, t) => s + (Number(t.total) || 0), 0);
+  const onlineSales = shiftTrx.filter(t => t.paymentMethod === 'Online Food').reduce((s, t) => s + (Number(t.total) || 0), 0);
+
+  const shiftCf = (db.cashflow || []).filter(c => isAfterCutoff(c.date, c.time));
+  const drawerIn = shiftCf.filter(c => c.type === 'IN').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const drawerOut = shiftCf.filter(c => c.type === 'OUT').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+  const actualDrawerCash = openingCash + cashSales + drawerIn - drawerOut;
+  return {
+    isShiftOpen,
+    openingCash,
+    cashSales,
+    qrisSales,
+    transferSales,
+    onlineSales,
+    drawerIn,
+    drawerOut,
+    actualDrawerCash,
+    lastClosed
+  };
+}
+
 function renderCashflowSubtab(box) {
   const list = db.cashflow.filter(c => filterByPeriod(c.date, reportPeriod));
+  const drawer = getDrawerLiveCashState();
   box.innerHTML = `
+    <div class="bento-grid-4" style="margin-bottom:14px;">
+      <div class="kpi-tile dark">
+        <div class="kpi-label">${drawer.isShiftOpen ? 'Saldo Aktual Uang Cash di Kasir (Shift Aktif)' : 'Saldo Akhir Cash di Kasir (Setelah Tutup Shift)'}</div>
+        <div class="kpi-value">${formatRp(drawer.actualDrawerCash)}</div>
+        <div class="kpi-sub">${drawer.isShiftOpen ? 'Kasir: ' + esc(db.shift.openedBy) : (drawer.lastClosed ? 'Tutup Shift: ' + esc(drawer.lastClosed.cashier) + ' (' + normalizeCloudTime(drawer.lastClosed.time) + ')' : 'Shift tutup')}</div>
+      </div>
+      <div class="kpi-tile">
+        <div class="kpi-label">Modal Awal Shift Aktif</div>
+        <div class="kpi-value">${formatRp(drawer.openingCash)}</div>
+        <div class="kpi-sub">${drawer.isShiftOpen ? 'Terpisah dari shift sebelumnya' : 'Shift sedang tutup'}</div>
+      </div>
+      <div class="kpi-tile yellow">
+        <div class="kpi-label">Sales Cash Shift Aktif</div>
+        <div class="kpi-value">${formatRp(drawer.cashSales)}</div>
+        <div class="kpi-sub">Non-Tunai: ${formatRp(drawer.qrisSales + drawer.transferSales + drawer.onlineSales)}</div>
+      </div>
+      <div class="kpi-tile pink">
+        <div class="kpi-label">Mutasi Kas Shift Aktif</div>
+        <div class="kpi-value">+${formatRp(drawer.drawerIn)} / -${formatRp(drawer.drawerOut)}</div>
+        <div class="kpi-sub">Masuk / Keluar Laci</div>
+      </div>
+    </div>
+
     <div class="bento-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h3 style="margin:0;font-size:16px;">Buku Besar Arus Kas & Biaya Operasional</h3>
